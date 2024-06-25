@@ -1,0 +1,27 @@
+&project
+  project_name = "quad_3d"
+  /
+
+&inputoutput
+  generate_tec_file_b = .true.
+  /
+   
+&freestream   
+  M_inf = 0.1
+  /
+
+&solver
+  CFL = 10
+  solver_type = "implicit"
+  /
+
+&amg
+  use_amg = .true.
+  /
+
+
+
+&gradient
+  accuracy_order = 2
+  /
+
