@@ -3,7 +3,7 @@ module inout
     implicit none
 
     public
-    
+
     !--------------------------------------------------------------------
     !--------------------------------------------------------------------
     ! File names
@@ -79,4 +79,5 @@ module inout
         write(*,*)
     
     end subroutine set_filenames
+    
 end module inout

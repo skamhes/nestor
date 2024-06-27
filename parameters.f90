@@ -23,13 +23,13 @@ module common
     real(p2), parameter, dimension(5,5) :: canonical_array = reshape( (/1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0, 0,0,0,0,1/), &
                                                             (/5,5/))    
 
-    integer, parameter, dimension(3) :: version = (/0,0,1/) ! 0.0.1
+    integer, parameter, dimension(3) :: version = (/0,0,2/) ! 0.0.2
 end module common
 
 module config
     ! this module loads/sets all config paramaters using a series of namelists.
     
-    use common, only : p2
+    use common, only : p2, zero
 
     implicit none
 
@@ -81,6 +81,7 @@ module config
     real(p2), dimension(5) :: eig_limiting_factor    = (/ 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2 /)  !eigenvalue limiting factor
     real(p2), dimension(5) :: variable_ur            = (/ 1, 1, 1, 1, 1 /)  ! Variable under relaxation factors (only used in 
     logical                :: limit_update           = .false.
+    logical                :: perturb_initial        = .false.
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
@@ -88,7 +89,7 @@ module config
       solver_max_itr, solver_tolerance, &
       inviscid_flux, inviscid_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
-      variable_ur, limit_update
+      variable_ur, limit_update, perturb_initial
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)
@@ -103,13 +104,14 @@ module config
 
     !-------------------------------------------------------------------------
     ! GRADIENT SETTINGS (&gradient)
-    character(80)           :: method               = "lsq"
+    character(80)           :: grad_method               = "lsq"
     integer                 :: accuracy_order       = 1
-    character(80)           :: lsq_stencil          = "face_neighbor"
+    character(80)           :: lsq_stencil          = "w_vertex"
+    real(p2)                :: lsq_weight           = zero
     logical                 :: use_limiter          = .false.
 
     namelist / gradient / &
-      method, accuracy_order, lsq_stencil, use_limiter
+      grad_method, accuracy_order, lsq_stencil, use_limiter, lsq_weight
 
     contains
         
