@@ -13,6 +13,7 @@
 # Note: use "gfortran -O2" for best performance, but
 #       don't use it until you're sure bugs are removed.
 ##########################################################
+%.o: %.mod
 .SUFFIXES : .o .f90
 .f90.o:
 
@@ -25,6 +26,11 @@ SDIR = .
 
 OBCTS = $(SDIR)/parameters.o\
 		$(SDIR)/inputoutput.o\
+		$(SDIR)/grid.o\
+		$(SDIR)/solution.o\
+		$(SDIR)/lsq.o\
+		$(SDIR)/gradient.o\
+		$(SDIR)/steady_solver.o\
         $(SDIR)/nestor.o
 ##########################################################
 # Make executable "mg" 
