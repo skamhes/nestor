@@ -21,8 +21,10 @@ module least_squares
     ! Boundary int rankings
     integer, parameter :: NO_SLIP_WALL = 99
     integer, parameter :: SLIP_WALL = 98
-    integer, parameter :: FREE_STREAM = 50
+    integer, parameter :: FREE_STREAM = 51
+    ! IF BTYPE > 50 THEN NODE_VALUE = KNOWN
     integer, parameter :: PRESSURE_OUTLET = 20
+    integer, parameter :: INTERNAL = 0
 
     public construct_lsq_stencil
 
@@ -37,7 +39,8 @@ module least_squares
         implicit none
 
         if (trim(lsq_stencil) == "w_vertex") then
-            call construct_wvertex
+            call construct_wvertex_stencil
+            call compute_vertex_coefficients
         else
             write(*,*) "Unsupported LSQ Stencil"
             stop
@@ -47,7 +50,7 @@ module least_squares
 
     end subroutine construct_lsq_stencil
 
-    subroutine construct_wvertex
+    subroutine construct_wvertex_stencil
 
         use grid , only : nnodes, ncells, bound, nb, cell, bc_type
 
@@ -114,7 +117,7 @@ module least_squares
                 vk           = cell(i)%vtx(k)
                 node(vk)%nic = node(vk)%nic + 1
                 lsq(vk)%cell_lsq(node(vk)%nic) = i
-                lsq(vk)%ib_lsq(node(vk)%nic) = 0 ! internal cell
+                lsq(vk)%ib_lsq(node(vk)%nic) = INTERNAL ! Initialize the cell as internal
             end do
         end do
 
@@ -150,8 +153,60 @@ module least_squares
                 end do
             end do
         end do
+
+        ! We no longer need the node array
         
-    end subroutine construct_wvertex
+    end subroutine construct_wvertex_stencil
 
+    subroutine compute_vertex_coefficients
 
+        use grid , only : cell, x, y, z, nnodes, bound
+
+        use common , only : p2, zero
+
+        implicit none
+
+        real(p2) :: maxdx, maxdy, maxdz
+        real(p2) :: lsq_weight_invdis_power
+        integer                           :: m, n             !Size of LSQ matrix: A(m,n).
+        real(p2), pointer, dimension(:,:) :: a                !LSQ matrix: A(m,n).
+        real(p2), pointer, dimension(:,:) :: rinvqt           !Pseudo inverse R^{-1}*Q^T
+       
+        integer :: i
+
+        write(*,*)
+        write(*,*) "--------------------------------------------------"
+        write(*,*) " Computing LSQ coefficients... "
+        write(*,*)
+
+        maxdx = zero
+        maxdy = zero
+        maxdz = zero
+
+        !--------------------------------------------------------------------------------
+        !--------------------------------------------------------------------------------
+        ! The power to the inverse distance weight. The value 0.0 is used to avoid
+        ! instability known for Euler solvers. So, this is the unweighted LSQ gradient.
+        ! More accurate gradients are obtained with 1.0, and such can be used for the
+        ! viscous terms and source terms in turbulence models.
+        lsq_weight_invdis_power = 0
+
+        !--------------------------------------------------------------------------------
+        !--------------------------------------------------------------------------------
+        ! Compute the LSQ coefficients (cx,cy,cz) at all nodes.
+        node_loop : do i=1,nnodes
+            m = lsq(i)%ncells_lsq ! # of connected cells
+            if ( lsq(i)%btype > 50 ) then
+                n = 3                 ! node value is known, 3 unknowns
+            else
+                n = 4                 ! 4 unknowns, 3 derivatives + node value
+            endif
+
+            connect_loop : do k = 1,m
+                if ( lsq(i)%ib_lsq 
+                connect_cell
+            end do attach_loop
+        
+        end do node_loop
+    end subroutine compute_vertex_coefficients
 end module least_squares
