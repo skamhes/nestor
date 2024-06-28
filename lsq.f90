@@ -11,7 +11,7 @@ module least_squares
         real(p2), dimension(:)  , pointer ::           cq  ! LSQ coefficient for q at vertex
         real(p2), dimension(:)  , pointer ::           cx  ! LSQ coefficient for x-derivative
         real(p2), dimension(:)  , pointer ::           cy  ! LSQ coefficient for y-derivative
-        real(p2), dimension(:)  , pointer ::           cZ  ! LSQ coefficient for z-derivative
+        real(p2), dimension(:)  , pointer ::           cz  ! LSQ coefficient for z-derivative
         integer                           ::        btype  ! See below for values. 0 = internal cell
     end type lsq_data_type
 
@@ -155,6 +155,14 @@ module least_squares
         end do
 
         ! We no longer need the node array
+        deallocate(node)
+
+        ! Allocate the cell weight values
+        allocate( lsq(i)%cx(lsq(i)%ncells_lsq) )
+        allocate( lsq(i)%cy(lsq(i)%ncells_lsq) )
+        allocate( lsq(i)%cz(lsq(i)%ncells_lsq) )
+        if ( lsq(i)%btype > 50 ) allocate( lsq(i)%cq(lsq(i)%ncells_lsq) )
+
         
     end subroutine construct_wvertex_stencil
 
@@ -162,7 +170,7 @@ module least_squares
 
         use grid , only : cell, x, y, z, nnodes, bound
 
-        use common , only : p2, zero
+        use common , only : p2, zero, one
 
         implicit none
 
@@ -171,8 +179,14 @@ module least_squares
         integer                           :: m, n             !Size of LSQ matrix: A(m,n).
         real(p2), pointer, dimension(:,:) :: a                !LSQ matrix: A(m,n).
         real(p2), pointer, dimension(:,:) :: rinvqt           !Pseudo inverse R^{-1}*Q^T
+        integer                           :: connect_cell, connect_bface
        
-        integer :: i
+        integer :: i, k, ib
+        integer :: ck, fk
+        
+        real(p2) :: dx, dy, dz
+        real(p2) :: cgx, cgy, cgz ! ghost cell "center"
+        real(p2) :: weight_k
 
         write(*,*)
         write(*,*) "--------------------------------------------------"
@@ -203,10 +217,86 @@ module least_squares
             endif
 
             connect_loop : do k = 1,m
-                if ( lsq(i)%ib_lsq 
-                connect_cell
-            end do attach_loop
-        
+                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
+                    connect_cell = lsq(i)%cell_lsq(k)
+                    dx = cell(connect_cell)%xc - x(i)
+                    dy = cell(connect_cell)%yc - y(i)
+                    dz = cell(connect_cell)%zc - z(i)
+                else
+                    connect_bface = lsq(i)%cell_lsq(k)
+                    ib            = lsq(i)%ib_lsq(k)
+                    connect_cell  = bound(ib)%bcell(connect_bface)
+                    ! briefly use the dx, dy, znd dz for face_center - cell_center
+                    dx = bound(ib)%bface_center(1,connect_bface) - cell(connect_cell)%xc
+                    dy = bound(ib)%bface_center(2,connect_bface) - cell(connect_cell)%yc
+                    dz = bound(ib)%bface_center(3,connect_bface) - cell(connect_cell)%zc
+                    cgx = bound(ib)%bface_center(1,connect_bface) + dx
+                    cgy = bound(ib)%bface_center(2,connect_bface) + dy
+                    cgz = bound(ib)%bface_center(3,connect_bface) + dz
+                    dx = cgx - x(i)
+                    dy = cgy - y(i)
+                    dz = cgz - z(i)
+                endif
+                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                if ( lsq(i)%btype > 50 ) then
+                    ! 3 unknowns
+                    a(k,1) = weight_k * dx
+                    a(k,2) = weight_k * dy
+                    a(k,3) = weight_k * dz
+                else
+                    ! 4 unknowns
+                    a(k,1) = weight_k * one
+                    a(k,2) = weight_k * dx
+                    a(k,3) = weight_k * dy
+                    a(k,4) = weight_k * dz
+                endif
+                maxdx  = max(abs(dx),maxdx)
+                maxdy  = max(abs(dy),maxdy)
+                maxdz  = max(abs(dz),maxdz)
+            end do connect_loop
+            !-------------------------------------------------------
+            ! Perform QR factorization and compute R^{-1}*Q^T from A(m,n).
+            call qr_factorization(a,rinvqt,m,n)
+
+            !-------------------------------------------------------
+            ! Compute and store the LSQ coefficients: R^{-1}*Q^T*w.
+            !
+            ! (wx,wy,wz) = R^{-1}*Q^T*RHS
+            !            = sum_k (cx,cy,cz)*(wk-wi).
+            connect_loop2 : do k = 1,m
+                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
+                    connect_cell = lsq(i)%cell_lsq(k)
+                    dx = cell(connect_cell)%xc - x(i)
+                    dy = cell(connect_cell)%yc - y(i)
+                    dz = cell(connect_cell)%zc - z(i)
+                else
+                    connect_bface = lsq(i)%cell_lsq(k)
+                    ib            = lsq(i)%ib_lsq(k)
+                    connect_cell  = bound(ib)%bcell(connect_bface)
+                    ! briefly use the dx, dy, znd dz for face_center - cell_center
+                    dx = bound(ib)%bface_center(1,connect_bface) - cell(connect_cell)%xc
+                    dy = bound(ib)%bface_center(2,connect_bface) - cell(connect_cell)%yc
+                    dz = bound(ib)%bface_center(3,connect_bface) - cell(connect_cell)%zc
+                    cgx = bound(ib)%bface_center(1,connect_bface) + dx
+                    cgy = bound(ib)%bface_center(2,connect_bface) + dy
+                    cgz = bound(ib)%bface_center(3,connect_bface) + dz
+                    dx = cgx - x(i)
+                    dy = cgy - y(i)
+                    dz = cgz - z(i)
+                endif
+                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                if ( lsq(i)%btype > 50 ) then
+                    ! 3 unknowns
+                    lsq(i)%cx(k) = rinvqt(1,k) * weight_k
+                    lsq(i)%cy(k) = rinvqt(2,k) * weight_k
+                    lsq(i)%cz(k) = rinvqt(3,k) * weight_k
+                    ! 1 Known. cq is not allocated
+                    ! lsq(i)%cq    = zero
+                endif
+            end do connect_loop2
+
+            deallocate(a,rinvqt)
+
         end do node_loop
     end subroutine compute_vertex_coefficients
 end module least_squares
