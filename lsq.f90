@@ -1,5 +1,16 @@
 module least_squares
     
+    ! Module for computing the gradient using least squares.  Available options
+    ! 
+    ! Weighted vertex gradient: https://doi.org/10.48550/arXiv.1702.04518
+    ! Computes the gradient at each vertex and then uses them to find an average gradient at the cell.  Since the field value
+    ! is not know at the vertex it can also be solved for, resulting in 4 unknowns for each node.  Currently that value is not used.
+    ! At boundaries the treatment is a little different.  To ensure a defined (or over-defined since it is a LSQ method) system
+    ! ghost cells are used to provide additional rows to the linear system.  Additionally, depending on the BC type, some field
+    ! values may be known a priori (such as zero velocity at the walls).  In this instence we move the vertex value to the RHS and 
+    ! use a different set of LSQ coefficients to compute the gradient.  This will result in a slightly larger memory footprint but 
+    ! presumabley should result in increased robustness.
+
     use common , only : p2
 
     implicit none
@@ -167,9 +178,11 @@ module least_squares
             allocate( lsq(i)%cy4(lsq(i)%ncells_lsq) )
             allocate( lsq(i)%cz4(lsq(i)%ncells_lsq) )
             allocate( lsq(i)%cq4(lsq(i)%ncells_lsq) )
-            allocate( lsq(i)%cx3(lsq(i)%ncells_lsq) )
-            allocate( lsq(i)%cy3(lsq(i)%ncells_lsq) )
-            allocate( lsq(i)%cz3(lsq(i)%ncells_lsq) )
+            if ( lsq(i)%btype > 0 ) then
+                allocate( lsq(i)%cx3(lsq(i)%ncells_lsq) )
+                allocate( lsq(i)%cy3(lsq(i)%ncells_lsq) )
+                allocate( lsq(i)%cz3(lsq(i)%ncells_lsq) )
+            endif
         end do
         ! I want the option to prescribe the node value at boundaries where it's known.
         ! It seems like this should provide an increased robustness(?).  Intuition says I can't
