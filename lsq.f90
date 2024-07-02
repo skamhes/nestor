@@ -335,6 +335,7 @@ module least_squares
             wx = zero
             wy = zero
             wz = zero
+            wq = zero
             ! (xi,yi,zi) to be used to compute the function 2*x+y+4z at i
             xi = x(i)
             yi = y(i)
@@ -344,9 +345,9 @@ module least_squares
             do k = 1,lsq(i)%ncells_lsq
                 if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
                     connect_cell = lsq(i)%cell_lsq(k)
-                    xk = cell(connect_bface)%xc
-                    yk = cell(connect_bface)%yc
-                    zk = cell(connect_bface)%zc
+                    xk = cell(connect_cell)%xc
+                    yk = cell(connect_cell)%yc
+                    zk = cell(connect_cell)%zc
                 else
                     connect_bface = lsq(i)%cell_lsq(k) 
                     ib            = lsq(i)%ib_lsq(k)
@@ -369,18 +370,25 @@ module least_squares
                     wq = wq + lsq(i)%cq4(k)*( (2.0*xk+yk+4.0*zk) )
                     ! we don't need q
                 else ! unknowns_ == 3
-                    wx = wx + lsq(i)%cx3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wx = wx + lsq(i)%cx3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yk+4.0*zi) )
                     wy = wy + lsq(i)%cy3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
                     wz = wz + lsq(i)%cz3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
                 endif
             end do
             ! Loop through attached cells...again
-            do k = 1,lsq(i)%ncells_lsq
-                connect_cell = lsq(i)%cell_lsq(k)
+            cell_grad_loop : do k = 1,lsq(i)%ncells_lsq
+                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
+                    connect_cell = lsq(i)%cell_lsq(k)
+                else
+                    cycle cell_grad_loop
+                    ! We should be able to cycle the node loop since boundary cells are added last.
+                    ! But if I change the sorting for that array that would no longer be the case.  I'll leave it like this for now
+                    ! as I don't mind the inefficiency for now, and I don't want to have to go bug hunting later...
+                endif                
                 cell_grad(1,connect_cell) = cell_grad(1,connect_cell) + wx
                 cell_grad(2,connect_cell) = cell_grad(2,connect_cell) + wy
                 cell_grad(3,connect_cell) = cell_grad(3,connect_cell) + wz
-            end do
+            end do cell_grad_loop
             maxDeltasNZ = zero
             if (maxdx > 0.001_p2) maxDeltasNZ(1) = one
             if (maxdy > 0.001_p2) maxDeltasNZ(2) = one
@@ -392,6 +400,9 @@ module least_squares
                     write(*,*) " wx = ", wx, " exact ux = 2.0"!,maxDeltasNZ(1)*abs(wx-two)
                     write(*,*) " wy = ", wy, " exact uy = 1.0"!,maxDeltasNZ(2)*abs(wy-one)
                     write(*,*) " wz = ", wz, " exact uz = 4.0"!, maxDeltasNZ(3)*abs(wz-4.0_p2),maxDeltasNZ(3)
+                    if ( unknowns_ == 4 ) then
+                        write(*,*) " wq = ", wq , " exact wq = ", (2.0*xi+yi+4.0*zi)
+                    end if
                     verification_error = .true.
             end if
         end do
@@ -403,11 +414,13 @@ module least_squares
         else
          
             write(*,*) " Verified: LSQ coefficients at node are exact for a linear function."
+            write(*,*)
          
         endif
 
         do i = 1,ncells
-            cell_grad(:,i) = cell_grad(:,i) / cell(i)%nvtx
+            !                                 INT2REAL
+            cell_grad(:,i) = cell_grad(:,i) / real(cell(i)%nvtx,p2)
             wx = cell_grad(1,i)
             wy = cell_grad(2,i)
             wz = cell_grad(3,i)
@@ -426,6 +439,16 @@ module least_squares
             end if
         end do
 
+        if (verification_error) then
+
+            write(*,*) " LSQ coefficients result in inaccurate cell values. See above. Stop."
+            stop
+         
+        else
+         
+            write(*,*) " Verified: LSQ coefficients at cells are exact for a linear function."
+         
+        endif
 
         write(*,*)
         write(*,*) " End of Computing LSQ coefficients... "
