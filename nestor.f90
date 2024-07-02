@@ -1,7 +1,10 @@
 !********************************************************************************
-! NaviEr-STOkes Resolved.  Why that name?  I wanted to name a code after my cat...
+! NaviEr-STOkes Robust methods.  Why that name?  I wanted to name a code after my cat...
 ! He gets something names after him, I get someone to blame for any bugs (I swear 
-! he walked across the keyboard...)
+! he walked across the keyboard...)  Also, once I have a working code I think it would 
+! be an interesting project to focus on implementing numerical methods that focus on robust 
+! solutions...
+! 
 !
 ! Author: Karsten Hendrickson
 ! Version: 0.0.1

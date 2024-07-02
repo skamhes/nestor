@@ -17,7 +17,6 @@
 .SUFFIXES : .o .f90
 .f90.o:
 
-	
 	gfortran -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing  -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  -fbacktrace -fall-intrinsics -c $<
 #	gfortran -O2 -pg -c $<
 #	gfortran -O3 -c $<
@@ -28,6 +27,7 @@ OBCTS = $(SDIR)/parameters.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/solution.o\
+		$(SDIR)/direct_solve.o\
 		$(SDIR)/lsq.o\
 		$(SDIR)/gradient.o\
 		$(SDIR)/steady_solver.o\
