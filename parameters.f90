@@ -74,8 +74,8 @@ module config
     integer                :: CFL_ramp_steps         = 100
     integer                :: solver_max_itr         = 1000
     real(p2)               :: solver_tolerance       = 1.0e-05_p2
-    character(80)          :: inviscid_flux          = "roe"
-    character(80)          :: inviscid_jac           = "roe"
+    character(80)          :: method_inv_flux        = "roe"
+    character(80)          :: method_inv_jac           = "roe"
     character(80)          :: solver_type            = "rk"
     character(80)          :: jacobian_method        = "analytical"
     real(p2), dimension(5) :: eig_limiting_factor    = (/ 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2 /)  !eigenvalue limiting factor
@@ -87,7 +87,7 @@ module config
     namelist / solver / &
       CFL, CFL_ramp, CFL_init, CFL_start_iter, CFL_ramp, &
       solver_max_itr, solver_tolerance, &
-      inviscid_flux, inviscid_jac, &
+      method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
       variable_ur, limit_update, perturb_initial
 

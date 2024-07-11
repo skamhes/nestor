@@ -211,45 +211,18 @@ module direct_solve
 
         ! Function for computing the L2 vector norm from http://me.rice.edu/~akin/OOP_Copyrighted/4_Features_of_Lang/vector_norm.f90
     ! modified from a standalone program
-    real function vector_norm(x, n)
+    function vector_norm(x, n)
         !   A simple vector norm program, Fortran 90 version
-        use common   , only : p2, zero, one, two  
+        use common   , only : p2
         implicit none
             !integer, parameter :: dp = selected_real_kind(14) ! 14 digits
             real(p2), dimension(:), intent(in)  :: x    
             integer, intent(in)                 :: n
-            !integer, parameter :: MAX = 1000;           !  Maximum vector size
-            !integer n;                                  !  Actual vector size
-            !integer i;                                  !  Loop controls
-            !real(p2) :: x(MAX)                          !  The vector
-            !real(p2) :: L1_norm, L2_norm;               !  Work results
-            
-            !print *,"Enter the vector length: ";
-            !read  *, n;                             !  User size input
-            !print *, n                              !  Echo size
-            
-            !if ( n > MAX ) then                     !  Check validity
-            !    stop "Vector size exceeds dimension, ERROR"; ! Abort run
-            !end if
-            
-            !  Input vector contents
-            !print *,"Enter the vector: "; 
-            !read *, (x(i), i=1,n)              !  Read values
-        
+
+            real(p2) :: vector_norm
+
             vector_norm = sqrt ( sum ( x(:n)*x(:n) ))   ! L2 norm
-            !L1_norm = sum ( abs(x(:n)) )/n          ! L1 norm 
-        
-            !write (6,'(" The L2 norm of [")',advance='no') ! Print header
-        !   Loop over vector contents, (except last)
-            !do i = 1, n-1
-            !    write (6, '(f10.4, ",")', advance = 'no') x(i) ! List values
-            !end do 
-        
-            !  Now last term
-            !write (6, '(f10.4, " ] is: ")', advance = 'no') x(n) ! Last value
-            
-            !print *, L2_norm, "."  ;                    !  Print L2
-            !print *, "The L1 norm is: ", L1_norm, "." ; !  Print L1
+
            
     end function vector_norm
 

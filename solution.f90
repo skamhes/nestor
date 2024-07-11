@@ -13,6 +13,7 @@ module solution
     !------------------------------------------
 
     integer                             :: nq       ! # of eqns/solns (5 for 3D Euler/NS).
+    integer                             :: ndim     ! # Number of dimesnions (3 for 3D (duh...))
     real(p2), dimension(:,:)  , pointer :: u        ! conservative variables at cells center
     real(p2), dimension(:,:)  , pointer :: w        ! primitive (rho, u, v, w, p) variables at cells center.
     real(p2), dimension(:,:)  , pointer :: q        ! alternate primitive variables (p, u, v, w, T) at cells centers.
@@ -20,12 +21,16 @@ module solution
     real(p2), dimension(:,:,:), pointer :: vgradw   ! gradients of w at vertices (nodes).
     real(p2), dimension(:,:,:), pointer :: ccgradq  ! gradients of q at cell center.
     real(p2), dimension(:,:,:), pointer :: vgradq   ! gradients of q at vertices (nodes).
+    real(p2), dimension(:)    , pointer :: phi      ! limiter of ccgradq
 
     real(p2), dimension(:)    , pointer :: dtau  !pseudo time step
     real(p2), dimension(:)    , pointer :: wsn   !maximum eigenvalue at faces
 
-    real(p2), dimension(:,:), pointer :: res     !residual vector
-    real(p2), dimension(5)            :: res_norm, res_norm_initial
+    real(p2), dimension(:,:), pointer   :: res     !residual vector
+    real(p2), dimension(5)              :: res_norm, res_norm_initial
+
+    integer                             :: lrelax_sweeps_actual
+    real(p2)                            :: lrelax_roc
 
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
@@ -69,6 +74,7 @@ module solution
         implicit none
 
         nq = 5
+        ndim = 3
 
         ! initialize
         allocate( q(nq,ncells) )
@@ -80,9 +86,9 @@ module solution
         wsn = zero
 
         if ( accuracy_order > 1 ) then
-            allocate( ccgradq(3,nq,ncells) )
+            allocate( ccgradq(ndim,nq,ncells) )
             if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'wvertex') then
-                allocate(  vgradq(3,nq,nnodes) )
+                allocate(  vgradq(ndim,nq,nnodes) )
             endif
         endif
 
@@ -118,9 +124,39 @@ module solution
         q_out(4) = w_in(4)
         
         q_out(1) = w_in(5)
+        ! T      = p       *gamma/rho
         q_out(5) = q_out(1)*gamma/w_in(1)
   
     end function w2q
+
+    !********************************************************************************
+    ! Compute Q from U
+    !
+    ! ------------------------------------------------------------------------------
+    !  Input:  Q =    primitive variables (  p,     u,     v,     w,     T)
+    ! Output:  U = conservative variables (rho, rho*u, rho*v, rho*w, rho*E)
+    ! ------------------------------------------------------------------------------
+    !
+    ! Note: rho*E = p/(gamma-1) + rho*0.5*(u^2 + v^2 + w^2)
+    !       rho   = p*gamma/T
+    !********************************************************************************
+    function q2u(q_in) result(u_out)
+
+        use common, only : p2, half
+        
+        implicit none
+    
+        real(p2), dimension(5), intent(in) :: q_in ! input
+        real(p2), dimension(5)             :: u_out !output
+        
+        ! rho    = p      *gamma / T
+        u_out(1) = q_in(1)*gamma / q_in(5)
+        u_out(2) = u_out(1)*q_in(2)
+        u_out(3) = u_out(1)*q_in(3)
+        u_out(4) = u_out(1)*q_in(4)
+        u_out(5) = q_in(1)*gmoinv + half*u_out(1)*(q_in(1)**2 + q_in(2)**2 + q_in(3)**2)
+    
+    end function q2u
 
 end module solution
 

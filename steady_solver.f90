@@ -28,18 +28,18 @@ module steady_solver
 
         ! use linear_solver , only :  lrelax_sweeps_actual, lrelax_roc
 
-        use config    , only : solver_type, accuracy_order, inviscid_flux, CFL, solver_max_itr, solver_tolerance, &
+        use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                             variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init
         
         use initialize, only : set_initial_solution
 
-        use solution  , only : q, res, dtau, res_norm, res_norm_initial
+        use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi
 
         use grid      , only : cell, ncells
 
         use gradient  , only : init_gradients
 
-        ! use residual  , only : compute_residual
+        use residual  , only : compute_residual
 
         implicit none
 
@@ -55,8 +55,11 @@ module steady_solver
         logical                       :: stop_me
         integer                       :: ierr
 
-        real(p2)                      :: CFL_multiplier, CFL_end, CFL_running_mult
+        real(p2)                      :: CFL_multiplier, CFL_final, CFL_running_mult
         
+        ! Formatting strings
+        character(45) :: implicit_format = '(i10,6es13.3,a,i6,es12.1,i10.2,a,i2.2,es13.3)'
+        character(35) :: explicit_format = '(i10,6es13.3,i10.2,a,i2.2,es13.3)'
         ! Set explicit under-relaxation array
         var_ur_array = zero
         do i = 1,5
@@ -74,18 +77,175 @@ module steady_solver
         write(*,*)
         write(*,*) "    solver_type = ", trim(solver_type)
         write(*,'(a,i1)') " accuracy_order = ", accuracy_order
-        write(*,*) " inviscid_flux  = ", trim(inviscid_flux)
-        write(*,*) "            CFL = ", CFL
-
-        call init_gradients
+        write(*,*) " inviscid_flux  = ", trim(method_inv_flux)
         
+
+        if (CFL_ramp) then
+            CFL_final = CFL       ! Final CFL after ramping
+            CFL = CFL_init        ! Set the CFL to the initial CFL
+            ! CFL multiplier to be performed after each step
+            ! After each iter: CFL = CFL * CFL_mult
+            CFL_multiplier = (CFL_final/CFL_init)**(one/CFL_ramp_steps)
+            write(*,*) '    CFL Ramping = ENABLED'
+            write(*,*) '    Initial CFL = ', CFL_init
+            write(*,*) ' # of CFL Steps = ', CFL_ramp_steps
+            write(*,*) ' CFL multiplier = ', CFL_multiplier
+            write(*,*)
+            write(*,*)
+        else
+            write(*,*) '    CFL Ramping = DISABLED'
+            write(*,*) "            CFL = ", CFL
+            write(*,*)
+            write(*,*)
+        endif
+
+        if (accuracy_order == 2) then
+            call init_gradients
+        endif    
+
+        ! Skipping importing data for now
+        
+        ! Print column headers
+        if (trim(solver_type) == "implicit") then
+            write(*,*) " Iteration   continuity   x-momemtum   y-momentum   z-momentum    energy       max-res", &
+                "    |   proj     reduction       time    CFL"
+            allocate( dq(5,ncells)) ! allocate du only if it needed
+        else
+            write(*,*) " Iteration   continuity   x-momemtum   y-momentum   z-momentum    energy       max-res    |   time     CFL"
+        end if
+
+        ! Initialize some miscellaneous variables
+        lrelax_sweeps_actual = 0
+        lrelax_roc = zero
+        n_residual_evaluation = 0
+        if (use_limiter) then
+            allocate(phi(ncells))
+        end if
+
+        solver_loop : do while (i_iteration <= solver_max_itr)
+            
+            ! First compute the residual
+            call compute_residual
+            
+            ! Compute residual norm
+            call compute_residual_norm(res_norm)
+            
+            ! Iteration timer
+            call dtime(values,time)
+            
+            ! Compute time remaining
+            totalTime = time * real(solver_max_itr-i_iteration) ! total time remaining in seconds
+            minutes = floor(totalTime/60.0)
+            seconds = mod(int(totalTime),60)
+            
+            ! Allow the initial residual norm to increase for the first 5 iterations
+            if ( i_iteration == 0 ) then
+                res_norm_initial = res_norm
+                minutes = 0
+                seconds = 0
+                do i = 1,5
+                    ! Prevent res/res_norm_init = infinity
+                    if (abs(res_norm_initial(i)) < 1e-016_p2) then
+                        res_norm_initial(i) = one
+                    end if
+                end do
+            elseif ( i_iteration <= 5 ) then
+                do i = 1,5
+                    if ( res_norm(i) > res_norm_initial(i) ) then
+                        res_norm_initial(i) = res_norm(i)
+                    end if
+                end do
+            endif
+
+            ! Print out residual
+            if ( trim(solver_type) == 'implicit' ) then
+                write(*,implicit_format) i_iteration, res_norm(:), & 
+                                         maxval(res_norm(:)/res_norm_initial(:)), &
+                                         "   | ", lrelax_sweeps_actual, lrelax_roc, &
+                                         minutes, ":", seconds, CFL
+            else ! RK Explicit
+                write(*,explicit_format) i_iteration, res_norm(:), &
+                                         maxval(res_norm(:)/res_norm_initial(:)), &
+                                         minutes, ":", seconds, CFL
+            endif
+
+            ! Check for convergence and exit if true
+            if (maxval(res_norm(:)/res_norm_initial(:)) < solver_tolerance) then
+                write(*,*) " Solution is converged!"
+                exit solver_loop
+            end if
+
+            i_iteration = i_iteration + 1
+
+            ! March in pseudo-time to update u: u = u + du
+            if (trim(solver_type) == "rk") then
+                call explicit_pseudo_time_rk
+            elseif (trim(solver_type) == 'explicit') then
+                call explicit_pseudo_time_forward_euler
+            elseif (trim(solver_type) == "implicit") then
+                call implicit
+            else
+                write(*,*) " Unsopported iteration method: Solver = ", solver_type
+            end if
+
+            ! If using CFL ramp increase CFL
+            if (CFL_ramp .and. (i_iteration < CFL_ramp_steps + CFL_start_iter) .and. i_iteration > CFL_start_iter) then
+                CFL = CFL * CFL_multiplier
+            elseif (CFL_ramp .and. (i_iteration == CFL_ramp_steps + CFL_start_iter)) then
+                CFL = CFL_final
+            end if
+
+            ! check for stop file
+            ! stop file can be created by typing "touch kcfdstop" in the working directory
+            inquire (file = 'kcfdstop', exist = stop_me)
+            if (stop_me) then
+                write(*,*) "kcfdstop file found! Stopping iterations!"
+                ! Delete the file that way it doesn't stop us next time.
+                open(10,file = 'kcfdstop',status='old',iostat=ierr)
+                if (ierr == 0) then
+                    close(10,status ='delete',iostat = ierr) 
+                    if (ierr == 0) then
+                        write(*,*) 'kcfdstop successfully deleted!'
+                    end if
+                end if
+                exit solver_loop
+            end if
+
+        end do solver_loop
 
 
 
     end subroutine steady_solve
 
-    subroutine compute_residual_norm
+    !********************************************************************************
+    !
+    ! This subroutine computes the residual L1 norm (average of the absolute value).
+    !
+    !********************************************************************************
+    subroutine compute_residual_norm(res_norm)
 
+        use common          , only : p2, zero
+        use grid            , only : ncells
+        use solution        , only : res, nq
+    
+        implicit none
+    
+        real(p2), dimension(nq), intent(out) :: res_norm
+    
+        !Local variables
+        integer                :: i
+    
+        !Initialize the norm:
+        res_norm(:) =  zero
+    
+        cell_loop : do i = 1, ncells
+    
+            res_norm(:) = res_norm(:) + abs( res(:,i) ) !L1 norm
+    
+        end do cell_loop
+    
+        res_norm(:) = res_norm(:) / real(ncells,p2)   !L1 norm
+  
     end subroutine compute_residual_norm
 
     subroutine compute_local_time_step_dtau
