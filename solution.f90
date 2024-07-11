@@ -53,6 +53,7 @@ module solution
     real(p2) ::   v_inf = zero
     real(p2) ::   w_inf = zero
     real(p2) ::   p_inf = one/1.4_p2
+    real(p2) ::   T_inf = one ! p_inf*gamma/rho_inf
 
 
     !These data will be allocated for a given grid size, and filled in the

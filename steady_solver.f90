@@ -252,4 +252,16 @@ module steady_solver
 
     end subroutine compute_local_time_step_dtau
 
+    subroutine explicit_pseudo_time_rk
+
+    end subroutine explicit_pseudo_time_rk
+
+    subroutine explicit_pseudo_time_forward_euler
+    
+    end subroutine explicit_pseudo_time_forward_euler
+
+    subroutine implicit
+
+    end subroutine implicit
+
 end module steady_solver

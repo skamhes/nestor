@@ -28,6 +28,38 @@ module residual
 
         use bc_states       , only : get_right_state
 
+        implicit none
+
+        ! Grid Vars
+        real(p2)                    :: xm, ym, zm
+        integer                     :: c1, c2,  v1, v2, v3,
+        real(p2), dimension(3)      :: unit_face_normal, bface_centroid
+        real(p2)                    :: xc1,xc2,yc1,yc2,zc1,zc2
+
+        ! Flow variables
+        real(p2), dimension(5)      :: u1, u2, q1, q2
+        real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
+        real(p2), dimension(5)      :: num_flux
+        real(p2), dimension(5)      :: qb
+        real(p2)                    :: wave_speed
+        real(p2)                    :: phi1, phi2
+
+        ! Misc int/counters
+        integer                     :: i, os
+        integer                     :: j, ib, ix, iu, ii
+        
+        !--------------------------------------------------------------------------------
+        ! Initialize the residuals and wsn = the sum of (max_wave_speed)*(face length)).
+        ! Note: wsn is required to define a time step.
+        cell_loop1 :  do i = 1, ncells
+
+            res(:,i) = zero
+            wsn(i)   = zero
+     
+        end do cell_loop1
+
+        
+
     end subroutine compute_residual
 
 end module residual
