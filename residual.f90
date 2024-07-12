@@ -28,6 +28,8 @@ module residual
 
         use bc_states       , only : get_right_state
 
+        use gradient        , only : com
+
         implicit none
 
         ! Grid Vars
@@ -58,7 +60,11 @@ module residual
      
         end do cell_loop1
 
-        
+        !--------------------------------------------------------------------------------
+        ! Compute gradients at cells.
+        !
+        if (accuracy_order == 2) then
+            call 
 
     end subroutine compute_residual
 

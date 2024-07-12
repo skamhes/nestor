@@ -144,22 +144,6 @@ module gradient
         do i = 1,ncells
             ccgradq(:,:,i) = ccgradq(:,:,i) / real(cell(i)%nvtx, p2)
         end do
-        
-        
-        
-            ! cell_loop : do i = 1,ncells
-        !     var_loop : do ivar = 1,5
-        !         wi = w(ivar,i)
-        !         nghbr_loop : do k = 1,cclsq(i)%nnghbrs_lsq
-        !             nghbr_cell = cclsq(i)%nghbr_lsq(k)
-        !             wk = w(ivar,nghbr_cell)
-        !             if (ivar == 5) wk = wk - p_inf + gauge_pressure
-        !             gradw(1,ivar,i) = gradw(1,ivar,i) + cclsq(i)%cx(k)*(wk-wi)
-        !             gradw(2,ivar,i) = gradw(2,ivar,i) + cclsq(i)%cy(k)*(wk-wi)
-        !             gradw(3,ivar,i) = gradw(3,ivar,i) + cclsq(i)%cz(k)*(wk-wi)
-        !         end do nghbr_loop
-        !     end do var_loop
-        ! end do cell_loop
 
     end subroutine compute_vgradient
 

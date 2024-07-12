@@ -466,6 +466,7 @@ module least_squares
         endif
 
         deallocate(cell_grad)
+        
         write(*,*)
         write(*,*) " End of Computing LSQ coefficients... "
         write(*,*) "--------------------------------------------------"
