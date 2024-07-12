@@ -15,6 +15,8 @@ module least_squares
 
     implicit none
 
+    public
+
     type lsq_data_type
         integer                           ::   ncells_lsq  ! number of cells attached to lsq vertex
         integer , dimension(:)  , pointer ::     cell_lsq  ! lsq cell
@@ -463,6 +465,7 @@ module least_squares
          
         endif
 
+        deallocate(cell_grad)
         write(*,*)
         write(*,*) " End of Computing LSQ coefficients... "
         write(*,*) "--------------------------------------------------"

@@ -6,7 +6,7 @@ module bc_states
 
     contains
 
-    subroutine get_right_state
+    subroutine get_right_state(qL,bface_nrml, bc_type, qcB)
 
     end subroutine get_right_state
 
