@@ -43,18 +43,22 @@ module gradient
 
     end subroutine init_gradients
 
-    subroutine compute_gradient
+    subroutine compute_gradient(weight)
 
         use common          , only : p2, zero
 
         use config          , only : grad_method, lsq_stencil
 
-        use grid            , only : ncells, nnodes
-
-        use least_squares   , only : lsq
-
         use solution        , only : ccgradq, vgradq
 
+        implicit none
+
+        integer, intent(in) :: weight ! this isn't used right now but eventually it should be
+
+        integer :: dummy
+
+        dummy = weight ! supress wunused
+        
         ccgradq = zero
 
         if (trim(grad_method) == 'lsq') then
@@ -75,7 +79,7 @@ module gradient
         
         use common          , only : p2, zero
 
-        use grid            , only : ncells, nnodes, bc_type, bound
+        use grid            , only : ncells, nnodes, bc_type, bound, cell
 
         use least_squares   , only : lsq, INTERNAL
 

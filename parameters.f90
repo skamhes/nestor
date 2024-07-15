@@ -14,6 +14,7 @@ module common
     real(p2), parameter ::  three = 3.0_p2
     real(p2), parameter ::   four = 4.0_p2
     real(p2), parameter ::   five = 5.0_p2
+    real(p2), parameter ::    six = 6.0_p2
     real(p2), parameter ::  third = 1.0_p2/3.0_p2
     real(p2), parameter :: fourth = 1.0_p2/4.0_p2
     real(p2), parameter ::  sixth = 1.0_p2/6.0_p2
