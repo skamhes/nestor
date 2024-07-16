@@ -104,8 +104,13 @@ module residual
             c2 = face(2,i)
             q1 = q(1:5, c1)
             q2 = q(1:5, c2)
-            gradq1 = ccgradq(1:3,1:5,c1)
-            gradq2 = ccgradq(1:3,1:5,c2)
+            if (accuracy_order == 2 ) then
+                gradq1 = ccgradq(1:3,1:5,c1)
+                gradq2 = ccgradq(1:3,1:5,c2)
+            else
+                gradq1 = zero
+                gradq2 = zero
+            endif
             ! Face normal
             unit_face_normal = face_nrml(1:3,i)
             ! Limiters
@@ -156,7 +161,11 @@ module residual
                 u1 = q2u(q1)
                 ! Get the right hand state (weak BC!)
                 call get_right_state(u1, unit_face_normal, bc_type(ib), qb)
-                gradq1 = ccgradq(1:3,1:5,c1)
+                if ( accuracy_order == 2 ) then
+                    gradq1 = ccgradq(1:3,1:5,c1)
+                else
+                    gradq1 = zero
+                endif
                 
                 call interface_flux(          q1,      qb, & !<- Left/right states
                                          gradq1,   gradq2, & !<- Left/right gradients

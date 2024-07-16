@@ -63,6 +63,13 @@ module solution
     !------------------------------------------------------------------------------------
     !------------------------------------------------------------------------------------
 
+    ! because I just had a bug where i used the wronog index.......
+    integer, parameter :: ip = 1
+    integer, parameter :: iu = 2
+    integer, parameter :: iv = 3
+    integer, parameter :: iw = 4
+    integer, parameter :: iT = 5
+
     contains
 
     subroutine allocate_solution_vars
@@ -87,7 +94,7 @@ module solution
 
         if ( accuracy_order > 1 ) then
             allocate( ccgradq(ndim,nq,ncells) )
-            if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'wvertex') then
+            if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'w_vertex') then
                 allocate(  vgradq(ndim,nq,nnodes) )
             endif
         endif
@@ -154,7 +161,7 @@ module solution
         u_out(2) = u_out(1)*q_in(2)
         u_out(3) = u_out(1)*q_in(3)
         u_out(4) = u_out(1)*q_in(4)
-        u_out(5) = q_in(1)*gmoinv + half*u_out(1)*(q_in(1)**2 + q_in(2)**2 + q_in(3)**2)
+        u_out(5) = q_in(1)*gmoinv + half*u_out(1)*(q_in(iu)**2 + q_in(iv)**2 + q_in(iw)**2)
     
     end function q2u
 
@@ -174,7 +181,7 @@ module initialize
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb
 
         use solution
 
@@ -191,9 +198,15 @@ module initialize
         p_inf = one/gamma
 
         q_init = w2q( (/rho_inf,u_inf,v_inf,w_inf,p_inf/) )
+        if ( perturb_initial )  then 
+            q_init(2:4) = (/ 0.2_p2, 0.1_p2, 0.15_p2 /)
+        end if
 
         cell_loop : do i = 1,ncells
-            q(:,i) = q_init
+        q(:,i) = q_init
+            if ( perturb_initial .and. random_perturb )  then 
+                q(2:4,i) = q(2:4,i) * rand(0)
+            endif
         end do cell_loop
         
     end subroutine set_initial_solution

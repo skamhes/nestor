@@ -8,7 +8,7 @@ module interface
                              xc1, yc1, zc1, xc2, yc2, zc2, &
                      xm, ym, zm, phi1, phi2, num_flux, wsn )
 
-        use common                 , only : p2, zero
+        use common                 , only : p2
 
         use config                 , only : method_inv_flux !name of flux pecified as input
         use config                 , only : accuracy_order
@@ -42,6 +42,9 @@ module interface
             qL = q1 
             qR = q2
         end if
+
+        uL = q2u(qL)
+        uR = q2u(qR)
 
         !------------------------------------------------------------
         !  (1) Roe flux

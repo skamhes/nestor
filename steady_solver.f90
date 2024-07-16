@@ -177,6 +177,8 @@ module steady_solver
 
             i_iteration = i_iteration + 1
 
+            call compute_local_time_step_dtau
+
             ! March in pseudo-time to update u: u = u + du
             if (trim(solver_type) == "rk") then
                 call explicit_pseudo_time_rk
@@ -250,6 +252,20 @@ module steady_solver
 
     subroutine compute_local_time_step_dtau
 
+        use common                  , only : half, p2
+        use grid                    , only : ncells, cell
+        use solution                , only : dtau, wsn
+        use config                  , only : CFL
+
+        implicit none
+
+        integer :: i
+        ! real(p2), dimension(ncells) :: viscous_dtau
+
+        cell_loop : do i = 1,ncells
+            dtau(i) = CFL * cell(i)%vol/( half * wsn(i) )
+
+        end do cell_loop
     end subroutine compute_local_time_step_dtau
 
     subroutine explicit_pseudo_time_rk
@@ -257,7 +273,55 @@ module steady_solver
     end subroutine explicit_pseudo_time_rk
 
     subroutine explicit_pseudo_time_forward_euler
-    
+
+        use common          , only : p2, half, one, zero
+
+        use solution        , only : q, res, dtau, gammamo, gamma, gmoinv
+
+        use grid            , only : cell, ncells
+
+        use residual        , only : compute_residual
+
+        use direct_solve    , only : gewp_solve
+
+        real(p2), dimension(5) :: update_q
+        integer i, os
+        real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
+        real(p2), dimension(5,5) :: preconditioner, pre_inv
+        
+        ! Compute the precondition matrix as described in https://doi.org/10.2514/3.12946
+        ! Note: because we are not performing low-mach correction this is equivalent to the jacobian dW/dQ in equation (2)
+        ! Eventually we will be adding low-mach preconditioning so this allows for future adaptability
+
+        do i = 1,ncells
+            ! test for low mach
+            ! else
+            uR2inv = one
+            ! fi
+
+            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
+            rho_p = gamma/q(5,i)
+            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
+            rho = q(1,i)*gamma/q(5,i)
+            theta = (uR2inv) - rho_T*(gammamo)/(rho)
+            
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            
+
+            call gewp_solve(preconditioner, 5, pre_inv, os)
+            if (os .ne. 0) then
+                write(*,*) 'Error inverting precondition matrix at cell: ', i,' Stop!'
+                stop
+            end if
+            
+            update_q = - (dtau(i)/cell(i)%vol) * matmul(pre_inv,res(:,i))
+            
+            q(:,i) = q(:,i) + update_q
+        end do
     end subroutine explicit_pseudo_time_forward_euler
 
     subroutine implicit

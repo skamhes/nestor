@@ -89,7 +89,7 @@ module gradient
 
         implicit none
 
-        integer  :: i, ib, ivar, k
+        integer  :: i, ib, ivar, k, bound_int
         integer  :: attached_cell, attached_bface
         integer  :: unknowns
         real(p2) :: qi, qk          ! Node and attached cell values
@@ -101,11 +101,11 @@ module gradient
         vertex_loop : do i = 1, nnodes
             var_loop : do ivar = 1, nq
                 if (lsq(i)%btype /= INTERNAL ) then ! boundary vertex
-                    ib = lsq(i)%btype
-                    call boundary_value(bc_type(ib),ivar, unknowns, qi)
+                    bound_int = lsq(i)%btype
+                    call boundary_value(bound_int,ivar, unknowns, qi)
                 endif
                 attach_loop : do k = 1,lsq(i)%ncells_lsq
-                    if (lsq(i)%btype == INTERNAL) then
+                    if (lsq(i)%ib_lsq(k) == INTERNAL) then
                         attached_cell = lsq(i)%cell_lsq(k)   
                         qk = q(ivar,attached_cell)
                         ! Add value to gradien
@@ -114,7 +114,7 @@ module gradient
                         vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz4(k) * qk
                     else ! BVERT
                         attached_bface = lsq(i)%cell_lsq(k)
-                        ib            = lsq(i)%ib_lsq(k) ! this is the face ib not the node ib above
+                        ib            = lsq(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
                         attached_cell  = bound(ib)%bcell(attached_bface) 
                         qL = q(:,attached_cell)
                         bface_nrml = bound(ib)%bface_nrml(:,attached_bface)
@@ -152,22 +152,24 @@ module gradient
     end subroutine compute_vgradient
 
     subroutine boundary_value(boundary_type, scalar, known, value)
-        use common      , only : p2, zero
+        use common          , only : p2, zero
 
-        use solution    , only : p_inf, u_inf, v_inf, w_inf, T_inf
+        use solution        , only : p_inf, u_inf, v_inf, w_inf, T_inf
 
-        use grid        , only : bc_type
+        use grid            , only : bc_type
+
+        use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET
 
         implicit none
 
-        character(80),              intent(in ) :: boundary_type
+        integer      ,              intent(in ) :: boundary_type
         integer      ,              intent(in ) :: scalar
         integer      ,              intent(out) :: known
         real(p2)     ,              intent(out) :: value
     
         
-        select case(trim(boundary_type)) 
-        case('freestream')
+        select case(boundary_type) 
+        case(FREE_STREAM)
             known = 3
             select case(scalar)
             case(1)
@@ -181,14 +183,14 @@ module gradient
             case(5)
                 value = T_inf
             end select
-        case('slip_wall')
+        case(SLIP_WALL)
             if (scalar >= 2 .AND. scalar <= 4) then
                 value = zero
                 known = 3
             else
                 known = 4
             endif
-        case('no_slip_wall')
+        case(NO_SLIP_WALL)
             if (scalar == 1) then
                 value = p_inf
                 known = 3
@@ -197,10 +199,10 @@ module gradient
                 ! value as unknown
                 known = 4
             endif
-        case('outflow_subsonic')
+        case(PRESSURE_OUTLET)
             known = 4
         case default
-            write(*,*) "Boundary condition=",trim(boundary_type),"  not implemented."
+            write(*,*) "Boundary condition #",boundary_type,"  not implemented."
             stop
     end select
         
