@@ -11,8 +11,10 @@
   /
 
 &solver
-  CFL = 10.0
-  solver_type = "implicit"
+  CFL = 0.5
+  solver_type = "explicit"
+  perturb_initial = .true.
+  solver_tolerance = 1e-08
   /
 
 &amg
@@ -22,6 +24,6 @@
 
 
 &gradient
-  accuracy_order = 2
+  accuracy_order = 1
   /
 
