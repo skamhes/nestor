@@ -24,7 +24,7 @@ module common
     real(p2), parameter, dimension(5,5) :: canonical_array = reshape( (/1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0, 0,0,0,0,1/), &
                                                             (/5,5/))    
 
-    integer, parameter, dimension(3) :: version = (/0,0,3/) ! 0.0.3
+    integer, parameter, dimension(3) :: version = (/0,1,3/) ! 0.1.3
 end module common
 
 module config
