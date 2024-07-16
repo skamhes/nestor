@@ -24,7 +24,7 @@ module common
     real(p2), parameter, dimension(5,5) :: canonical_array = reshape( (/1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0, 0,0,0,0,1/), &
                                                             (/5,5/))    
 
-    integer, parameter, dimension(3) :: version = (/0,0,2/) ! 0.0.2
+    integer, parameter, dimension(3) :: version = (/0,0,3/) ! 0.0.3
 end module common
 
 module config
@@ -83,6 +83,7 @@ module config
     real(p2), dimension(5) :: variable_ur            = (/ 1, 1, 1, 1, 1 /)  ! Variable under relaxation factors (only used in 
     logical                :: limit_update           = .false.
     logical                :: perturb_initial        = .false.
+    logical                :: random_perturb         = .false.
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
