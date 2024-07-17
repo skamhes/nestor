@@ -270,6 +270,85 @@ module steady_solver
 
     subroutine explicit_pseudo_time_rk
 
+        use common              , only : p2, half, one, zero
+        
+        use solution            , only : q, res, dtau, gammamo, gamma, gmoinv
+
+        use grid                , only : cell, ncells
+
+        use residual            , only : compute_residual
+
+        use direct_solve        , only : gewp_solve
+
+        implicit none
+
+        real(p2), dimension(5,ncells) :: q0
+        integer                       :: i, os
+        real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
+        real(p2), dimension(5,5) :: preconditioner, dwdq, pre_inv
+
+        q0 = q
+
+        do i = 1,ncells
+            ! test for low mach
+            ! else
+            uR2inv = one
+            ! fi
+
+            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
+            rho_p = gamma/q(5,i)
+            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
+            rho = q(1,i)*gamma/q(5,i)
+            theta = (uR2inv) - rho_T*(gammamo)/(rho)
+            
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            
+
+            call gewp_solve(preconditioner, 5, pre_inv, os)
+            if (os .ne. 0) then
+                write(*,*) 'Error inverting precondition matrix at cell: ', i,' Stop!'
+                stop
+            end if
+            
+            q(:,i) = q0(:,i) - (dtau(i)/cell(i)%vol) * matmul( pre_inv,res(:,i) )
+
+        end do
+
+        call compute_residual
+
+        do i = 1,ncells
+            ! test for low mach
+            ! else
+            uR2inv = one
+            ! fi
+
+            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
+            rho_p = gamma/q(5,i)
+            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
+            rho = q(1,i)*gamma/q(5,i)
+            theta = (uR2inv) - rho_T*(gammamo)/(rho)
+            
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            
+
+            call gewp_solve(preconditioner, 5, pre_inv, os)
+            if (os .ne. 0) then
+                write(*,*) 'Error inverting precondition matrix at cell: ', i,' Stop!'
+                stop
+            end if
+            
+            q(:,i) = half * (q(:,i) + q0(:,i)) - (dtau(i)/cell(i)%vol) * matmul( pre_inv,res(:,i) )
+
+        end do
+        
     end subroutine explicit_pseudo_time_rk
 
     subroutine explicit_pseudo_time_forward_euler
