@@ -158,9 +158,9 @@ module residual
                 gradq2 = zero ! won't matter since boundary cell center will be at face center
 
                 q1 = q(:,c1)
-                u1 = q2u(q1)
+                
                 ! Get the right hand state (weak BC!)
-                call get_right_state(u1, unit_face_normal, bc_type(ib), qb)
+                call get_right_state(q1, unit_face_normal, bc_type(ib), qb)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
                 else
