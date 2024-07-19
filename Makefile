@@ -42,14 +42,18 @@ OBCTS = $(SDIR)/parameters.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/solution.o\
+		$(SDIR)/ad_operators.o\
 		$(SDIR)/direct_solve.o\
 		$(SDIR)/bc_states.o\
 		$(SDIR)/lsq.o\
 		$(SDIR)/gradient.o\
 		$(SDIR)/inviscid_flux.o\
+		$(SDIR)/ad_inviscid_flux.o\
 		$(SDIR)/interface.o\
 		$(SDIR)/limiter.o\
 		$(SDIR)/residual.o\
+		$(SDIR)/interface_jacobian.o\
+		$(SDIR)/jacobian.o\
 		$(SDIR)/steady_solver.o\
         $(SDIR)/nestor.o
 ##########################################################
