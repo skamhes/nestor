@@ -93,7 +93,7 @@ module inout
                                      cell, ncells, &
                                      bound
 
-        use solution        , only : q, nq
+        use solution        , only : q, nq, gamma
 
         use config          , only : project_name
                                      
@@ -103,16 +103,19 @@ module inout
         
         integer                           :: j, k, ib, bcell_i, candidate_node, nj, ni
         real(p2), dimension(:,:), pointer :: qn
+        real(p2), dimension(:), pointer   :: Mn, rhon
         integer , dimension(:  ), pointer :: nc
         logical, dimension(:), pointer    :: already_added
         real(p2)                          :: an
-        integer, dimension(:)             :: nbnodes
+        integer, dimension(:), pointer    :: nbnodes
 
         allocate(qn(nq, nnodes))
         allocate(nc(    nnodes))
         
         allocate(already_added(nnodes))
         allocate(nbnodes(nb))
+        allocate(Mn(     nb))
+        allocate(rhon(   nb))
 
         
         nc = 0
@@ -129,9 +132,12 @@ module inout
         enddo bound_loop
         do i = 1,nnodes
             qn(:,i) = qn(:,i) / nc(i)
-            Mn(j) = sqrt(wn(2,j)**2 + wn(3,j)**2 + wn(4,j)**2)  ! mach number (wrt free stream a)
-            an    = sqrt(gamma*wn(5,j)/wn(1,j))                   ! local speed of sound
+            Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2)  ! mach number (wrt free stream a)
+            an    = sqrt(gamma*qn(5,j)/qn(1,j))                   ! local speed of sound
             Mn(j) = Mn(j) / an  
+            ! rho    = p      *gamma / T
+            rhon(j) = q(1,i) * gamma / q(5,j)
+
         end do
 
         write(*,*)
@@ -147,7 +153,7 @@ module inout
         !(0)Header information
 
         write(8,*) 'TITLE = "GRID"'
-        write(8,*) 'VARIABLES = "x","y","z","rho","u","v","w","p","M"'
+        write(8,*) 'VARIABLES = "x","y","z","p","u","v","w","T","rho","M"'
 
         do ib = 1,nb
             already_added = .false.
@@ -174,7 +180,8 @@ module inout
                     ni = bound(ib)%bfaces(i,j)
                     if (.not.already_added(ni)) then
                         already_added(ni) = .true.
-                        write(8,'(11es25.15)') x(ni), y(ni), z(ni), wn(ir,ni), wn(iu,ni), wn(iv,ni), wn(iw,ni), wn(ip,ni), Mn(ni)
+                        write(8,'(10es25.15)') x(ni), y(ni), z(ni), qn(1,ni), qn(2,ni), qn(3,ni), qn(4,ni), qn(5,ni), rhon(ni), &
+                                               Mn(ni)
                     endif
                 enddo
             enddo
