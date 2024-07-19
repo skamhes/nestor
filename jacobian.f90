@@ -69,14 +69,18 @@ module jacobian
 
     subroutine compute_jacobian
 
-        use common          , only : p2, zero
+        use common              , only : p2, zero
 
-        use grid            , only : ncells, nfaces, & 
-                                     face, cell, &
-                                     face_nrml_mag, face_nrml, &
-                                     bound, nb, bc_type
+        use grid                , only : ncells, nfaces, & 
+                                         face, cell, &
+                                         face_nrml_mag, face_nrml, &
+                                         bound, nb, bc_type
 
-        use solution        , only : q
+        use solution            , only : q
+
+        use interface_jacobian  , only : interface_jac
+
+        use bc_states           , only : get_right_state
 
         implicit none
         ! Local Vars
