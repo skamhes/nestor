@@ -14,7 +14,7 @@
   CFL = 0.5
   solver_type = "rk"
   perturb_initial = .true.
-  solver_tolerance = 1e-08
+  solver_tolerance = 1e-1
   /
 
 &amg

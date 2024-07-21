@@ -10,11 +10,11 @@
 ! Version: 0.0.1
 
 program nestor
-    use config, only : read_nml_config, grid_type
+    use config, only : read_nml_config, grid_type, generate_tec_file_b
 
     use common, only : version
 
-    use inout,  only : set_filenames
+    use inout,  only : set_filenames, write_tecplot_file_b
 
     use grid,   only : read_grid, read_su2, construct_grid
 
@@ -59,4 +59,16 @@ program nestor
     call allocate_solution_vars
 
     call steady_solve
+
+    ! if (write_data) then
+    !     call write_data_file
+    ! end if
+
+    if ( generate_tec_file_b ) then
+        call write_tecplot_file_b
+    end if
+    
+    ! if ( generate_tec_file_v ) then
+    !     call write_tecplot_file_v
+    ! end if
 end program nestor

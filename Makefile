@@ -38,7 +38,8 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 ##########################################################
 SDIR = .
 
-OBCTS = $(SDIR)/parameters.o\
+OBCTS = $(SDIR)/lowlevel.o\
+		$(SDIR)/parameters.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/solution.o\

@@ -91,31 +91,39 @@ module inout
                                      nquad, quad, &
                                      bc_type, nb, &
                                      cell, ncells, &
-                                     bound
+                                     bound, bgrid_type
 
         use solution        , only : q, nq, gamma
 
         use config          , only : project_name
+
+        use lowlevel        , only : my_alloc_int_ptr
                                      
         implicit none 
 
+        type bnode_type
+                integer                               :: nbnodes 
+                integer, dimension(:),  pointer       :: bnodes  
+        end type bnode_type
+        type(bnode_type), dimension(nb)               :: bnode_data
+            
+        type(bgrid_type), dimension(:), pointer       :: bound_export
         integer :: i, os, ibn
         
-        integer                           :: j, k, ib, bcell_i, candidate_node, nj, ni
+        integer                           :: j, k, ib, nk, nj, ni, j_count
+        integer                           :: bcell_i, candidate_node
         real(p2), dimension(:,:), pointer :: qn
         real(p2), dimension(:), pointer   :: Mn, rhon
         integer , dimension(:  ), pointer :: nc
-        logical, dimension(:), pointer    :: already_added
+        logical                           :: already_added
         real(p2)                          :: an
-        integer, dimension(:), pointer    :: nbnodes
+        ! integer, dimension(:), pointer    :: nbnodes
 
         allocate(qn(nq, nnodes))
         allocate(nc(    nnodes))
         
-        allocate(already_added(nnodes))
-        allocate(nbnodes(nb))
-        allocate(Mn(     nb))
-        allocate(rhon(   nb))
+        allocate(Mn(           nnodes))
+        allocate(rhon(         nnodes))
 
         
         nc = 0
@@ -123,22 +131,58 @@ module inout
 
         bound_loop : do ib = 1,nb
             bface_loop : do i = 1,bound(ib)%nbfaces
-                bcell_i = bound(ib)% bcell(i)
+                bcell_i = bound(ib)%bcell(i)
                 do k = 1,cell(bcell_i)%nvtx
-                    qn(:,cell(bcell_i)%vtx(k)) = qn(:,cell(bcell_i)%vtx(k)) + q (:,bcell_i)
-                    nc(  cell(bcell_i)%vtx(k)) = nc(  cell(bcell_i)%vtx(k)) + 1
-                enddo
-            enddo bface_loop
-        enddo bound_loop
-        do i = 1,nnodes
-            qn(:,i) = qn(:,i) / nc(i)
-            Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2)  ! mach number (wrt free stream a)
-            an    = sqrt(gamma*qn(5,j)/qn(1,j))                   ! local speed of sound
-            Mn(j) = Mn(j) / an  
-            ! rho    = p      *gamma / T
-            rhon(j) = q(1,i) * gamma / q(5,j)
+                    qn(:,cell(bcell_i)%vtx(k)) = qn(:,cell(bcell_i)%vtx(k))  + q(:,bcell_i)
+                    nc(cell(bcell_i)%vtx(k))   = nc(cell(bcell_i)%vtx(k)) + 1
+                end do
+            end do bface_loop
+        end do bound_loop
 
+        do j = 1,nnodes
+            qn(:,j) = qn(:,j) / nc(j) ! copmute an average
+            Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2)  ! mach number (wrt free stream a)
+            an    = sqrt(gamma*qn(5,j)/qn(1,j))                 ! local speed of sound
+            Mn(j) = Mn(j) / an                                  ! local mach number
+            ! rho    = p      * gamma / T
+            rhon(j) = qn(1,j) * gamma / qn(5,j)
         end do
+
+        allocate(bound_export(nb))
+        boundary_loop : do ib = 1,nb
+            bnode_data(ib)%nbnodes = zero
+            allocate(bnode_data(ib)%bnodes(1))
+            bnode_data(ib)%bnodes(1) = zero
+            bound_export(ib)%nbfaces = bound(ib)%nbfaces
+            allocate( bound_export(ib)%bfaces( 5,bound(ib)%nbfaces ) )  
+            bound_export(ib)%bfaces = zero
+            bfaces_loop : do i = 1,bound(ib)%nbfaces
+                bound_export(ib)%bfaces(1,i) = bound(ib)%bfaces(1,i)
+                bface_vertex_loop : do k = 2,(bound(ib)%bfaces(1,i) + 1) ! loop through number of vertices for face
+                    if (bnode_data(ib)%nbnodes == 0 ) then
+                        bnode_data(ib)%nbnodes = bnode_data(ib)%nbnodes + 1
+                        bnode_data(ib)%bnodes  = bound(ib)%bfaces(k,i)
+                        bound_export(ib)%bfaces(k,i) = 1
+                        cycle bface_vertex_loop 
+                    end if 
+                    candidate_node = bound(ib)%bfaces(k,i)
+                    already_added = .false.
+                    bnodes_loop : do nk = 1,bnode_data(ib)%nbnodes
+                        if (candidate_node == bnode_data(ib)%bnodes(nk)) then
+                            already_added = .true.
+                            bound_export(ib)%bfaces(k,i) = nk
+                            exit bnodes_loop  
+                        end if 
+                    end do bnodes_loop 
+                    if (.not.already_added) then
+                        bnode_data(ib)%nbnodes = bnode_data(ib)%nbnodes + 1
+                        call my_alloc_int_ptr(bnode_data(ib)%bnodes,bnode_data(ib)%nbnodes)
+                        bnode_data(ib)%bnodes(bnode_data(ib)%nbnodes) = candidate_node
+                        bound_export(ib)%bfaces(k,i) = bnode_data(ib)%nbnodes
+                    end if
+                end do bface_vertex_loop 
+            end do bfaces_loop
+        end do boundary_loop
 
         write(*,*)
         write(*,*) "-------------------------------------------------------"
@@ -156,47 +200,25 @@ module inout
         write(8,*) 'VARIABLES = "x","y","z","p","u","v","w","T","rho","M"'
 
         do ib = 1,nb
-            already_added = .false.
-            do j = 1,bound(ib)%nbfaces
-                nj = bound(ib)%bfaces(1,j)
-                do i = 2,nj
-                    ni = bound(ib)%bfaces(i,j)
-                    if (.not.already_added(ni)) then
-                        already_added(ni) = .true.
-                        nbnodes(ib) = nbnodes(ib) + 1
-                    endif
-                enddo
-            enddo
-        enddo
-        do ib = 1,nb
-            already_added = .false.
-            write(8,*) 'ZONE T = "',ib,'"  n=', nbnodes(ib), &
-                        ',e=', bound(ib)%nbfaces,' , zonetype=fequadrilateral, datapacking=point'
-
-            ! Loop through nodes
-            do j = 1,bound(ib)%nbfaces
-                nj = bound(ib)%bfaces(1,j)
-                do i = 2,nj
-                    ni = bound(ib)%bfaces(i,j)
-                    if (.not.already_added(ni)) then
-                        already_added(ni) = .true.
-                        write(8,'(10es25.15)') x(ni), y(ni), z(ni), qn(1,ni), qn(2,ni), qn(3,ni), qn(4,ni), qn(5,ni), rhon(ni), &
-                                               Mn(ni)
-                    endif
-                enddo
-            enddo
-
+            write(8,*) 'ZONE T = "',ib,'"  n=', bnode_data(ib)%nbnodes, &
+                            ',e=', bound(ib)%nbfaces,' , zonetype=fequadrilateral, datapacking=point'
+            do j_count = 1,bnode_data(ib)%nbnodes
+                j = bnode_data(ib)%bnodes(j_count)
+                write(8,'(10es25.15)') x(j), y(j), z(j), qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j), rhon(j), Mn(j)
+            end do
             ! Loop through faces
-            do i = 1,bound(ib)%nbfaces
-                if (bound(ib)%bfaces(1,i) == 3) then ! write tri as a degenerate quad
-                    write(8,'(4i10)') bound(ib)%bfaces(2,i), bound(ib)%bfaces(3,i), & 
-                                        bound(ib)%bfaces(4,i), bound(ib)%bfaces(4,i)
-                else if (bound(ib)%bfaces(1,i) == 4) then ! write quad
-                    write(8,'(4i10)') bound(ib)%bfaces(2,i), bound(ib)%bfaces(3,i), & 
-                    bound(ib)%bfaces(4,i), bound(ib)%bfaces(5,i)
+            do i = 1,bound_export(ib)%nbfaces
+                if (bound_export(ib)%bfaces(1,i) == 3) then ! write tri as a degenerate quad
+                    write(8,'(4i10)') bound_export(ib)%bfaces(2,i), bound_export(ib)%bfaces(3,i), & 
+                                        bound_export(ib)%bfaces(4,i), bound_export(ib)%bfaces(4,i)
+                else if (bound_export(ib)%bfaces(1,i) == 4) then ! write quad
+                    write(8,'(4i10)') bound_export(ib)%bfaces(2,i), bound_export(ib)%bfaces(3,i), & 
+                    bound_export(ib)%bfaces(4,i), bound_export(ib)%bfaces(5,i)
                 end if
-            enddo
+
+            end do
         end do
+        
         close(8)
         write(*,*)
         write(*,*) ' End of Writing Tecplot file = ', trim(filename_tecplot_b)
