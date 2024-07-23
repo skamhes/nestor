@@ -69,18 +69,20 @@ module jacobian
 
     subroutine compute_jacobian
 
-        use common              , only : p2, zero
+        use common              , only : p2, zero, half, one
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
                                          bound, nb, bc_type
 
-        use solution            , only : q
+        use solution            , only : q, gamma, gammamo, gmoinv, dtau
 
         use interface_jacobian  , only : interface_jac
 
         use bc_states           , only : get_right_state
+
+        use direct_solve        , only : gewp_solve
 
         implicit none
         ! Local Vars
@@ -96,7 +98,7 @@ module jacobian
         real(p2), dimension(5,5)    :: duLdqL, duRdqR
         real(p2)                    :: theta
         real(p2)                    :: rho_p, rho_T, rho
-        real(p2)                    :: H, alpha, beta, lambda, absu
+        real(p2)                    :: H, alpha, beta, lambda, absu, UR2inv
 
         ! Initialize jacobian terms
         do i = 1,ncells
@@ -151,9 +153,42 @@ module jacobian
         
         end do bound_loop
 
-                
-                
-        
+        ! Now we need to add the pseudo time vol/dtau to the diagonal term along with the jacobian
+        ! DQ/DW and generate the inverse diagonal block
+        do i = 1,ncells
+            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
+            rho_p = gamma/q(5,i)
+            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
+            rho = q(1,i)*gamma/q(5,i)
+            UR2inv = one ! will be 1/uR2(i)
+            theta = (UR2inv) - rho_T*(gammamo)/(rho)
+            
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+
+            do ii = 1,5
+                do jj = 1,5
+                    jac(i)%diag(ii,jj) = jac(i)%diag(ii,jj) + (cell(i)%vol/dtau(i))*preconditioner(ii,jj)
+                end do
+            end do
+
+            ! Invert the diagonal
+            idestat = 0
+            !                A                 dim  A^{-1}           error check
+            call gewp_solve( jac(i)%diag(:,:), 5  , jac(i)%diag_inv, idestat    )
+             !  Report errors
+            if (idestat/=0) then
+                write(*,*) " Error in inverting the diagonal block... Stop"
+                write(*,*) "  Cell number = ", i
+                do k = 1, 5
+                    write(*,'(12(es8.1))') ( jac(i)%diag(k,j), j=1,5 )
+                end do
+                stop
+            endif
+        end do
     end subroutine compute_jacobian
 
 end module jacobian
