@@ -31,7 +31,9 @@ module solution
 
     integer                             :: lrelax_sweeps_actual
     real(p2)                            :: lrelax_roc
+    real(p2)                            :: roc
 
+    real(p2), dimension(:,:), pointer   :: solution_update
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.
@@ -76,7 +78,7 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil
+        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type
 
         implicit none
 
@@ -101,6 +103,8 @@ module solution
 
         allocate( res(nq,ncells) )
         res = zero
+
+        if ( trim(solver_type) == 'implicit') allocate(solution_update(nq,ncells))
 
     end subroutine allocate_solution_vars
 

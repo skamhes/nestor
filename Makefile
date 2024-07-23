@@ -43,6 +43,8 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/solution.o\
+		$(SDIR)/sparse_common.o\
+		$(SDIR)/sparse_block_matrix.o\
 		$(SDIR)/ad_operators.o\
 		$(SDIR)/direct_solve.o\
 		$(SDIR)/bc_states.o\
@@ -53,6 +55,9 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/interface.o\
 		$(SDIR)/limiter.o\
 		$(SDIR)/residual.o\
+		$(SDIR)/gauss_seidel.o\
+		$(SDIR)/algebraic_multigrid.o\
+		$(SDIR)/linear_solver.o\
 		$(SDIR)/interface_jacobian.o\
 		$(SDIR)/jacobian.o\
 		$(SDIR)/steady_solver.o\
