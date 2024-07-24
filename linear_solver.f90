@@ -32,7 +32,7 @@ module linear_solver
 
         use grid                , only : ncells, cell
 
-        use jacobian            , only : jacobian_type
+        use solution            , only : jacobian_type
 
         use sparse_matrix       , only : build_A_BCSM
 
@@ -60,7 +60,7 @@ module linear_solver
 
         call build_A_BCSM(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
 
-        call build_Dinv_array(ncells,jacobian_block,Dinv)
+        call build_Dinv_array(ncells,num_eq,jacobian_block,Dinv)
 
         direction = UP 
 
@@ -159,4 +159,26 @@ module linear_solver
             stat = RELAX_FAIL_STALL
         endif
     end subroutine linear_sweeps
+
+    subroutine build_Dinv_array(ncells,nq,jac,D_inv)
+        ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
+        ! so the other two indices do not need to be stored.
+        use common      , only : p2, zero
+
+        use solution    , only : jacobian_type
+
+        implicit none
+        integer, intent(in) :: ncells
+        integer, intent(in) :: nq
+        type(jacobian_type), dimension(ncells), intent(in) :: jac
+        
+        real(p2), dimension(nq,nq,ncells), INTENT(OUT) :: D_inv
+        
+
+        integer :: i
+        
+        do i = 1,ncells
+            D_inv(:,:,i) = jac(i)%diag_inv(:,:)
+        end do
+    end subroutine build_Dinv_array
 end module linear_solver

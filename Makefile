@@ -16,8 +16,10 @@ FC = gfortran
 FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics
-# FFLAGS = -O2 -pg -c 
-# FFLAGS = -O3 -c 
+# FFLAGS = -O2 -pg
+# FFLAGS = -O3
+##########################################################
+# VPATH = ..
 ##########################################################
 # Suffix Rule for f90
 # The first line says to make sure that each object file
@@ -32,7 +34,6 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 %.o: %.mod
 .SUFFIXES : .o .f90
 .f90.o:
-	@echo "suffix"
 	$(FC) $(FFLAGS) -c $<
 
 ##########################################################
@@ -40,9 +41,10 @@ SDIR = .
 
 OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/parameters.o\
-		$(SDIR)/inputoutput.o\
+		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/solution.o\
+		$(SDIR)/inputoutput.o\
 		$(SDIR)/sparse_common.o\
 		$(SDIR)/sparse_block_matrix.o\
 		$(SDIR)/ad_operators.o\

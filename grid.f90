@@ -163,7 +163,7 @@ module grid
         !*    bc_type = boundary condition name
         !*
         !********************************************************************************
-        use inout , only : filename_grid, filename_bc
+        use files , only : filename_grid, filename_bc
         implicit none
 
         integer :: os
@@ -378,7 +378,7 @@ module grid
         ! Read .su2 grid format
         ! If anyone from the su2 group happens to read this maybe don't.  I wrote this at 2am and spent the minimum effort in order
         ! to get it working.  You have been warned........ :)
-        use inout, only : filename_grid, filename_bc
+        use files, only : filename_grid, filename_bc
         implicit none
         
         integer :: os

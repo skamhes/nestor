@@ -14,7 +14,9 @@ program nestor
 
     use common, only : version
 
-    use inout,  only : set_filenames, write_tecplot_file_b
+    use files,  only : set_filenames
+    
+    use inout,  only : write_tecplot_file_b
 
     use grid,   only : read_grid, read_su2, construct_grid
 

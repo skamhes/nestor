@@ -19,12 +19,12 @@ module gauss_seidel
 
         !INPUT
         integer         :: nq ! Number of equations
+        integer ,                           intent(in)   :: nnz
         real(p2), dimension(   nq,nnz),     intent(in)   :: res    ! RHS (b)
         real(p2), dimension(nq,nq,nnz),     intent(in)   :: V    ! Values of A
         integer , dimension(nnz      ),     intent(in)   :: C    ! Column index of A
         integer , dimension(ncells+1 ),     intent(in)   :: R    ! Start index of A
         real(p2), dimension(nq,nq,ncells),  intent(in)   :: Dinv ! Inverse of A(i,i)
-        integer ,                           intent(in)   :: nnz
         real(p2),                           intent(in)   :: omega_lrelax
         !INOUT
         real(p2), dimension(nq,ncells ), intent(inout)   :: correction
@@ -43,7 +43,7 @@ module gauss_seidel
             b = -res(:,i)
             gs_row_loop : do k = R(i),(R(i+1)-1)
                 ! Add RHS from off diagonal terms and du (du = zero to start and will be updated as we go)
-                if (C(k) /= i) then
+                if ( C(k) .NE. i) then
                     b = b - matmul(V(:,:,k),correction(:,C(k)))
                 end if
             end do gs_row_loop

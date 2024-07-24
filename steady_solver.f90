@@ -405,6 +405,122 @@ module steady_solver
 
     subroutine implicit
 
+        use common              , only : p2
+
+        use jacobian            , only : compute_jacobian
+
+        use  grid               , only : ncells
+
+        use solution            , only : q, res, solution_update, nq, jac
+
+        use linear_solver       , only : linear_relaxation
+
+        implicit none
+        integer         :: i
+        real(p2)        :: omegan !under-relaxation factor for nonlinear iteration
+        
+        ! First compute the jacobian
+        call compute_jacobian
+
+        ! next compute the correction by relaxing the linear system
+        call linear_relaxation(nq, jac, res, solution_update)
+
+        loop_cells : do i = 1,ncells
+            omegan = safety_factor_primative(q(:,i),solution_update(:,i))
+            ! update solution
+            q(:,i) = q(:,i) + omegan * matmul(var_ur_array,solution_update(:,i))
+        end do loop_cells
+
     end subroutine implicit
+
+    !********************************************************************************
+    ! Compute a safety factor (under relaxation for nonlinear update) to make sure
+    ! the updated density and pressure are postive.
+    !
+    ! This is just a simple exmaple.
+    ! Can you come up with a better and more efficient way to control this?
+    !
+    !********************************************************************************
+    function safety_factor_primative(q,dq)
+
+        use common          , only : p2
+
+        use config          , only : M_inf
+
+       
+        implicit none
+       
+        real(p2) ::    zero = 0.00_p2
+       
+        real(p2), dimension(5), intent(in) :: q, dq
+        real(p2)                           :: safety_factor_primative
+        integer                            :: ir = 1, ip = 5
+        real(p2), dimension(5)             :: q_updated
+        real(p2), dimension(5)             :: w_updated
+        real(p2)                           :: p_updated
+       
+        ! Default safety_factor
+    
+        safety_factor_primative = 1.0_p2
+    
+        ! Temporarily update the solution:
+    
+        q_updated = q + safety_factor_primative*dq
+        
+        !-----------------------------
+        ! Return if both updated density and pressure are positive
+    
+        if ( q_updated(1) > zero .and. q_updated(5) > zero ) then
+    
+            !Good. Keep safety_factor = 1.0_p2, and return.
+    
+            return
+    
+        endif
+    
+        !-----------------------------
+        ! Negative Temperature fix
+    
+        if ( q_updated(5) <= zero) then ! meaning du(ir) < zero, reducing the density.
+    
+            safety_factor_primative = -q(5)/dq(5) * 0.25_p2 ! to reduce the density only by half.
+    
+        endif
+    
+        !-----------------------------
+        ! Negative pressure fix
+        !
+        ! Note: Take into account a case of density < 0 and pressure > 0.
+        !       Then, must check if the safety factor computed above for density
+        !       will give positive pressure also, and re-compute it if necessary.
+    
+        if ( q_updated(1) <= zero .or. q_updated(5) <= zero) then
+    
+            !Note: Limiting value of safety_factor is zero, i.e., no update and pressure > 0.
+            do
+    
+            q_updated = q + safety_factor_primative*dq
+            p_updated = q_updated(1)
+    
+            ! For low-Mach flows, theoretically, pressure = O(Mach^2).
+            ! We require the pressure be larger than 1.0e-05*(free stream Mach)^2.
+            ! Is there a better estimate for the minimum pressure?
+    
+            if (p_updated > 1.0e-05_p2*M_inf**2) exit
+    
+            safety_factor_primative = 0.75_p2*safety_factor_primative ! reduce the factor by 25%, and continue.
+    
+            end do
+    
+        endif
+
+        if (abs(safety_factor_primative * dq(1))/q(1)  > 0.2_p2  ) then 
+            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(1) / dq(1)
+        endif   
+        
+        if (abs(safety_factor_primative * dq(5))/q(5)  > 0.2_p2  ) then 
+            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(5) / dq(5)
+        endif   
+    end function safety_factor_primative
 
 end module steady_solver

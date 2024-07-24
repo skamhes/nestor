@@ -11,14 +11,15 @@
   /
 
 &solver
-  CFL = 0.5
-  solver_type = "rk"
+  CFL = 1000000
+  solver_type = "implicit"
   perturb_initial = .true.
-  solver_tolerance = 1e-1
+  solver_tolerance = 1e-12
   /
 
 &amg
-  use_amg = .true.
+  use_amg = .false.
+  smoother = 'gs'
   /
 
 

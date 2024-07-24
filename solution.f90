@@ -72,6 +72,22 @@ module solution
     integer, parameter :: iw = 4
     integer, parameter :: iT = 5
 
+
+    ! Jacobian type has to be placed here to avoid circular dependencies.
+    type jacobian_type
+        real(p2), dimension(5,5)                :: diag     ! diagonal blocks of Jacobian matrix
+        real(p2), dimension(:,:,:), allocatable :: off_diag ! off-diagonal blocks
+        real(p2), dimension(5,5)                :: diag_inv ! inverse of diagonal blocks
+        real(p2), dimension(5)                  :: RHS      ! Right hand side (b) of the linear system
+    end type jacobian_type
+
+    public :: kth_nghbr_of_1, kth_nghbr_of_2
+    integer, dimension(:), allocatable :: kth_nghbr_of_1
+    integer, dimension(:), allocatable :: kth_nghbr_of_2
+
+    public :: jac
+    type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
+    
     contains
 
     subroutine allocate_solution_vars
@@ -175,7 +191,8 @@ module initialize
 
     implicit none
 
-    public set_initial_solution
+    public :: set_initial_solution
+    public :: init_jacobian
 
     contains
 
@@ -185,7 +202,7 @@ module initialize
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type
 
         use solution
 
@@ -213,5 +230,52 @@ module initialize
             endif
         end do cell_loop
         
+        if (trim(solver_type) == 'implicit' ) call init_jacobian
+        
     end subroutine set_initial_solution
+
+    
+    
+    subroutine init_jacobian
+
+        use common          , only : p2
+
+        use grid            , only : nfaces, face, cell, ncells
+
+        use solution        , only : nq, jacobian_type, kth_nghbr_of_1, kth_nghbr_of_2, jac
+
+        implicit none
+
+        integer :: i, k
+        integer :: c1, c2
+
+        ! Create kth_nghbr arrays
+        allocate(kth_nghbr_of_1(nfaces))
+        allocate(kth_nghbr_of_2(nfaces))
+        allocate(jac           (ncells))
+
+        ! Define kth neighbor arrays
+        face_nghbr_loop : do i = 1,nfaces
+            c1 = face(1,i)
+            c2 = face(2,i)
+            ! loop over c1 neighbors to find c2
+            do k = 1,cell(c1)%nnghbrs
+                if ( c2 == cell(c1)%nghbr(k)) then
+                    kth_nghbr_of_1(i) = k ! c2 is the kth neighbor of c1
+                end if
+            end do
+            ! repeat for cell 2
+            do k = 1,cell(c2)%nnghbrs
+                if ( c1 == cell(c2)%nghbr(k)) then
+                    kth_nghbr_of_2(i) = k
+                end if
+            end do
+        end do face_nghbr_loop
+
+        ! allocate jacobian off diagonal arrays
+        do i = 1,ncells
+            allocate(  jac(i)%off_diag(nq,nq,cell(i)%nnghbrs))
+        end do
+
+    end subroutine init_jacobian
 end module initialize

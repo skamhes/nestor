@@ -29,14 +29,12 @@ module interface_jacobian
         real(p2), dimension(5,5), intent(out) :: dFnduL, dFnduR
 
         ! Local vavrs
-        real(p2), dimension(5)      :: wL, wR, uL, uR
-        real(p2), dimension(5,5)    :: dfndu, dfndu_temp
+        real(p2), dimension(5,5)    :: dfndu
         real(p2), dimension(5)      :: dummy5
         real(p2)                    :: wsn
         
-        integer :: i, ii
+        integer :: i
         type(derivative_data_type_df5), dimension(5) :: uL_ddt, uR_ddt, qL_ddt, qR_ddt
-        type(derivative_data_type_df5)               :: uR2L_ddt, uR2R_ddt, dp
 
         jac_L_R : do i = 1,2
             qL_ddt = qj

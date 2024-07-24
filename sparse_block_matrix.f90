@@ -14,7 +14,7 @@ contains
 
         use common      , only : p2
         use grid        , only : cc_data_type
-        use jacobian    , only : jacobian_type
+        use solution    , only : jacobian_type
         use sparse_common, only: insertion_sort_index
         implicit none 
 
