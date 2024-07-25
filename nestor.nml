@@ -18,7 +18,7 @@
   /
 
 &amg
-  use_amg = .false.
+  use_amg = .true.
   smoother = 'gs'
   /
 
