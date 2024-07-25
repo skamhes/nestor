@@ -120,6 +120,81 @@ module sparse_common
         deallocate(x_internal)
     end subroutine insertion_sort_index
 
+    function insertion_sort_int(x,length)
+        ! Performs insertion sort on the list x of integers
+        ! While insertion sort is O(n^2) it is generally very efficient for very short lists. The maximum number of elements this
+        ! subroutine will experience is currently 4 so a very simple sorting method should be more efficient than a better scaling
+        ! but more complex method.
+        
+        implicit none
+        integer, intent(in)                    :: length
+        integer, dimension(length), intent(in) :: x
+        integer, dimension(length)             :: insertion_sort_int
+
+        integer :: i,j,x_j
+        insertion_sort_int = x
+
+        do i = 1,length
+            j = i
+            inner : do
+                if ( (j <= 1) ) then
+                    exit inner
+                else if (insertion_sort_int(j-1) < insertion_sort_int(j)) then
+                    exit inner
+                end if
+                x_j = insertion_sort_int(j)
+                insertion_sort_int(j) = insertion_sort_int(j-1)
+                insertion_sort_int(j-1) = x_j
+                j = j-1
+            end do inner
+        end do
+    end function
+
+    subroutine insertion_sort_real(x,index)
+        use common , only : p2
+        ! This routine uses insertion sort sort the input vector x and returns the output vector index
+        ! which is the index needed to sort x.
+        ! Insertion sort is O(n^2) which is generally inefficient.  However its simplicity allows it 
+        ! to be faster than most O(n log n) methods for small arrays.  Since the incoming array will 
+        ! just be the cell neighbors for the coarse mesh n <= 6 unless I get around to adding support
+        ! for general polyhedral cells (please no...)
+        !
+        ! ref: https://en.wikipedia.org/wiki/Insertion_sort
+
+        real(p2), dimension(:), intent(in)  :: x
+        integer, dimension(:), intent(out) :: index
+        
+        real(p2), dimension(:), allocatable :: x_internal
+        integer i, j, length, index_j
+        real(p2) x_j
+        length = size(x)
+        allocate(x_internal(length))
+        x_internal = x
+
+        index = (/(i,i=1,length)/)
+        
+        do i = 1,length
+            j = i
+            inner : do 
+                if ( (j <= 1) ) then
+                    exit inner
+                else if ( x_internal(j-1) < x_internal(j)) then ! it doesn't like evaluating this line with .or. if j = 1 (array bounds)
+                                              ! I know this is stupid, but I don't want to debug it right now...
+                    exit inner
+                end if
+                x_j = x_internal(j)
+                x_internal(j) = x_internal(j-1)
+                x_internal(j-1) = x_j
+                index_j = index(j)
+                index(j) = index(j-1)
+                index(j-1) = index_j
+                j = j-1
+            end do inner
+        end do
+        deallocate(x_internal)
+    end subroutine insertion_sort_real
+
+
     subroutine destroy_A(V,C)
         ! This is supposed to be a catch all subroutine for deallocating V and C but for some reason fortran got grumpy when I 
         ! tried to use it so I haven't been...

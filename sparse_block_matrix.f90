@@ -3,138 +3,11 @@ module sparse_matrix
     
     implicit none
 
-    public :: build_A_BCSM ! builds A matrix in a Block Compressed Sparse Matrix (BCSM) format
+    public
 
 contains
     
-    subroutine build_A_BCSM(ncells,cell,jac,V,C,R,nnz)
-        ! Takes in a cell structure and a jacobian structure and creates a corresponding A matrix using the Yale meethod:
-        ! https://en.wikipedia.org/wiki/Sparse_matrix
-
-
-        use common      , only : p2
-        use grid        , only : cc_data_type
-        use solution    , only : jacobian_type
-        use sparse_common, only: insertion_sort_index
-        implicit none 
-
-        integer, intent(in) :: ncells
-        type(cc_data_type), dimension(ncells), intent(in) :: cell
-        type(jacobian_type), dimension(ncells), intent(in) :: jac
-
-        real(p2), dimension(:,:,:), allocatable, intent(out)  :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer, dimension(:),  allocatable, intent(out)       :: C   ! Column index of each value
-        integer,dimension(ncells+1), intent(out) :: R   ! Start index of each new row
-        integer, INTENT(OUT), optional :: nnz
-
-        integer :: i, j, length
-
-        R(1) = 1 ! Row 1 starts at 1
-        do i = 2,ncells + 1
-            R(i) = R(i-1) + 1 + cell(i-1)%nnghbrs ! Start of row(i) = row(i-1) start point + 1 (diagonal term) + # of neighbors
-        end do
-        nnz = R(ncells+1) - 1 ! number of nonzero cells
-
-        allocate(V(5,5,nnz))
-        allocate(C(    nnz))
-
-        do i = 1,ncells
-            ! sort the index of the cell neighbors and i and stores them in C:
-            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
-            length = R(i+1)-R(i)
-            do j = R(i),(R(i+1)-1)
-                if (length == C(j)) then
-                    V(:,:,j) = jac(i)%diag(:,:)
-                    C(j) = i
-                else
-                    V(:,:,j) = jac(i)%off_diag(:,:,C(j))
-                    C(j) = cell(i)%nghbr(C(j))
-                end if
-            end do
-        end do
-    end subroutine build_A_BCSM
-
-    subroutine A_times_P(ncells,ngroups,nnz,V,C,R,ProlongC,ProlongR,productV,productC,productR)
-        use common, only : p2, zero
-        ! This subroutine performes the first half (AP) of RAP (where P = R^T).  The preallocation and computation are performed
-        ! using the row-wise product.  This takes advantage of the sparse nature of the cells for a very efficient matrix-matrix
-        ! product.  Additionally it allows for multiplication without needing to match indices.
-
-        implicit none
-
-        integer, intent(in) :: ncells
-        integer, intent(in) :: ngroups
-        integer, intent(in) :: nnz
-        real(p2), dimension(5,5,nnz), intent(in) :: V
-        integer, dimension(nnz), intent(in) :: C
-        integer, dimension(ncells+1), intent(in) :: R
-        integer, dimension(ncells), intent(in) :: ProlongC
-        integer, dimension(ncells + 1), intent(in) :: ProlongR
-  
-
-        real(p2), dimension(:,:,:), allocatable, intent(out) :: productV
-        integer, dimension(:), allocatable, INTENT(OUT) :: productC
-        integer, dimension(ncells + 1), INTENT(OUT) :: productR
-
-        integer :: nnz_prime, i, j, k, os, counter, nnz_prime_new
-        logical :: added
-        real(p2), dimension(5,5) :: intermediateProduct
-
-        ! Compute the resultant number of nonzero values.
-        call sparse_sparse_pre_alloc(ncells,C,R,ProlongC,ProlongR,nnz_prime)
-
-        ! Compute A*Prolong
-        allocate(productV(5,5,nnz_prime))
-        allocate(productC(    nnz_prime))
-        call sparse_sparse_row_wise_product_AP(ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
-
-    end subroutine A_times_P
-
-
-    subroutine R_A_P(ncells,ngroups,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
-        ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
-        use common , only : p2, zero
-
-        implicit none
-        integer, intent(in) :: ncells                                   ! # of cells for the coarse mesh
-        integer, intent(in) :: ngroups                                  ! # of groups on the restricted level
-        integer, intent(in) :: nnz                                      ! # of nonzero entries in the fine A matrix
-        integer, dimension(ncells), intent(in) :: RestrictC             ! Restriction matrix Columns
-        integer, dimension(ngroups + 1), intent(in) :: RestrictR        ! Restriction matrix Columns
-        integer, dimension(ncells), intent(in) :: ProlongC              ! Restriction matrix Columns
-        integer, dimension(ncells + 1), intent(in) :: ProlongR          ! Restriction matrix Columns
-        real(p2), dimension(5,5,nnz), intent(in) :: V                   ! Block Sparse Compressed Matrix (BSCM) values of A matrix
-        integer, dimension(nnz), intent(in) :: C                        ! BCSM Columns of A matrix
-        integer, dimension(ncells+1), intent(in) :: R                   ! BCSM Rows of A matrix
-        ! integer,dimension(ngroups,ncells) :: Restrict
-
-        real(p2), dimension(:,:,:), allocatable, INTENT(OUT) :: RAP_V   ! BCSM Values of restricted A matrix
-        integer, dimension(:), allocatable, INTENT(OUT) :: RAP_C        ! BCSM Columns of restricted A matrix
-        integer, dimension(ngroups + 1), INTENT(OUT) :: RAP_R           ! BCSM Rows of restricted A matrix
-        integer, optional, intent(out) :: nnz_prime_final               ! (Optional) # of nonzero values in restricted A matrix
-
-        real(p2), dimension(:,:,:), allocatable :: AP_V                 ! BCSM Values of intermediate A*(R^T) matrix
-        integer, dimension(:), allocatable :: AP_C                      ! BCSM Rows of intermediate A*(R^T) matrix
-        integer, dimension(ncells + 1) :: AP_R                          ! BCSM Columns of intermediate A*(R^T) matrix
-
-        integer :: i, j, k, nnz_prime
-
-        nnz_prime = 0
-        
-        call A_times_P(ncells,ngroups,nnz,V,C,R,ProlongC,ProlongR,AP_V,AP_C,AP_R)
-
-        call sparse_sparse_pre_alloc(ngroups,RestrictC,RestrictR,AP_C,AP_R,nnz_prime)
-
-        allocate(RAP_V(5,5,nnz_prime))
-        allocate(RAP_C(    nnz_prime))
-        call sparse_sparse_row_wise_product_RAP(ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
-
-        deallocate(AP_V)
-        deallocate(AP_C)
-
-        if (present(nnz_prime_final)) nnz_prime_final = nnz_prime
-
-    end subroutine R_A_P 
+    
 
     subroutine sparse_sparse_pre_alloc(A_m,AC,AR,BC,BR,nnz_prime)
         ! This subroutine uses a row-wise product to determine the number of nonzero terms that will result from the multiplication
@@ -217,6 +90,7 @@ contains
 
         implicit none
 
+        ! INPUT
         integer, intent(in) :: A_m  ! Height of A
         ! logical, dimension(:), intent(in) :: AV         ! values of A
         integer, dimension(:), intent(in) :: AC         ! Column indices of A

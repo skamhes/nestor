@@ -34,8 +34,6 @@ module linear_solver
 
         use solution            , only : jacobian_type
 
-        use sparse_matrix       , only : build_A_BCSM
-
         ! use gauss_seidel
 
         use algebraic_multigird , only : UP, DOWN
@@ -68,7 +66,7 @@ module linear_solver
 
     end subroutine linear_relaxation_block
 
-    subroutine linear_sweeps(num_eq,V,C,R,nnz,res,Dinv,level,direction,correction,stat)
+    subroutine linear_sweeps(num_eq,V,C,R,res,Dinv,level,direction,correction,stat)
 
         use common          , only : p2, zero, one, half, two, my_eps
 
@@ -77,7 +75,7 @@ module linear_solver
 
         use solution        , only : lrelax_sweeps_actual, lrelax_roc, roc
 
-        use sparse_matrix   , only : sparseblock_times_vectorblock, build_A_BCSM
+        use sparse_matrix   , only : sparseblock_times_vectorblock
 
         use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
 
@@ -89,7 +87,6 @@ module linear_solver
         real(p2), dimension(:,:,:),allocatable, intent(in)  :: V    ! Values of A
         integer , dimension(:), allocatable, intent(in)     :: C    ! Column index of A
         integer , dimension(ncells+1), intent(in)           :: R    ! Start index of A
-        integer , intent(in)                                :: nnz  ! # non-zero terms in A
         real(p2), dimension(num_eq,ncells), intent(in)           :: res  ! RHS (= -b)
         real(p2), dimension(num_eq,num_eq,ncells), intent(in)         :: Dinv ! Inverse of A(i,i)
         integer, intent(in)                                 :: level
@@ -115,7 +112,7 @@ module linear_solver
         relax : do ii =  1,lrelax_sweeps
             ! Perform Sweep
             if ( trim(smoother) =='gs' ) then
-                call gauss_seidel_sweep(num_eq,res,V,R,C,Dinv,nnz,omega_lrelax,correction, linear_res_norm)
+                call gauss_seidel_sweep(num_eq,res,V,R,C,Dinv,omega_lrelax,correction, linear_res_norm)
             else
                 write(*,*) " Sorry, only 'gs' is available at the moment..."
                 write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop."
@@ -158,6 +155,9 @@ module linear_solver
             ! If we make it here the sweeps did not converge
             stat = RELAX_FAIL_STALL
         endif
+        
+        lrelax_roc = roc
+
     end subroutine linear_sweeps
 
     subroutine build_Dinv_array(ncells,nq,jac,D_inv)
@@ -181,4 +181,56 @@ module linear_solver
             D_inv(:,:,i) = jac(i)%diag_inv(:,:)
         end do
     end subroutine build_Dinv_array
+
+    subroutine build_A_BCSM(ncells,cell,jac,V,C,R,nnz)
+        ! Takes in a cell structure and a jacobian structure and creates a corresponding A matrix using the Yale meethod:
+        ! https://en.wikipedia.org/wiki/Sparse_matrix
+
+
+        use common      , only : p2
+
+        use grid        , only : cc_data_type
+
+        use solution    , only : jacobian_type
+
+        use sparse_common, only: insertion_sort_index
+
+        implicit none 
+
+        integer, intent(in) :: ncells
+        type(cc_data_type), dimension(ncells), intent(in) :: cell
+        type(jacobian_type), dimension(ncells), intent(in) :: jac
+
+        real(p2), dimension(:,:,:), allocatable, intent(out)  :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer, dimension(:),  allocatable, intent(out)       :: C   ! Column index of each value
+        integer,dimension(ncells+1), intent(out) :: R   ! Start index of each new row
+        integer, INTENT(OUT), optional :: nnz
+
+        integer :: i, j, length
+
+        R(1) = 1 ! Row 1 starts at 1
+        do i = 2,ncells + 1
+            R(i) = R(i-1) + 1 + cell(i-1)%nnghbrs ! Start of row(i) = row(i-1) start point + 1 (diagonal term) + # of neighbors
+        end do
+        nnz = R(ncells+1) - 1 ! number of nonzero cells
+
+        allocate(V(5,5,nnz))
+        allocate(C(    nnz))
+
+        do i = 1,ncells
+            ! sort the index of the cell neighbors and i and stores them in C:
+            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
+            length = R(i+1)-R(i)
+            do j = R(i),(R(i+1)-1)
+                if (length == C(j)) then
+                    V(:,:,j) = jac(i)%diag(:,:)
+                    C(j) = i
+                else
+                    V(:,:,j) = jac(i)%off_diag(:,:,C(j))
+                    C(j) = cell(i)%nghbr(C(j))
+                end if
+            end do
+        end do
+    end subroutine build_A_BCSM
+
 end module linear_solver
