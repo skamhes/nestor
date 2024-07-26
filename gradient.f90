@@ -39,11 +39,15 @@ module gradient
         ! Initialize the cell centered array always
         write(*,*)
         write(*,*) 'Initializing gradient cell centered arrays.'
+        write(*,*)
+        
         ccgradq = zero
 
     end subroutine init_gradients
 
     subroutine compute_gradient(weight)
+        ! This is a wrapper function to call the various gradient functions baced on the config.  Leaves the compute residual 
+        ! subroutine a little cleaner...
 
         use common          , only : p2, zero
 
@@ -57,7 +61,7 @@ module gradient
 
         integer :: dummy
 
-        dummy = weight ! supress wunused
+        dummy = weight ! supress wunused At some point I may add weighted gradients (viscous terms?)
         
         ccgradq = zero
 
@@ -105,13 +109,10 @@ module gradient
                     call boundary_value(bound_int,ivar, unknowns, qi)
                 endif
                 attach_loop : do k = 1,lsq(i)%ncells_lsq
+                    ! Get q at the neighboring cell (qk)
                     if (lsq(i)%ib_lsq(k) == INTERNAL) then
                         attached_cell = lsq(i)%cell_lsq(k)   
                         qk = q(ivar,attached_cell)
-                        ! Add value to gradien
-                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx4(k) * qk ! qi is on the LHS 
-                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy4(k) * qk
-                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz4(k) * qk
                     else ! BVERT
                         attached_bface = lsq(i)%cell_lsq(k)
                         ib            = lsq(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
@@ -121,15 +122,15 @@ module gradient
                         ! This is somewhat redundant.  At some point I should improve it...
                         call get_right_state(qL,bface_nrml, bc_type(ib), qcB)
                         qk = qcB(ivar)
-                        if ( unknowns == 3) then
-                            vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx3(k) * (qk - qi)
-                            vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy3(k) * (qk - qi)
-                            vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz3(k) * (qk - qi)
-                        else
-                            vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx4(k) * qk
-                            vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy4(k) * qk
-                            vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz4(k) * qk
-                        endif
+                    endif
+                    if ( unknowns == 3) then
+                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx3(k) * (qk - qi)
+                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy3(k) * (qk - qi)
+                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz3(k) * (qk - qi)
+                    else
+                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx4(k) * qk
+                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy4(k) * qk
+                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz4(k) * qk
                     endif
                 end do attach_loop
 

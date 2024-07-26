@@ -106,6 +106,8 @@ module steady_solver
         ! Skipping importing data for now
         
         ! Print column headers
+        write(*,*)
+        write(*,*)
         if (trim(solver_type) == "implicit") then
             write(*,*) " Iteration   continuity   x-momemtum   y-momentum   z-momentum    energy       max-res", &
                 "    |   proj     reduction       time    CFL"

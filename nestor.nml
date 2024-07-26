@@ -26,5 +26,6 @@
 
 &gradient
   accuracy_order = 1
+  use_limiter    = .false.
   /
 
