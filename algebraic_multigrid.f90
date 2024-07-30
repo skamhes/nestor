@@ -28,7 +28,7 @@ module algebraic_multigird
         integer,                                intent(in)  :: ncells ! number of cells (level 1) or groups (level 2+)
         integer,                                intent(in)  :: nq     ! number of equations for the flow
         real(p2), dimension(nq,ncells),         intent(in)  :: phi    ! dependent variables (du for level 1, del for level 2+)
-        real(p2), dimension(:,:,:),             intent(in)  :: V   ! Values (5x5 block matrix) plus corresponding index
+        real(p2), dimension(:,:,:),             intent(in)  :: V   ! Values (nq x nq block matrix) plus corresponding index
         integer, dimension(:),                  intent(in)  :: C   ! Column index of each value
         integer,dimension(ncells+1),            intent(in)  :: R   ! Start index of each new row
         integer,                                intent(in)  :: nnz
@@ -71,7 +71,7 @@ module algebraic_multigird
 
         ! Initialize var
         assign_group = 0
-        correction_del = zero
+        ! correction_del = zero
         ngroup = 0
         RestrictR(1) = 1
         ProlongR = (/ (i, i = 1,(ncells+1)) /)
@@ -155,7 +155,7 @@ module algebraic_multigird
 
         ! Create coarse level operetor A^H = RAP
         allocate(RAP_R(ngroup + 1))
-        call R_A_P(ncells,ngroup,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,os)
+        call R_A_P(ncells,ngroup,nq,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,os)
         
         ! Create inverse block matrix of RAP diagonal terms
         allocate(RAP_Dinv(5,5,ngroup))
@@ -184,12 +184,12 @@ module algebraic_multigird
         ! ##################################################################
 
         ! Call the linear solver to relax the newly coarsened system and apply the correction.
-        allocate(g_correction(5,ngroup))
-        call linear_sweeps(ngroup, RAP_V,RAP_C,RAP_R,nnz,defect_res,RAP_Dinv, level + 1, g_correction)
-        do i = 1,ncells
-            ! Since ProlongC has 1 value per row we can skip the inner j loop.
-            correction_del(:,i) = g_correction(:,ProlongC(i))
-        end do
+        ! allocate(g_correction(5,ngroup))
+        ! call linear_sweeps(ngroup, RAP_V,RAP_C,RAP_R,nnz,defect_res,RAP_Dinv, level + 1, g_correction)
+        ! do i = 1,ncells
+        !     ! Since ProlongC has 1 value per row we can skip the inner j loop.
+        !     correction_del(:,i) = g_correction(:,ProlongC(i))
+        ! end do
 
         ! ! Make sure all of the allocated arrays are deallocated
         ! if (allocated(RAP_V))        deallocate(     RAP_V)
@@ -203,20 +203,21 @@ module algebraic_multigird
     
     end subroutine algebraic_multigrid_restrict
 
-    subroutine A_times_P(ncells,nnz,V,C,R,ProlongC,ProlongR,productV,productC,productR)
+    subroutine A_times_P(nq,ncells,nnz,V,C,R,ProlongC,ProlongR,productV,productC,productR)
 
         use common, only : p2, zero
 
-        use sparse_matrix , only : sparse_sparse_pre_alloc, sparse_sparse_row_wise_product_AP
+        use sparse_matrix , only : sparse_sparse_pre_alloc, sparse_real_times_sparse_bool
         ! This subroutine performes the first half (AP) of RAP (where P = R^T).  The preallocation and computation are performed
         ! using the row-wise product.  This takes advantage of the sparse nature of the cells for a very efficient matrix-matrix
         ! product.  Additionally it allows for multiplication without needing to match indices.
 
         implicit none
 
+        integer, intent(in) :: nq
         integer, intent(in) :: ncells
         integer, intent(in) :: nnz
-        real(p2), dimension(5,5,nnz), intent(in) :: V
+        real(p2), dimension(nq,nq,nnz), intent(in) :: V
         integer, dimension(nnz), intent(in) :: C
         integer, dimension(ncells+1), intent(in) :: R
         integer, dimension(ncells), intent(in) :: ProlongC
@@ -237,32 +238,33 @@ module algebraic_multigird
         ! Compute A*Prolong
         allocate(productV(5,5,nnz_prime))
         allocate(productC(    nnz_prime))
-        call sparse_sparse_row_wise_product_AP(ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
+        call sparse_real_times_sparse_bool(nq,ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
 
     end subroutine A_times_P
 
 
-    subroutine R_A_P(ncells,ngroups,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
+    subroutine R_A_P(ncells,ngroups,nq,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
         ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
         use common , only : p2, zero
 
-        use sparse_matrix , only : sparse_sparse_pre_alloc, sparse_sparse_row_wise_product_RAP
+        use sparse_matrix , only : sparse_sparse_pre_alloc, sparse_bool_times_sparse_real
 
         implicit none
         integer, intent(in) :: ncells                                   ! # of cells for the coarse mesh
         integer, intent(in) :: ngroups                                  ! # of groups on the restricted level
+        integer, intent(in) :: nq                                       ! # of equations in block matrix
         integer, intent(in) :: nnz                                      ! # of nonzero entries in the fine A matrix
         integer, dimension(ncells), intent(in) :: RestrictC             ! Restriction matrix Columns
         integer, dimension(ngroups + 1), intent(in) :: RestrictR        ! Restriction matrix Columns
         integer, dimension(ncells), intent(in) :: ProlongC              ! Restriction matrix Columns
         integer, dimension(ncells + 1), intent(in) :: ProlongR          ! Restriction matrix Columns
-        real(p2), dimension(5,5,nnz), intent(in) :: V                   ! Block Sparse Compressed Matrix (BSCM) values of A matrix
+        real(p2), dimension(nq,nq,nnz), intent(in) :: V                   ! Block Sparse Compressed Matrix (BSCM) values of A matrix
         integer, dimension(nnz), intent(in) :: C                        ! BCSM Columns of A matrix
         integer, dimension(ncells+1), intent(in) :: R                   ! BCSM Rows of A matrix
         ! integer,dimension(ngroups,ncells) :: Restrict
 
-        real(p2), dimension(:,:,:), allocatable, INTENT(OUT) :: RAP_V   ! BCSM Values of restricted A matrix
-        integer, dimension(:), allocatable, INTENT(OUT) :: RAP_C        ! BCSM Columns of restricted A matrix
+        real(p2), dimension(:,:,:), pointer, INTENT(OUT) :: RAP_V   ! BCSM Values of restricted A matrix
+        integer, dimension(:), pointer, INTENT(OUT) :: RAP_C        ! BCSM Columns of restricted A matrix
         integer, dimension(ngroups + 1), INTENT(OUT) :: RAP_R           ! BCSM Rows of restricted A matrix
         integer, optional, intent(out) :: nnz_prime_final               ! (Optional) # of nonzero values in restricted A matrix
 
@@ -274,13 +276,13 @@ module algebraic_multigird
 
         nnz_prime = 0
         
-        call A_times_P(ncells,nnz,V,C,R,ProlongC,ProlongR,AP_V,AP_C,AP_R)
+        call A_times_P(nq,ncells,nnz,V,C,R,ProlongC,ProlongR,AP_V,AP_C,AP_R)
 
         call sparse_sparse_pre_alloc(ngroups,RestrictC,RestrictR,AP_C,AP_R,nnz_prime)
 
         allocate(RAP_V(5,5,nnz_prime))
         allocate(RAP_C(    nnz_prime))
-        call sparse_sparse_row_wise_product_RAP(ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
+        call sparse_bool_times_sparse_real(nq,ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
 
         deallocate(AP_V)
         deallocate(AP_C)

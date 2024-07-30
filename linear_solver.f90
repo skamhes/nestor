@@ -62,7 +62,7 @@ module linear_solver
 
         direction = UP 
 
-        call linear_sweeps(num_eq,V,C,R,nnz,residual,Dinv,level,direction,correction,os)
+        call linear_sweeps(num_eq,V,C,R,residual,Dinv,level,direction,correction,os)
 
     end subroutine linear_relaxation_block
 

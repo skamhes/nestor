@@ -5,6 +5,14 @@ module sparse_matrix
 
     public
 
+    ! This will allow us to abstract the scalar and block operations
+    interface sparse_bool_times_sparse_real
+        module procedure sparse_bool_times_sparse_real_block
+    end interface sparse_bool_times_sparse_real
+
+    interface sparse_real_times_sparse_bool
+        module procedure sparse_real_times_sparse_bool_block
+    end interface sparse_real_times_sparse_bool
 contains
     
     
@@ -71,11 +79,15 @@ contains
         if (allocated(queue2_C))  deallocate(queue2_C)
     end subroutine sparse_sparse_pre_alloc
 
-    subroutine sparse_sparse_row_wise_product_RAP(A_m,AC,AR,BV,BC,BR,nnz_prime, prodV,prodC,prodR)
+    subroutine sparse_bool_times_sparse_real_block(nq,A_m,AC,AR,BV,BC,BR,nnz_prime, prodV,prodC,prodR)
         ! This function performs an efficient computation of A*B=C where A is m*n block matrix and B is n*k logical array, and A,B, 
         ! and C are all stored using a Compressed Sparse Row Matrix format.  The method is based off the paper 
         ! https://doi.org/10.1109/MICRO50266.2020.00068
         ! 
+        ! NOTE: The vector A does not actually contain any logical variables.  The vector of logical values *would* be AV; however,
+        ! because AV only stores the nonzero array values every value would be true.  Therefore we only need the indices of the 
+        ! nonzero terms (AC and AR) to form A
+        !
         !
         ! Each row of C is defined as follows:
         ! C(1,:) = A(1,1)*B(1,:) + A(1,2)*B(2,:) + ... + A(1,n)*B(n,:)
@@ -84,13 +96,15 @@ contains
         ! It does require merge-soring the resulting rows as they are computed, however because the two queues are already 
         ! pre-sorted this can be done rather efficiently.
         ! 
-        ! Also note: Because A is a logical array, and therefore only true indices are stored, the AV vector is unnecessary.
+        ! This array is used for computing by the algebraic multigrid module to multiply R*(AP) where AP is the (n x m) Jacobian  
+        ! and has already been multiplied by P the (n x m) prolongation matrix equal to the transpose of the Restriction matrix R.
         
         use common , only : p2, zero
 
         implicit none
 
         ! INPUT
+        integer, intent(in) :: nq
         integer, intent(in) :: A_m  ! Height of A
         ! logical, dimension(:), intent(in) :: AV         ! values of A
         integer, dimension(:), intent(in) :: AC         ! Column indices of A
@@ -102,7 +116,7 @@ contains
 
         integer, intent(in) :: nnz_prime    ! number of nonzero values in the output
 
-        real(p2),dimension(5,5,nnz_prime), intent(out) :: prodV ! Values of C
+        real(p2),dimension(nq,nq,nnz_prime), intent(out) :: prodV ! Values of C
         integer, dimension(nnz_prime), INTENT(OUT) :: prodC     ! Column indices of C
         integer,dimension(A_m+1), INTENT(OUT) :: prodR          ! Row indices of C
 
@@ -119,8 +133,8 @@ contains
         prodR(1) = 1
         allocate(queue1_C(1))
         allocate(queue2_C(10))
-        allocate(queue1_V(5,5,1))
-        allocate(queue2_V(5,5,10))
+        allocate(queue1_V(nq,nq,1))
+        allocate(queue2_V(nq,nq,10))
         queue1_C = 0
         queue2_C = 0
         queue1_V = zero
@@ -134,7 +148,7 @@ contains
                         if (associated(queue1_C)) deallocate(queue1_C)
                         if (associated(queue1_V)) deallocate(queue1_V)
                         allocate(queue1_C(BR(b_i+1)-BR(b_i) ))
-                        allocate(queue1_V(5,5,BR(b_i+1)-BR(b_i) ))
+                        allocate(queue1_V(nq,nq,BR(b_i+1)-BR(b_i) ))
                     end if
                     queue1_C = 0
                     queue1_V = zero
@@ -148,7 +162,7 @@ contains
                         if (allocated(queue2_C)) deallocate(queue2_C)
                         if (allocated(queue2_V)) deallocate(queue2_V)
                         allocate(queue2_C(BR(b_i+1)-BR(b_i) ))
-                        allocate(queue2_V(5,5,BR(b_i+1)-BR(b_i) ))
+                        allocate(queue2_V(nq,nq,BR(b_i+1)-BR(b_i) ))
                     end if
                     queue2_C = 0
                     queue2_V = zero
@@ -157,7 +171,7 @@ contains
                         queue2_V(:,:,column) = BV(:,:,b_j)
                         column = column + 1
                     end do
-                    call queue_sort_5x5(queue1_V,queue1_C,size(queue1_C),queue2_V,queue2_C,size(queue2_C))
+                    call queue_sort_block(nq,queue1_V,queue1_C,size(queue1_C),queue2_V,queue2_C,size(queue2_C))
                 end if
             end do
             if ((AR(i+1)-AR(i)) == 1) then
@@ -175,13 +189,16 @@ contains
         if (associated(queue1_V)) deallocate(queue1_V)
         if (allocated(queue2_C))  deallocate(queue2_C)
         if (allocated(queue2_V))  deallocate(queue2_V)
-    end subroutine sparse_sparse_row_wise_product_RAP
+    end subroutine sparse_bool_times_sparse_real_block
 
-    subroutine sparse_sparse_row_wise_product_AP(A_m,AV,AC,AR,BC,BR,nnz_prime, prodV,prodC,prodR)
+    subroutine sparse_real_times_sparse_bool_block(nq,A_m,AV,AC,AR,BC,BR,nnz_prime, prodV,prodC,prodR)
         ! This function performs an efficient computation of A*B=C where A is m*n block matrix and B is n*k logical array, and A,B, 
         ! and C are all stored using a Compressed Sparse Row Matrix format.  The method is based off the paper 
         ! https://doi.org/10.1109/MICRO50266.2020.00068
         ! 
+        ! NOTE: The vector B does not actually contain any logical variables.  The vector of logical values *would* be BV; however,
+        ! because BV only stores the nonzero array values every value would be true.  Therefore we only need the indices of the 
+        ! nonzero terms (BC and BR) to form B
         !
         ! Each row of C is defined as follows:
         ! C(1,:) = A(1,1)*B(1,:) + A(1,2)*B(2,:) + ... + A(1,n)*B(n,:)
@@ -190,12 +207,14 @@ contains
         ! It does require merge-soring the resulting rows as they are computed, however because the two queues are already 
         ! pre-sorted this can be done rather efficiently.
         ! 
-        ! Also note: Because B is a logical array, and therefore only true indices are stored, the BV vector is unnecessary.
+        ! This array is used for computing by the algebraic multigrid module to multiply A*P where A is the (n x n) Jacobian and P 
+        ! is the (n x m) prolongation matrix equal to the transpose of the Restriction matrix R.
         
         use common , only : p2, zero
 
         implicit none
 
+        integer, intent(in) :: nq
         integer, intent(in) :: A_m  ! Height of A
         real(p2), dimension(:,:,:), intent(in) :: AV    ! values of A
         integer, dimension(:), intent(in) :: AC         ! Column indices of A
@@ -207,7 +226,7 @@ contains
 
         integer, intent(in) :: nnz_prime    ! number of nonzero values in the output
 
-        real(p2),dimension(5,5,nnz_prime), intent(out) :: prodV ! Values of C
+        real(p2),dimension(nq,nq,nnz_prime), intent(out) :: prodV ! Values of C
         integer, dimension(nnz_prime), INTENT(OUT) :: prodC     ! Column indices of C
         integer,dimension(A_m+1), INTENT(OUT) :: prodR          ! Row indices of C
 
@@ -220,8 +239,8 @@ contains
         prodR(1) = 1
         allocate(queue1_C(10))
         allocate(queue2_C(10))
-        allocate(queue1_V(5,5,10))
-        allocate(queue2_V(5,5,10))
+        allocate(queue1_V(nq,nq,10))
+        allocate(queue2_V(nq,nq,10))
         queue1_C = 0
         queue2_C = 0
         queue1_V = zero
@@ -235,7 +254,7 @@ contains
                         if (associated(queue1_C)) deallocate(queue1_C)
                         if (associated(queue1_V)) deallocate(queue1_V)
                         allocate(queue1_C(BR(b_i+1)-BR(b_i) ))
-                        allocate(queue1_V(5,5,BR(b_i+1)-BR(b_i) ))
+                        allocate(queue1_V(nq,nq,BR(b_i+1)-BR(b_i) ))
                     end if
                     queue1_C = 0
                     queue1_V = zero
@@ -249,7 +268,7 @@ contains
                         if (allocated(queue2_C)) deallocate(queue2_C)
                         if (allocated(queue2_V)) deallocate(queue2_V)
                         allocate(queue2_C(BR(b_i+1)-BR(b_i) ))
-                        allocate(queue2_V(5,5,BR(b_i+1)-BR(b_i) ))
+                        allocate(queue2_V(nq,nq,BR(b_i+1)-BR(b_i) ))
                     end if
                     queue2_C = 0
                     queue2_V = zero
@@ -258,7 +277,7 @@ contains
                         queue2_V(:,:,column) = AV(:,:,j)
                         column = column + 1
                     end do
-                    call queue_sort_5x5(queue1_V,queue1_C,size(queue1_C),queue2_V,queue2_C,size(queue2_C))
+                    call queue_sort_block(nq,queue1_V,queue1_C,size(queue1_C),queue2_V,queue2_C,size(queue2_C))
                 end if
             end do
             if ((AR(i+1)-AR(i)) == 1) then
@@ -275,9 +294,64 @@ contains
         if (associated(queue1_V)) deallocate(queue1_V)
         if (allocated(queue2_C))  deallocate(queue2_C)
         if (allocated(queue2_V))  deallocate(queue2_V)
-    end subroutine sparse_sparse_row_wise_product_AP
+    end subroutine sparse_real_times_sparse_bool_block
 
-    subroutine queue_sort_5x5(queue1_V,queue1_C,length1,queue2_V,queue2_C,length2)
+    subroutine sparseblock_times_vectorblock(ncells,nq,V,C,R,x,b)
+        ! This subroutine computes A*x = b where A is a sparse block matrix, represented by V, C, and R, and x and b are dense 
+        ! block vectors (a ncells x 1 vector or nEQ x 1 blocks)
+        use common , only : p2, zero
+
+        implicit none
+        
+        integer, intent(in)                    :: ncells
+        integer, intent(in)                    :: nq
+        real(p2), dimension(:,:,:), intent(in) :: V
+        integer, dimension(:), intent(in)      :: C
+        integer, dimension(ncells+1), intent(in)      :: R
+        real(p2), dimension(nq,ncells), intent(in)     :: x
+
+        real(p2), dimension(nq,ncells), intent(out)    :: b
+
+        real(p2), dimension(nq,nq)  :: currentV
+        real(p2), dimension(nq)  :: currentX
+
+        integer :: i,j,ii
+
+        b = zero
+        do i = 1,ncells
+            do j = R(i),(R(i+1)-1)
+                b(:,i) = b(:,i) + matmul(V(:,:,j),x(:,C(j)));
+            end do
+        end do
+        
+    end subroutine sparseblock_times_vectorblock
+
+    subroutine vector_times_sparse(ncells,V,C,R,x,b)
+        ! ! This subroutine computes x*A = b where A is a sparse block matrix, represented by V, C, and R, and x and b are dense 
+        ! block vectors (a 1 x ncells vector or 1 x nEQ blocks)
+        use common , only : p2
+
+        implicit none
+        
+        integer, intent(in)                    :: ncells
+        real(p2), dimension(:), intent(in) :: V
+        integer, dimension(:), intent(in)      :: C
+        integer, dimension(ncells+1), intent(in)      :: R
+        real(p2), dimension(ncells), intent(in)     :: x
+
+        real(p2), dimension(ncells), intent(out)    :: b
+
+        integer :: i, j
+
+        do i = 1,ncells
+            do j = R(i),(R(i+1)-1)
+                b(C(j)) = b(C(j)) +  x(i) * V(j)
+            end do
+        end do
+
+    end subroutine vector_times_sparse
+    
+    subroutine queue_sort_block(nq,queue1_V,queue1_C,length1,queue2_V,queue2_C,length2)
         ! This subroutine sorts two pairs of lists, containing a row of values and corresponding column indices, and sorts them 
         ! based on their column indices into a single merged list pair. It takes advantage of the fact both lists are pre sorted. 
         ! Starting fith the first index of each list pair, the column indices are compared.  If they are equaled the values are 
@@ -289,11 +363,12 @@ contains
         
         implicit none
 
+        integer, intent(in) :: nq
         real(p2), dimension(:,:,:), pointer, intent(inout) :: queue1_V
         integer, dimension(:), pointer, intent(inout) :: queue1_C
         integer, intent(in) :: length1
         integer, intent(in) :: length2
-        real(p2), dimension(5,5,length2), intent(inout) :: queue2_V
+        real(p2), dimension(nq,nq,length2), intent(inout) :: queue2_V
         integer, dimension(length2), intent(inout) :: queue2_C
         
 
@@ -301,7 +376,7 @@ contains
         integer, dimension(:), pointer :: helperC
         integer :: i, j, k
 
-        allocate(helperV(5,5,length1+length2))
+        allocate(helperV(nq,nq,length1+length2))
         allocate(helperC(length1+length2))
         helperV = zero
         helperC = 0
@@ -367,63 +442,6 @@ contains
         queue2_C = 0
         queue2_V = zero
 
-    end subroutine queue_sort_5x5
-
-    
-
-    subroutine sparseblock_times_vectorblock(ncells,V,C,R,x,b)
-        ! This subroutine computes A*x = b where A is a sparse block matrix, represented by V, C, and R, and x and b are dense 
-        ! block vectors (a ncells x 1 vector or nEQ x 1 blocks)
-        use common , only : p2, zero
-
-        implicit none
-        
-        integer, intent(in)                    :: ncells
-        real(p2), dimension(:,:,:), intent(in) :: V
-        integer, dimension(:), intent(in)      :: C
-        integer, dimension(ncells+1), intent(in)      :: R
-        real(p2), dimension(5,ncells), intent(in)     :: x
-
-        real(p2), dimension(5,ncells), intent(out)    :: b
-
-        real(p2), dimension(5,5)  :: currentV
-        real(p2), dimension(5)  :: currentX
-
-        integer :: i,j,ii
-
-        b = zero
-        do i = 1,ncells
-            do j = R(i),(R(i+1)-1)
-                b(:,i) = b(:,i) + matmul(V(:,:,j),x(:,C(j)));
-            end do
-        end do
-        
-    end subroutine sparseblock_times_vectorblock
-
-    subroutine vector_times_sparse(ncells,V,C,R,x,b)
-        ! ! This subroutine computes x*A = b where A is a sparse block matrix, represented by V, C, and R, and x and b are dense 
-        ! block vectors (a 1 x ncells vector or 1 x nEQ blocks)
-        use common , only : p2
-
-        implicit none
-        
-        integer, intent(in)                    :: ncells
-        real(p2), dimension(:), intent(in) :: V
-        integer, dimension(:), intent(in)      :: C
-        integer, dimension(ncells+1), intent(in)      :: R
-        real(p2), dimension(ncells), intent(in)     :: x
-
-        real(p2), dimension(ncells), intent(out)    :: b
-
-        integer :: i, j
-
-        do i = 1,ncells
-            do j = R(i),(R(i+1)-1)
-                b(C(j)) = b(C(j)) +  x(i) * V(j)
-            end do
-        end do
-
-    end subroutine vector_times_sparse
-    
+    end subroutine queue_sort_block
 
 end module sparse_matrix
