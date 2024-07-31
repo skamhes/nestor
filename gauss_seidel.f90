@@ -9,21 +9,19 @@ module gauss_seidel
 
     contains
 
-    subroutine gauss_seidel_sweep(nq,res,V,R,C,Dinv,nnz,omega_lrelax,correction, linear_res_norm)
+    subroutine gauss_seidel_sweep(nq,ncells,res,V,C,R,Dinv,omega_lrelax,correction, linear_res_norm)
 
         use common          , only : p2, zero
-
-        use grid            , only : ncells
         
         implicit none
 
         !INPUT
-        integer         :: nq ! Number of equations
-        integer ,                           intent(in)   :: nnz
-        real(p2), dimension(   nq,nnz),     intent(in)   :: res    ! RHS (b)
-        real(p2), dimension(nq,nq,nnz),     intent(in)   :: V    ! Values of A
-        integer , dimension(nnz      ),     intent(in)   :: C    ! Column index of A
-        integer , dimension(ncells+1 ),     intent(in)   :: R    ! Start index of A
+        integer ,                           intent(in)   :: nq ! Number of equations
+        integer ,                           intent(in)   :: ncells ! number of cells
+        real(p2), dimension(:,:),           intent(in)   :: res    ! RHS (b)
+        real(p2), dimension(:,:,:),         intent(in)   :: V    ! Values of A
+        integer , dimension(:),             intent(in)   :: C    ! Column index of A
+        integer , dimension(ncells+1),      intent(in)   :: R    ! Start index of A
         real(p2), dimension(nq,nq,ncells),  intent(in)   :: Dinv ! Inverse of A(i,i)
         real(p2),                           intent(in)   :: omega_lrelax
         !INOUT

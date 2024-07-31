@@ -21,6 +21,8 @@
 &amg
   use_amg = .false.
   smoother = 'gs'
+  lrelax_tolerance = 0.0001
+  max_amg_levels = 3
   /
 
 

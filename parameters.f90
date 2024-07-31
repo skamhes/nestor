@@ -102,9 +102,10 @@ module config
     integer                 :: lrelax_sweeps        = 500     ! number of sweeps
     real(p2)                :: lrelax_tolerance     = 0.1_p2  ! relaxation tolerance (reduction)
     integer                 :: max_amg_levels       = 5
+    integer                 :: pre_sweeps           = 2
     
     namelist / amg / &
-    use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels
+    use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels, pre_sweeps
 
     !-------------------------------------------------------------------------
     ! GRADIENT SETTINGS (&gradient)
