@@ -8,8 +8,8 @@ module algebraic_multigird
 
     contains
 
-    recursive subroutine algebraic_multigrid_restrict(ncells,nq,phi,V,C,R,nnz,res,level, &
-                                                        ngroup,RAP_V,RAP_C,RAP_R,RAP_Dinv,defect_res)
+    subroutine algebraic_multigrid_restrict(ncells,nq,phi,V,C,R,nnz,res,level, &
+                                                      ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,defect_res)
     
         ! Implementation of algebraic multi grid using additive correction.
         use common                  , only : p2, zero
@@ -32,10 +32,12 @@ module algebraic_multigird
         integer, dimension(:),                  intent(in)  :: C   ! Column index of each value
         integer,dimension(ncells+1),            intent(in)  :: R   ! Start index of each new row
         integer,                                intent(in)  :: nnz
-        real(p2), dimension(nq,ncells),         intent(in)  :: res    ! RHS of the equation
+        real(p2), dimension(nq,ncells),         intent(in)  :: res    ! RHS of the NL equation
         integer,                                intent(in)  :: level  ! Multigrid level (not sure if we'll need it yet)
         ! OUTPUT
         integer,                                intent(out) :: ngroup
+        integer,                                intent(out) :: nnz_restrict
+        integer,  dimension(ncells),            intent(out) :: prolongC
         real(p2), dimension(:,:,:), pointer,    intent(out) :: RAP_V
         integer, dimension(:), pointer,         intent(out)  :: RAP_C
         integer, dimension(:), pointer,         intent(out)  :: RAP_R
@@ -64,7 +66,7 @@ module algebraic_multigird
         real(p2), dimension(nq,ncells)       :: defect ! defect used in RHS for AMG
 
         ! Restricted Vars
-        integer, dimension(ncells)              :: RestrictC, ProlongC
+        integer, dimension(ncells)              :: RestrictC ! ProlongC defined above
         integer, dimension(ncells + 1)          :: RestrictR, ProlongR ! Restrict array is longer than needed but this proves fine.
 
         
@@ -155,7 +157,7 @@ module algebraic_multigird
 
         ! Create coarse level operetor A^H = RAP
         allocate(RAP_R(ngroup + 1))
-        call R_A_P(ncells,ngroup,nq,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,os)
+        call R_A_P(ncells,ngroup,nq,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_restrict)
         
         ! Create inverse block matrix of RAP diagonal terms
         allocate(RAP_Dinv(5,5,ngroup))
@@ -202,6 +204,28 @@ module algebraic_multigird
         ! direction = DOWN ! we've finished a multigrid level that means we're going back down the levels
     
     end subroutine algebraic_multigrid_restrict
+
+    subroutine algebraic_multigrid_prolong(ncells,prolongC,restricted_correction,correction)
+    
+        use common , only : p2
+        
+        implicit none
+    
+        ! INPUT
+        integer,                 intent(in) :: ncells
+        integer, dimension(:)  , intent(in) :: prolongC
+        real(p2),dimension(:,:), intent(in) :: restricted_correction
+        ! OUTPUT
+        real(p2),dimension(:,:), intent(inout) :: correction
+
+        integer :: i
+
+        do i = 1,ncells
+            ! Since ProlongC has 1 value per row we can skip the inner j loop.
+            correction(:,i) = correction(:,i) + restricted_correction(:,ProlongC(i))
+        end do
+
+    end subroutine algebraic_multigrid_prolong
 
     subroutine A_times_P(nq,ncells,nnz,V,C,R,ProlongC,ProlongR,productV,productC,productR)
 
