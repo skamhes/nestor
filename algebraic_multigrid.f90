@@ -169,6 +169,13 @@ module algebraic_multigird
             end do
         end do
         
+        if (idestat/=0) then
+            write(*,*) " Error in inverting the diagonal block... Stop"
+            write(*,*) "  Group number = ", i
+            write(*,*) "  Level        = ", level
+            stop
+        endif
+
         ! Calculate and restrict the defect d = A*phi + b
         call compute_defect(ncells,nq,V,C,R,phi,res,defect)
         allocate(defect_res(5,ngroup))

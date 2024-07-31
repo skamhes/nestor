@@ -79,7 +79,7 @@ module linear_solver
 
         use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
 
-        use algebraic_multigird , only : algebraic_multigrid_prolong, algebraic_multigrid_restrict
+        use algebraic_multigird , only : algebraic_multigrid_prolong, algebraic_multigrid_restrict, UP, DOWN
 
         implicit none
         
@@ -127,7 +127,7 @@ module linear_solver
         relax : do ii =  1,lrelax_sweeps
             ! Perform Sweep
             if ( trim(smoother) =='gs' ) then
-                call gauss_seidel_sweep(num_eq,res,V,C,R,Dinv,omega_lrelax,correction, linear_res_norm)
+                call gauss_seidel_sweep(num_eq,ncells,res,V,C,R,Dinv,omega_lrelax,correction, linear_res_norm)
             else
                 write(*,*) " Sorry, only 'gs' is available at the moment..."
                 write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop."
@@ -164,23 +164,25 @@ module linear_solver
             ! Algebraic multigrid goes here
             ! 
             ! ******
-            if ( use_amg .AND. level < max_amg_levels .AND. ii >= pre_sweeps) then
+            if ( use_amg .AND. level < max_amg_levels .AND. ii >= pre_sweeps .AND. direction == UP) then
                 level = level + 1
                 ! Restrict the current linear system
                 call algebraic_multigrid_restrict(ncells,num_eq,correction,V,C,R,nnz,res,level, & ! input
                                                 ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,restricted_res) ! output
 
+                ! prepare the restricted correction
+                allocate(restricted_correction(num_eq,ngroup))
+                
                 ! Recursively call the linear solver
                 call linear_sweeps(ngroup,num_eq,nnz_restrict,RAP_V,RAP_C,RAP_R,restricted_res,RAP_Dinv, & ! input
                                 level,direction, & ! inout
                                 restricted_correction,stat) ! Output
 
-                ! prepare the restricted correction
-                allocate(restricted_correction(num_eq,ngroup))
                 ! Prolong the restricted correction back to its original length
                 call algebraic_multigrid_prolong(ncells,prolongC,restricted_correction,correction)
 
                 level = level - 1
+                direction = DOWN
 
                 ! Make sure all of the allocated arrays are deallocated
                 if (associated(RAP_V))        deallocate(     RAP_V)
