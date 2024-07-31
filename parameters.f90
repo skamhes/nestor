@@ -41,9 +41,10 @@ module config
     character(80) ::      project_name = "default"    ! project name
     character(80) ::         grid_type = "ugrid"
     character(100)::   second_namelist = "empty"      ! allows you to load a second namelist other than nestor.nml
+    character(100)::           io_path = "./"         ! path to any input and output files (grid, bc, data, etc.)
     
     namelist / project / &
-      project_name, grid_type, second_namelist
+      project_name, grid_type, second_namelist, io_path
 
 
     !-------------------------------------------------------------------------

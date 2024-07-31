@@ -24,7 +24,7 @@ module inout
 
         use solution        , only : q, nq, gamma
 
-        use config          , only : project_name
+        use config          , only : project_name, io_path
 
         use lowlevel        , only : my_alloc_int_ptr
 
@@ -117,11 +117,11 @@ module inout
 
         write(*,*)
         write(*,*) "-------------------------------------------------------"
-        write(*,*) ' Writing Tecplot file = ', trim(filename_tecplot_b)
+        write(*,*) ' Writing Tecplot file = ', trim(io_path)//trim(filename_tecplot_b)
         write(*,*)
     
         !Open the output file.
-        open(unit=8, file=filename_tecplot_b, status="unknown", iostat=os)   
+        open(unit=8, file=trim(io_path)//trim(filename_tecplot_b), status="unknown", iostat=os)   
 
         !---------------------------------------------------------------------------
 
