@@ -40,9 +40,10 @@ module config
     ! PROJECT VARS (&project)
     character(80) ::      project_name = "default"    ! project name
     character(80) ::         grid_type = "ugrid"
+    character(100)::   second_namelist = "empty"      ! allows you to load a second namelist other than nestor.nml
     
     namelist / project / &
-      project_name, grid_type
+      project_name, grid_type, second_namelist
 
 
     !-------------------------------------------------------------------------
@@ -143,6 +144,22 @@ module config
 
         ! Read config settings
         read(unit=10,nml=project)
+
+        if (trim(second_namelist) /= 'empty' ) then ! I guess don't call your new namelist empty?
+          ! Close the original namelist
+          close(10)
+          write(*,*) "Reading input from second namelist: ./", trim(second_namelist),"...."
+          ! Open the new namelist with the same unit #
+          open(unit=10,file=trim(second_namelist),form='formatted',status='old',iostat=os)
+          if (os /= 0) then ! open returned error
+            write(*,*)
+            write(*,*) "-------------------------------------------------------"
+            write(*,*) "ERROR READING: ", namelist_file, ". CANNOT CONTINUE."
+            write(*,*) "-------------------------------------------------------"
+            stop
+          endif
+          read(unit=10,nml=project)
+        endif
         read(unit=10,nml=inputoutput)
         read(unit=10,nml=freestream)
         read(unit=10,nml=solver)
@@ -181,6 +198,8 @@ module config
         write(*,*) " End of Reading the input file: ",namelist_file,"..... "
         write(*,*) "-------------------------------------------------------"
         write(*,*)
+
+        close(10)
     end subroutine read_nml_config
 
 end module config

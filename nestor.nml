@@ -1,5 +1,6 @@
 &project
   project_name = "quad_3d"
+  second_namelist = "grids/cylinder/final_grids/nestor.nml"
   /
 
 &inputoutput
