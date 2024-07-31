@@ -18,7 +18,7 @@ module algebraic_multigird
         
         use direct_solve            , only : gewp_solve
 
-        use sparse_common           , only : insertion_sort_int
+        use sparse_common           , only : insertion_sort_int, insertion_sort_real
 
 
         !use stdlib_sorting, only : sort
@@ -170,7 +170,7 @@ module algebraic_multigird
         end do
         
         ! Calculate and restrict the defect d = A*phi + b
-        call compute_defect(ncells,V,C,R,phi,res,defect)
+        call compute_defect(ncells,nq,V,C,R,phi,res,defect)
         allocate(defect_res(5,ngroup))
         defect_res = zero
         do i = 1,ngroup
@@ -314,5 +314,30 @@ module algebraic_multigird
         if (present(nnz_prime_final)) nnz_prime_final = nnz_prime
 
     end subroutine R_A_P 
+
+    subroutine compute_defect(ncells,nq,V,C,R,phi,b,defect)
+        ! Computes the defect d = A*phi + b
+        use common        , only : p2
+        use sparse_matrix , only : sparseblock_times_vectorblock
+
+        implicit none
+
+        integer, intent(in) :: ncells
+        integer, intent(in) :: nq
+        real(p2), dimension(:,:,:), intent(in) :: V
+        integer, dimension(:), intent(in) :: C
+        integer, dimension(ncells + 1) :: R
+        real(p2), dimension(nq,ncells), intent(in) :: phi
+        real(p2), dimension(nq,ncells), intent(in) :: b
+
+        real(p2), dimension(nq,ncells), intent(out) :: defect
+
+        real(p2), dimension(nq,ncells) :: product
+
+        call sparseblock_times_vectorblock(ncells,nq,V,C,R,phi,product)
+
+        defect = product + b
+
+    end subroutine compute_defect
 
 end module algebraic_multigird
