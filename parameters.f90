@@ -104,7 +104,7 @@ module config
     integer                 :: pre_sweeps           = 2
     
     namelist / amg / &
-    use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels
+    use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels, pre_sweeps
 
     !-------------------------------------------------------------------------
     ! GRADIENT SETTINGS (&gradient)
