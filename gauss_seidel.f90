@@ -9,7 +9,7 @@ module gauss_seidel
 
     contains
 
-    subroutine gauss_seidel_sweep(nq,res,V,R,C,Dinv,omega_lrelax,correction, linear_res_norm)
+    subroutine gauss_seidel_sweep(nq,res,V,C,R,Dinv,omega_lrelax,correction, linear_res_norm)
 
         use common          , only : p2, zero
 
