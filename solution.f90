@@ -22,6 +22,7 @@ module solution
     real(p2), dimension(:,:,:), pointer :: ccgradq  ! gradients of q at cell center.
     real(p2), dimension(:,:,:), pointer :: vgradq   ! gradients of q at vertices (nodes).
     real(p2), dimension(:)    , pointer :: phi      ! limiter of ccgradq
+    real(p2), dimension(:)    , pointer :: ur2      ! U_R^2 for Weiss-Smith Low Mach Preconditioning
 
     real(p2), dimension(:)    , pointer :: dtau  !pseudo time step
     real(p2), dimension(:)    , pointer :: wsn   !maximum eigenvalue at faces
@@ -94,7 +95,7 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type
+        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, method_inv_flux, method_inv_jac
 
         implicit none
 
@@ -121,6 +122,17 @@ module solution
         res = zero
 
         if ( trim(solver_type) == 'implicit') allocate(solution_update(nq,ncells))
+
+        if ( trim(method_inv_flux) == 'roe_lm_w' ) then
+            allocate(ur2(ncells))
+        elseif (trim(method_inv_jac) == 'roe_lm_w' ) then
+            write(*,*) "Weiss-Smith Low Mach Roe FDS can only be used for jacobians if it is also used for invicid flux."
+            write(*,*) "method_inv_flux = ", trim(method_inv_flux)
+            write(*,*) "method_inv_jac  = ", trim(method_inv_flux)
+            write(*,*) "STOP"
+            stop
+        endif
+
 
     end subroutine allocate_solution_vars
 

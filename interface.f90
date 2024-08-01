@@ -6,7 +6,8 @@ module interface
     
     subroutine interface_flux(q1, q2, gradq1, gradq2, n12, &
                              xc1, yc1, zc1, xc2, yc2, zc2, &
-                     xm, ym, zm, phi1, phi2, num_flux, wsn )
+                     xm, ym, zm, phi1, phi2, num_flux, wsn, &
+                                               ur2_1, ur2_2)
 
         use common                 , only : p2
 
@@ -15,7 +16,7 @@ module interface
         
         use solution               , only : q2u
 
-        use inviscid_flux          , only : roe
+        use inviscid_flux          , only : roe, roe_lm_w
         implicit none
 
         ! Inputs
@@ -30,6 +31,9 @@ module interface
         ! Output
         real(p2), dimension(5),     intent(out) :: num_flux         ! Output
         real(p2),                   intent(out) :: wsn   
+
+        ! Optional
+        real(p2), optional,         intent(in)  :: ur2_1, ur2_2
 
         ! Local Vars
         real(p2), dimension(5) :: qL, qR ! primitive vars reconstructed to face
@@ -51,6 +55,9 @@ module interface
         !------------------------------------------------------------
         if(trim(method_inv_flux)=="roe") then
             call roe(uL,uR,n12, num_flux,wsn)
+
+        elseif(trim(method_inv_flux)=="roe_lm_w") then
+            call roe_lm_w(uL,uR,ur2_1,ur2_2,n12, num_flux,wsn)
         ! !------------------------------------------------------------
         ! Other fluxes not yet implemneted.
         !------------------------------------------------------------

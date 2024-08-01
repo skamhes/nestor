@@ -284,4 +284,175 @@ module inviscid_flux
     end subroutine roe
     !--------------------------------------------------------------------------------
 
+
+    subroutine roe_lm_w(ucL, ucR, ur2L, ur2R, njk, num_flux,wsn)
+
+      use common      , only : half, one, two
+      use solution    , only : gamma, gammamo
+      use config      , only : eig_limiting_factor, entropy_fix
+     
+      implicit none
+     
+      integer , parameter :: p2 = selected_real_kind(15) ! Double precision
+     
+      !Input
+      real(p2), dimension(5), intent( in) :: ucL !Left  state in conservative variables.
+      real(p2), dimension(5), intent( in) :: ucR !Right state in conservative variables.
+      real(p2),               intent( in) :: ur2L ! Left reference velocity
+      real(p2),               intent( in) :: ur2R ! right reference velocity.
+      real(p2), dimension(3), intent( in) :: njk
+     
+      !Output
+      real(p2), dimension(5)  , intent(out) :: num_flux !Numerical viscous flux
+      real(p2),                 intent(out) :: wsn      !Max wave speed
+
+      !Local variables
+      !            L = Left
+      !            R = Right
+      ! No subscript = Roe average
+
+      real(p2) :: nx, ny, nz             ! Normal vector components
+      real(p2) :: uL, uR, vL, vR, wL, wR ! Velocity components.
+      real(p2) :: rhoL, rhoR, pL, pR     ! Primitive variables.
+      real(p2) :: qnL, qnR               ! Normal velocities
+      real(p2) :: aL, aR, HL, HR         ! Speed of sound, Total enthalpy
+      real(p2), dimension(5)   :: fL     ! Physical flux evaluated at ucL
+      real(p2), dimension(5)   :: fR     ! Physical flux evaluated at ucR
+
+      real(p2) :: RT                     ! RT = sqrt(rhoR/rhoL)
+      real(p2) :: rho,u,v,w,H,a,qn,p     ! Roe-averages
+
+      real(p2) :: drho, dqn, dp          ! Differences in rho, qn, p, e.g., dp=pR-pL
+      real(p2) :: drhou, drhov, drhow, drhoE ! Differences in conserved vars
+      real(p2) :: absU, ws2, ws3         ! accoustic wave speeds |u'+c'| and |u'-c'|
+      real(p2) :: uprime, cprime, alpha, beta, uR2
+      real(p2) :: cstar, Mstar, delu, delp
+      real(p2) :: T, rho_p, rho_T
+
+      real(p2), dimension(4)   :: dws    ! Width of a parabolic fit for entropy fix
+      real(p2), dimension(5)   :: diss   ! Dissipation term
+      real(p2), dimension(3,5) :: diss_cartesian
+
+      ! Face normal vector (unit vector)
+           
+      nx = njk(1)
+      ny = njk(2)
+      nz = njk(3)
+
+     !Primitive and other variables.
+            
+      !  Left state
+           
+      rhoL = ucL(1)
+        uL = ucL(2)/ucL(1)
+        vL = ucL(3)/ucL(1)
+        wL = ucL(4)/ucL(1)
+       qnL = uL*nx + vL*ny + wL*nz
+        pL = (gammamo)*( ucL(5) - half*rhoL*(uL*uL+vL*vL+wL*wL) )
+        aL = sqrt(gamma*pL/rhoL)
+        HL = aL*aL/(gammamo) + half*(uL*uL+vL*vL+wL*wL)
+
+      !  Right state
+
+      rhoR = ucR(1)
+        uR = ucR(2)/ucR(1)
+        vR = ucR(3)/ucR(1)
+        wR = ucR(4)/ucR(1)
+       qnR = uR*nx + vR*ny + wR*nz
+        pR = (gammamo)*( ucR(5) - half*rhoR*(uR*uR+vR*vR+wR*wR) )
+        aR = sqrt(gamma*pR/rhoR)
+        HR = aR*aR/(gammamo) + half*(uR*uR+vR*vR+wR*wR)
+
+      !Compute the physical flux: fL = Fn(UL) and fR = Fn(UR)
+           
+      fL(1) = rhoL*qnL
+      fL(2) = rhoL*qnL * uL + pL*nx
+      fL(3) = rhoL*qnL * vL + pL*ny
+      fL(4) = rhoL*qnL * wL + pL*nz
+      fL(5) = rhoL*qnL * HL
+
+      fR(1) = rhoR*qnR
+      fR(2) = rhoR*qnR * uR + pR*nx
+      fR(3) = rhoR*qnR * vR + pR*ny
+      fR(4) = rhoR*qnR * wR + pR*nz
+      fR(5) = rhoR*qnR * HR
+      
+      ! Instead of using Roe averages Weiss-Smith LM uses arithmetic averages
+      rho = half * (rhoR + rhoL)                           !Arithemtic-averaged density
+        u = half * (uL   + uR  )                           !Arithemtic-averaged x-velocity
+        v = half * (vL   + vR  )                           !Arithemtic-averaged y-velocity
+        w = half * (wL   + wR  )                           !Arithemtic-averaged z-velocity
+        H = half * (HL   + HR  )                           !Arithemtic-averaged total enthalpy
+        p = half * (pL   + pR  )                           !Arithmetic-averaged pressure
+        a = sqrt( (gammamo)*(H-half*(u*u + v*v + w*w)) ) !Arithemtic-averaged speed of sound
+        qn = u*nx + v*ny + w*nz                             !Arithemtic-averaged face-normal velocity
+      uR2 = half * (uR2L + uR2R)                           !Arithmetic-averaged scaling term
+
+      !Wave Strengths
+           
+      drho = rhoR - rhoL !Density difference
+        dp =   pR - pL   !Pressure difference
+       dqn =  qnR - qnL  !Normal velocity difference (= delta_u in Weiss and Smith)
+
+      drhou = ucR(2) - ucL(2)
+      drhov = ucR(3) - ucL(3)
+      drhow = ucR(4) - ucL(4)
+      drhoE = ucR(5) - ucL(5)
+      absU  = abs(qn) ! wave speed one
+
+      T = gamma * P / rho
+      rho_p = gamma/T
+      rho_T = - (p * gamma) / ( T**2 )
+      beta = rho_p + rho_T * (gammamo) / (rho)
+      alpha = half * (one-beta*uR2)
+
+      cprime = sqrt((alpha**2) * (qn**2) + uR2)
+      uprime = qn * (one - alpha)
+
+      ws2 = abs(uprime + cprime)
+      ws3 = abs(uprime - cprime)
+
+      if (entropy_fix == 'harten') then
+        dws(:) = eig_limiting_factor(1:4)*a
+        if (absU < dws(3))  absU = half * ( (absU**2)/(dws(3)*a) + (dws(3)*a) )
+        if (ws2  < dws(1))  ws2  = half * ( (ws2**2) /(dws(1)*a) + (dws(1)*a) )
+        if (ws3  < dws(2))  ws3  = half * ( (ws3**2) /(dws(2)*a) + (dws(2)*a) )
+      elseif (entropy_fix == 'mavriplis') then
+        ! https://doi.org/10.2514/6.2007-3955
+        absU = max(absU,eig_limiting_factor(3)*ws2)
+        ! ws2 = max(ws2,eig_limiting_factor(1)*ws2) ! not needed
+        ws3 = max(ws3,eig_limiting_factor(1)*ws2)
+      endif
+
+      cstar = half * (ws2 + ws3)
+      Mstar = half * (ws2 - ws3) / cprime
+
+
+      cstar = half * (ws2 + ws3)
+      Mstar = half * (ws2 - ws3) / cprime
+
+
+      delu = Mstar*dqn + (cstar - (one-two*alpha)*absU - alpha*qn*Mstar)*(dp/(rho*uR2))
+      delp = Mstar*dp  + (cstar - absU + alpha*qn*Mstar) * rho * dqn
+
+      diss_cartesian(:,1) = (absU * drho + delu * rho) * njk
+      diss_cartesian(:,2) = (absU * drhou + delu * rho * u) * njk
+      diss_cartesian(:,3) = (absU * drhov + delu * rho * v) * njk
+      diss_cartesian(:,4) = (absU * drhow + delu * rho * w) * njk
+      diss_cartesian(:,5) = (absU * drhoE + delu * rho * H) * njk
+      
+      ! diss_cartesian(:,1) = diss_cartesian(:,1) + zero
+      diss_cartesian(1,2) = diss_cartesian(1,2) + delp
+      diss_cartesian(2,3) = diss_cartesian(2,3) + delp
+      diss_cartesian(3,4) = diss_cartesian(3,4) + delp
+      diss_cartesian(:,5) = diss_cartesian(:,5) + delp * (/ u , v , w /)
+      
+      diss = matmul(transpose(diss_cartesian),njk) 
+
+      ! This is the numerical flux: Roe flux = 1/2 *[  Fn(UL)+Fn(UR) - GAMMA|An|(WR-WL) ]
+      num_flux = half * (fL + fR - diss)
+           
+      ! Max wave speed normal to the face:
+      wsn = abs(uprime) + cprime
+    end subroutine roe_lm_w
 end module inviscid_flux

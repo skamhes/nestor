@@ -78,7 +78,8 @@ module config
     integer                :: solver_max_itr         = 1000
     real(p2)               :: solver_tolerance       = 1.0e-05_p2
     character(80)          :: method_inv_flux        = "roe"
-    character(80)          :: method_inv_jac           = "roe"
+    character(80)          :: method_inv_jac         = "roe"
+    character(80)          :: entropy_fix            =  "mavriplis"
     character(80)          :: solver_type            = "rk"
     character(80)          :: jacobian_method        = "analytical"
     real(p2), dimension(5) :: eig_limiting_factor    = (/ 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2 /)  !eigenvalue limiting factor
@@ -93,7 +94,7 @@ module config
       solver_max_itr, solver_tolerance, &
       method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
-      variable_ur, limit_update, perturb_initial
+      variable_ur, limit_update, perturb_initial,entropy_fix
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)
