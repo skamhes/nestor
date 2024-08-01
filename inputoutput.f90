@@ -73,8 +73,6 @@ module inout
         do j = 1,nnodes
             qn(:,j) = qn(:,j) / nc(j) ! copmute an average
             Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2)  ! mach number (wrt free stream a)
-            an    = sqrt(gamma*qn(5,j)/qn(1,j))                 ! local speed of sound
-            Mn(j) = Mn(j) / an                                  ! local mach number
             ! rho    = p      * gamma / T
             rhon(j) = qn(1,j) * gamma / qn(5,j)
         end do
