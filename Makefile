@@ -85,4 +85,4 @@ clean:
 	rm -f *.o
 	rm -f *.mod
 	rm -f *.mod0
-	rm -f kcfd
+	rm -f nestor
