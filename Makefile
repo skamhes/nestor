@@ -62,8 +62,9 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/linear_solver.o\
 		$(SDIR)/interface_jacobian.o\
 		$(SDIR)/jacobian.o\
+		$(SDIR)/force.o\
 		$(SDIR)/steady_solver.o\
-        $(SDIR)/nestor.o
+	        $(SDIR)/nestor.o
 ##########################################################
 # Make all
 # This target doesnt actually get used it just exists to 

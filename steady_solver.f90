@@ -29,8 +29,9 @@ module steady_solver
         ! use linear_solver , only :  lrelax_sweeps_actual, lrelax_roc
 
         use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
-                            variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init
-        
+                                variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
+                                lift, drag
+                                
         use initialize, only : set_initial_solution
 
         use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi
@@ -40,6 +41,10 @@ module steady_solver
         use gradient  , only : init_gradients
 
         use residual  , only : compute_residual
+
+        use inout     , only : residual_status_header, print_residual_status
+
+        use forces    , only : compute_forces, output_forces
 
         implicit none
 
@@ -56,10 +61,7 @@ module steady_solver
         integer                       :: ierr
 
         real(p2)                      :: CFL_multiplier, CFL_final, CFL_running_mult
-        
-        ! Formatting strings
-        character(45) :: implicit_format = '(i10,6es13.3,a,i6,es12.1,i10.2,a,i2.2,es13.3)'
-        character(35) :: explicit_format = '(i10,6es13.3,i10.2,a,i2.2,es13.3)'
+
         ! Set explicit under-relaxation array
         var_ur_array = zero
         do i = 1,5
@@ -106,15 +108,7 @@ module steady_solver
         ! Skipping importing data for now
         
         ! Print column headers
-        write(*,*)
-        write(*,*)
-        if (trim(solver_type) == "implicit") then
-            write(*,*) " Iteration   continuity   x-momemtum   y-momentum   z-momentum    energy       max-res", &
-                "    |   proj     reduction       time    CFL"
-            allocate( dq(5,ncells)) ! allocate du only if it needed
-        else
-            write(*,*) " Iteration   continuity   x-momemtum   y-momentum   z-momentum    energy       max-res    |   time     CFL"
-        end if
+        call residual_status_header
 
         ! Initialize some miscellaneous variables
         lrelax_sweeps_actual = 0
@@ -131,6 +125,9 @@ module steady_solver
             
             ! Compute residual norm
             call compute_residual_norm(res_norm)
+            
+            ! Compute forces
+            if ( lift .OR. drag ) call compute_forces
             
             ! Iteration timer
             call dtime(values,time)
@@ -160,16 +157,7 @@ module steady_solver
             endif
 
             ! Print out residual
-            if ( trim(solver_type) == 'implicit' ) then
-                write(*,implicit_format) i_iteration, res_norm(:), & 
-                                         maxval(res_norm(:)/res_norm_initial(:)), &
-                                         "   | ", lrelax_sweeps_actual, lrelax_roc, &
-                                         minutes, ":", seconds, CFL
-            else ! RK Explicit
-                write(*,explicit_format) i_iteration, res_norm(:), &
-                                         maxval(res_norm(:)/res_norm_initial(:)), &
-                                         minutes, ":", seconds, CFL
-            endif
+            call print_residual_status(i_iteration, minutes, seconds)
 
             ! Check for convergence and exit if true
             if (maxval(res_norm(:)/res_norm_initial(:)) < solver_tolerance) then
