@@ -73,7 +73,8 @@ module forces
 
         use solution , only : force_drag, force_lift
 
-        character(11) :: format = '(a,es18.12)'
+        ! character(11) :: format = '(a,es18.12)'
+        character(11) :: format = '(g0)' !unlimited format specifier
         if (lift) then
             write(*,format) "Lift Force = ", force_lift
         endif

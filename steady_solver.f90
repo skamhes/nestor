@@ -128,7 +128,7 @@ module steady_solver
             
             ! Compute forces
             if ( lift .OR. drag ) call compute_forces
-            
+
             ! Iteration timer
             call dtime(values,time)
             
@@ -397,6 +397,8 @@ module steady_solver
 
         use common              , only : p2
 
+        use config              , only : variable_ur
+
         use jacobian            , only : compute_jacobian
 
         use  grid               , only : ncells
@@ -418,7 +420,10 @@ module steady_solver
         loop_cells : do i = 1,ncells
             omegan = safety_factor_primative(q(:,i),solution_update(:,i))
             ! update solution
-            q(:,i) = q(:,i) + omegan * matmul(var_ur_array,solution_update(:,i))
+            ! q(:,i) = q(:,i) + omegan * matmul(var_ur_array,solution_update(:,i))
+            q(:,i) = q(:,i) + omegan * ( variable_ur * solution_update(:,i))
+            ! Pretty sure this should work.  Fortran does elemental multiplication for vector * vector. So this is the equivalent of
+            ! v_ur * I * sol_update, where I is the identity matrix, which is Identical to the commented line above.
         end do loop_cells
 
     end subroutine implicit
