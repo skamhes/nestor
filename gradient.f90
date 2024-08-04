@@ -184,22 +184,17 @@ module gradient
             case(5)
                 value = T_inf
             end select
-        case(SLIP_WALL)
+        case(NO_SLIP_WALL)
             if (scalar >= 2 .AND. scalar <= 4) then
                 value = zero
                 known = 3
             else
                 known = 4
             endif
-        case(NO_SLIP_WALL)
-            if (scalar == 1) then
-                value = p_inf
-                known = 3
-            else
-                ! For ghost values that depend on internal flow values, for now we will leave the vertex
-                ! value as unknown
-                known = 4
-            endif
+        case(SLIP_WALL)
+            ! For ghost values that depend on internal flow values, for now we will leave the vertex
+            ! value as unknown
+            known = 4
         case(PRESSURE_OUTLET)
             known = 4
         case default

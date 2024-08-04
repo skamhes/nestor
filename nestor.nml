@@ -1,6 +1,7 @@
 &project
-  project_name = "quad_3d"
-  second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  project_name = "cylinder_020x010_quad_3d"
+  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  !io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
@@ -28,7 +29,7 @@
 
 
 &gradient
-  accuracy_order = 1
+  accuracy_order = 2
   use_limiter    = .false.
   /
 
