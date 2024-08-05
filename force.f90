@@ -83,4 +83,18 @@ module forces
         endif
 
     end subroutine output_forces
+
+    subroutine report_lift
+
+        use config , only : lift, drag
+
+        use solution , only : force_lift, force_drag
+
+        implicit none
+
+        write(*,*)
+        write(*,*)
+        if (lift) write(*,'(a,g0)') "  Lift force = ", force_lift
+        if (drag) write(*,'(a,g0)') "  Drag force = ", force_drag
+    end subroutine report_lift
 end module forces

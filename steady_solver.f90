@@ -44,7 +44,7 @@ module steady_solver
 
         use inout     , only : residual_status_header, print_residual_status
 
-        use forces    , only : compute_forces, output_forces
+        use forces    , only : compute_forces, output_forces, report_lift
 
         implicit none
 
@@ -61,6 +61,8 @@ module steady_solver
         integer                       :: ierr
 
         real(p2)                      :: CFL_multiplier, CFL_final, CFL_running_mult
+
+        real(p2), parameter :: MIN_RES_NORM_INIT = 1e-012_p2
 
         ! Set explicit under-relaxation array
         var_ur_array = zero
@@ -144,7 +146,7 @@ module steady_solver
                 seconds = 0
                 do i = 1,5
                     ! Prevent res/res_norm_init = infinity
-                    if (abs(res_norm_initial(i)) < 1e-016_p2) then
+                    if (abs(res_norm_initial(i)) < MIN_RES_NORM_INIT) then
                         res_norm_initial(i) = one
                     end if
                 end do
@@ -189,15 +191,15 @@ module steady_solver
 
             ! check for stop file
             ! stop file can be created by typing "touch kcfdstop" in the working directory
-            inquire (file = 'kcfdstop', exist = stop_me)
+            inquire (file = 'nestorstop', exist = stop_me)
             if (stop_me) then
-                write(*,*) "kcfdstop file found! Stopping iterations!"
+                write(*,*) "nestorstop! Get down from there! (also file found!) Stopping iterations!"
                 ! Delete the file that way it doesn't stop us next time.
-                open(10,file = 'kcfdstop',status='old',iostat=ierr)
+                open(10,file = 'nestorstop',status='old',iostat=ierr)
                 if (ierr == 0) then
                     close(10,status ='delete',iostat = ierr) 
                     if (ierr == 0) then
-                        write(*,*) 'kcfdstop successfully deleted!'
+                        write(*,*) 'nestorstop successfully deleted!'
                     end if
                 end if
                 exit solver_loop
@@ -205,7 +207,7 @@ module steady_solver
 
         end do solver_loop
 
-
+        if ( lift .OR. drag ) call report_lift
 
     end subroutine steady_solve
 

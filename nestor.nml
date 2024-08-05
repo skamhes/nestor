@@ -1,7 +1,7 @@
 &project
   project_name = "cylinder_020x010_quad_3d"
-  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
-  !io_path = "grids/cylinder/final_grids/"
+  second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
