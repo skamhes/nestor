@@ -13,11 +13,11 @@
 FC = gfortran
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
-#FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
-#	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
-#		 -fbacktrace -fall-intrinsics
+ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
+	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
+		 -fbacktrace -fall-intrinsics
 # FFLAGS = -O2 -pg
- FFLAGS = -O3
+# FFLAGS = -O3
 ##########################################################
 # VPATH = ..
 ##########################################################
@@ -62,8 +62,9 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/linear_solver.o\
 		$(SDIR)/interface_jacobian.o\
 		$(SDIR)/jacobian.o\
+		$(SDIR)/force.o\
 		$(SDIR)/steady_solver.o\
-        $(SDIR)/nestor.o
+	        $(SDIR)/nestor.o
 ##########################################################
 # Make all
 # This target doesnt actually get used it just exists to 
@@ -85,4 +86,4 @@ clean:
 	rm -f *.o
 	rm -f *.mod
 	rm -f *.mod0
-	rm -f kcfd
+	rm -f nestor

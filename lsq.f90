@@ -157,6 +157,9 @@ module least_squares
                     select case(trim(bc_type(ib))) 
                         case('freestream')
                             lsq(vk)%btype = max(lsq(vk)%btype,FREE_STREAM)
+                        case('symmetry')
+                            ! symmetry is treated numerically like a slip_wall
+                            lsq(vk)%btype = max(lsq(vk)%btype,SLIP_WALL)
                         case('slip_wall')
                             lsq(vk)%btype = max(lsq(vk)%btype,SLIP_WALL)
                         case('no_slip_wall')

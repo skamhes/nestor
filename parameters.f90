@@ -53,10 +53,14 @@ module config
     logical       :: generate_tec_file_v = .false. ! tecplot volume file   = F
     logical       :: write_data          = .false.
     logical       :: import_data         = .false.
+    logical       :: lift                = .false.
+    logical       :: drag                = .false.
+    real(p2)      :: area_reference      = 1.0_p2
 
     namelist / inputoutput / &
       generate_tec_file_b, generate_tec_file_v, &
-      write_data         , import_data
+      write_data         , import_data,         &
+      lift, drag, area_reference
 
     !-------------------------------------------------------------------------
     ! FREESTREAM CONDITIONS (&freestream)
