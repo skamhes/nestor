@@ -87,10 +87,11 @@ module config
     character(80)          :: solver_type            = "rk"
     character(80)          :: jacobian_method        = "analytical"
     real(p2), dimension(5) :: eig_limiting_factor    = (/ 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2 /)  !eigenvalue limiting factor
-    real(p2), dimension(5) :: variable_ur            = (/ 1, 1, 1, 1, 1 /)  ! Variable under relaxation factors (only used in 
+    real(p2), dimension(5) :: variable_ur            = (/ 1.0_p2, 1.0_p2, 1.0_p2, 1.0_p2, 1.0_p2 /)  ! Variable under relaxation factors (only used in 
     logical                :: limit_update           = .false.
     logical                :: perturb_initial        = .false.
     logical                :: random_perturb         = .false.
+    real(p2)               :: eps_weiss_smith        = 1.0e-03_p2
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
@@ -98,7 +99,7 @@ module config
       solver_max_itr, solver_tolerance, &
       method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
-      variable_ur, limit_update, perturb_initial,entropy_fix
+      variable_ur, limit_update, perturb_initial,entropy_fix, eps_weiss_smith
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)

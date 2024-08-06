@@ -10,7 +10,7 @@ module residual
 
         use common          , only : p2, zero, half, one, two
 
-        use config          , only : method_inv_flux, accuracy_order, use_limiter
+        use config          , only : method_inv_flux, accuracy_order, use_limiter, eps_weiss_smith
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -20,7 +20,7 @@ module residual
                                      face_nrml_mag, &
                                      face_centroid
         
-        use solution        , only : res, q, ccgradq, wsn, q2u, phi
+        use solution        , only : res, q, ccgradq, wsn, q2u, phi, ur2, compute_uR2
 
         use interface       , only : interface_flux
 
@@ -47,6 +47,7 @@ module residual
         real(p2), dimension(5)      :: qb
         real(p2)                    :: wave_speed
         real(p2)                    :: phi1, phi2
+        real(p2)                    :: uR21, uR22
 
         ! Misc int/counters
         integer                     :: i, os
@@ -70,6 +71,10 @@ module residual
         endif
 
         if (use_limiter) call compute_limiter
+
+        ! Compute low mach reference velocity
+        if(trim(method_inv_flux)=="roe_lm_w") call compute_uR2
+
 
         !--------------------------------------------------------------------------------
         !--------------------------------------------------------------------------------
@@ -121,6 +126,10 @@ module residual
                 phi1 = one
                 phi2 = one
             end if
+            if(trim(method_inv_flux)=="roe_lm_w") then
+                uR21 = ur2(c1)
+                uR22 = ur2(c2)
+            endif
             call interface_flux(          q1,       q2   , & !<- Left/right states
                                       gradq1,      gradq2, & !<- Left/right gradients
                                          unit_face_normal, & !<- unit face normal
@@ -130,7 +139,10 @@ module residual
                                        face_centroid(2,i), &
                                        face_centroid(3,i), & !<- face midpoint
                                         phi1,        phi2, & !<- Limiter functions
-                                     num_flux, wave_speed  ) !<- Output
+                                               uR21, uR22, &
+                                     num_flux, wave_speed ) !<- Output
+            ! ur21 & 2 get passed regardless if they have been assigned values.  This is ok since they are only used if they've been
+            ! assigned.  Is this sloppy? Maybe?
  
             res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
             wsn(c1)   = wsn(c1) + wave_speed*face_nrml_mag(i)
@@ -167,6 +179,13 @@ module residual
                     gradq1 = zero
                 endif
                 
+                if(trim(method_inv_flux)=="roe_lm_w") then
+                    uR21 = ur2(c1)
+                    ! At some point I will probably want to revisit this boundary treatment.  I'm not sure if it will cause issues 
+                    ! for now...
+                    uR22 = min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one)
+                endif
+
                 call interface_flux(          q1,      qb, & !<- Left/right states
                                          gradq1,   gradq2, & !<- Left/right gradients
                                          unit_face_normal, & !<- unit face normal
@@ -178,6 +197,7 @@ module residual
                                         bface_centroid(2), &
                                         bface_centroid(3), & !<- boundary ghost cell "center"
                                         phi1,        phi2, & !<- Limiter functions
+                                               uR21, uR22, &
                                         num_flux, wave_speed  )
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)

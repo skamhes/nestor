@@ -105,7 +105,8 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, method_inv_flux, method_inv_jac
+        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, method_inv_flux, method_inv_jac, &
+                            sideslip, aoa, lift, drag
 
         implicit none
 
@@ -218,6 +219,24 @@ module solution
         u_out(5) = q_in(1)*gmoinv + half*u_out(1)*(q_in(iu)**2 + q_in(iv)**2 + q_in(iw)**2)
     
     end function q2u
+
+    subroutine compute_uR2
+
+        use common , only : p2
+
+        use config , only : eps_weiss_smith
+
+        use grid   , only : ncells
+
+        implicit none
+
+        integer :: i
+
+        do i = 1,ncells
+            ur2(i) = min( max( eps_weiss_smith,sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one)
+        end do
+
+    end subroutine compute_uR2
 
 end module solution
 

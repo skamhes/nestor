@@ -6,12 +6,13 @@ module interface
     
     subroutine interface_flux(q1, q2, gradq1, gradq2, n12, &
                              xc1, yc1, zc1, xc2, yc2, zc2, &
-                     xm, ym, zm, phi1, phi2, num_flux, wsn, &
-                                               ur2_1, ur2_2)
+                     xm, ym, zm, phi1, phi2, ur2_1, ur2_2, &
+                                            num_flux, wsn  )
 
         use common                 , only : p2
 
         use config                 , only : method_inv_flux !name of flux pecified as input
+
         use config                 , only : accuracy_order
         
         use solution               , only : q2u
@@ -27,13 +28,14 @@ module interface
         real(p2),                   intent(in) :: xc2, yc2, zc2     ! Right cell centroid
         real(p2),                   intent(in) :: xm, ym, zm        ! Face midpoint
         real(p2),                   intent(in) :: phi1, phi2        ! Limiter
+        real(p2),                   intent(in)  :: ur2_1, ur2_2     ! Reference velocity for roe_lm_ws
 
         ! Output
         real(p2), dimension(5),     intent(out) :: num_flux         ! Output
         real(p2),                   intent(out) :: wsn   
 
         ! Optional
-        real(p2), optional,         intent(in)  :: ur2_1, ur2_2
+        
 
         ! Local Vars
         real(p2), dimension(5) :: qL, qR ! primitive vars reconstructed to face
