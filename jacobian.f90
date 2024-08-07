@@ -15,7 +15,7 @@ module jacobian
 
         use common              , only : p2, zero, half, one
 
-        use config              , only : method_inv_jac, eps_weiss_smith
+        use config              , only : method_inv_jac, eps_weiss_smith, method_inv_flux
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
@@ -119,15 +119,19 @@ module jacobian
             rho_p = gamma/q(5,i)
             rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
             rho = q(1,i)*gamma/q(5,i)
-            UR2inv = one ! will be 1/uR2(i)
+            if(trim(method_inv_flux)=="roe_lm_w") then
+                UR2inv = one / ur2(i)
+            else
+                UR2inv = one 
+            end if
             theta = (UR2inv) - rho_T*(gammamo)/(rho)
             
             ! Note transposing this assignment would likely be marginally faster if slightly less easy to read
-            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
-            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
-            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
-            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
-            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)         /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)         /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)         /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho*gmoinv /)
 
             do ii = 1,5
                 do jj = 1,5
