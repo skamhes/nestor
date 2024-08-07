@@ -15,13 +15,15 @@ module jacobian
 
         use common              , only : p2, zero, half, one
 
+        use config              , only : method_inv_jac, eps_weiss_smith
+
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
                                          bound, nb, bc_type
 
         use solution            , only : q, gamma, gammamo, gmoinv, dtau, jac, &
-                                         kth_nghbr_of_1, kth_nghbr_of_2
+                                         kth_nghbr_of_1, kth_nghbr_of_2, ur2
 
         use interface_jacobian  , only : interface_jac
 
@@ -44,6 +46,7 @@ module jacobian
         real(p2)                    :: theta
         real(p2)                    :: rho_p, rho_T, rho
         real(p2)                    :: H, alpha, beta, lambda, absu, UR2inv
+        real(p2)                    :: ur21, ur22
 
         ! Initialize jacobian terms
         do i = 1,ncells
@@ -60,9 +63,15 @@ module jacobian
             unit_face_nrml = face_nrml(1:3,i)
             face_mag       = face_nrml_mag(i)
 
-            ! Compute the flux Jacobian for given q1 and q2
-            call interface_jac( q(:,c1), q(:,c2), unit_face_nrml, dFnduL, dFnduR)
-
+            if(trim(method_inv_jac)=="roe_lm_w") then
+                uR21 = ur2(c1)
+                uR22 = ur2(c2)
+                call interface_jac(q(:,c1), q(:,c2), unit_face_nrml, ur21, ur22, dFnduL, dFnduR)
+            else
+                ! Compute the flux Jacobian for given q1 and q2
+                call interface_jac( q(:,c1), q(:,c2), unit_face_nrml, dFnduL, dFnduR)
+            end if
+            
             ! Add to diagonal term of C1
             jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
             ! get neighbor index k for cell c1
@@ -89,8 +98,13 @@ module jacobian
                 
                 call get_right_state(q1, unit_face_nrml, bc_type(ib), qb)
 
-                call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
-                
+                if(trim(method_inv_jac)=="roe_lm_w") then
+                    uR21 = ur2(c1)
+                    uR22 = min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one)
+                    call interface_jac(q(:,c1), q(:,c2), unit_face_nrml, ur21, ur22, dFnduL, dFnduR)
+                else
+                    call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
+                endif            
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 

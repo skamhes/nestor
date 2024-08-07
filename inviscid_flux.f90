@@ -106,8 +106,8 @@ module inviscid_flux
         real(p2), dimension(3), intent( in) :: njk
        
         !Output
-        real(p2), dimension(5)  , intent(out) :: num_flux !Numerical viscous flux
-        real(p2),                 intent(out) :: wsn      !Max wave speed
+        real(p2), dimension(5)  , intent(out) :: num_flux ! Inviscid flux
+        real(p2),                 intent(out) :: wsn      ! Max wave speed
        
         !Some constants
         real(p2) ::  zero = 0.0_p2
@@ -303,8 +303,8 @@ module inviscid_flux
       real(p2), dimension(3), intent( in) :: njk
      
       !Output
-      real(p2), dimension(5)  , intent(out) :: num_flux !Numerical viscous flux
-      real(p2),                 intent(out) :: wsn      !Max wave speed
+      real(p2), dimension(5)  , intent(out) :: num_flux ! Inviscid flux
+      real(p2),                 intent(out) :: wsn      ! Max wave speed
 
       !Local variables
       !            L = Left
