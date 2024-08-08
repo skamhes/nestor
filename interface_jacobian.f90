@@ -165,7 +165,7 @@ module interface_jacobian
     function q2u_ddt(q_in) result(u_out)
 
         use common              , only : p2, one, half
-        use solution            , only : gamma, gammamo
+        use solution            , only : gamma, gammamo, gmoinv
         use ad_operators
 
         implicit none
@@ -177,7 +177,7 @@ module interface_jacobian
         u_out(2) = u_out(1)*q_in(2)
         u_out(3) = u_out(1)*q_in(3)
         u_out(4) = u_out(1)*q_in(4)
-        u_out(5) = q_in(1)/(gammamo)+half*u_out(1)*(q_in(2)*q_in(2)+q_in(3)*q_in(3)+q_in(4)*q_in(4))
+        u_out(5) = q_in(1)*gmoinv+half*u_out(1)*(q_in(2)*q_in(2)+q_in(3)*q_in(3)+q_in(4)*q_in(4))
     
     end function q2u_ddt
 

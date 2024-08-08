@@ -263,8 +263,10 @@ module steady_solver
     subroutine explicit_pseudo_time_rk
 
         use common              , only : p2, half, one, zero
+
+        use config              , only : method_inv_flux
         
-        use solution            , only : q, res, dtau, gammamo, gamma, gmoinv
+        use solution            , only : q, res, dtau, gammamo, gamma, gmoinv, ur2
 
         use grid                , only : cell, ncells
 
@@ -283,9 +285,11 @@ module steady_solver
 
         do i = 1,ncells
             ! test for low mach
-            ! else
-            uR2inv = one
-            ! fi
+            if(trim(method_inv_flux)=="roe_lm_w") then
+                UR2inv = one / ur2(i)
+            else
+                UR2inv = one 
+            end if
 
             H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
             rho_p = gamma/q(5,i)
@@ -293,11 +297,11 @@ module steady_solver
             rho = q(1,i)*gamma/q(5,i)
             theta = (uR2inv) - rho_T*(gammamo)/(rho)
             
-            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
-            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
-            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
-            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
-            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T               /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)        /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)        /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)        /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho*gmoinv/)
             
 
             call gewp_solve(preconditioner, 5, pre_inv, os)
@@ -313,10 +317,11 @@ module steady_solver
         call compute_residual
 
         do i = 1,ncells
-            ! test for low mach
-            ! else
-            uR2inv = one
-            ! fi
+            if(trim(method_inv_flux)=="roe_lm_w") then
+                UR2inv = one / ur2(i)
+            else
+                UR2inv = one 
+            end if
 
             H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
             rho_p = gamma/q(5,i)
@@ -347,7 +352,9 @@ module steady_solver
 
         use common          , only : p2, half, one, zero
 
-        use solution        , only : q, res, dtau, gammamo, gamma, gmoinv
+        use config          , only : method_inv_flux
+
+        use solution        , only : q, res, dtau, gammamo, gamma, gmoinv, ur2
 
         use grid            , only : cell, ncells
 
@@ -365,10 +372,11 @@ module steady_solver
         ! Eventually we will be adding low-mach preconditioning so this allows for future adaptability
 
         do i = 1,ncells
-            ! test for low mach
-            ! else
-            uR2inv = one
-            ! fi
+            if(trim(method_inv_flux)=="roe_lm_w") then
+                UR2inv = one / ur2(i)
+            else
+                UR2inv = one 
+            end if
 
             H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
             rho_p = gamma/q(5,i)
@@ -376,11 +384,11 @@ module steady_solver
             rho = q(1,i)*gamma/q(5,i)
             theta = (uR2inv) - rho_T*(gammamo)/(rho)
             
-            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
-            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
-            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
-            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
-            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T               /)
+            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)        /)
+            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)        /)
+            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)        /)
+            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho*gmoinv/)
             
 
             call gewp_solve(preconditioner, 5, pre_inv, os)

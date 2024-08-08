@@ -1,7 +1,8 @@
 &project
-  project_name = "cylinder_020x010_quad_3d"
-  second_namelist = "grids/cylinder/final_grids/nestor.nml"
-  io_path = "grids/cylinder/final_grids/"
+  !project_name = "cylinder_020x010_quad_3d"
+  project_name = "quad_3d"
+  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  !io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
@@ -15,13 +16,17 @@
   /
 
 &solver
-  CFL = 1000000
+  CFL = 100
   solver_type = "implicit"
-  perturb_initial = .false.
-  solver_tolerance = 1e-2
+  perturb_initial = .true.
+  solver_tolerance = 1e-12
   solver_max_itr = 1000
 !  method_inv_flux = "roe_lm_w"
 !   method_inv_jac = "roe_lm_w"
+  method_inv_flux = "roe"
+   method_inv_jac = "roe"
+  eps_weiss_smith = 0.001
+  entropy_fix = 'harten'
   /
 
 &amg
@@ -35,7 +40,7 @@
 
 
 &gradient
-  accuracy_order = 2
+  accuracy_order = 1
   use_limiter    = .false.
   /
 

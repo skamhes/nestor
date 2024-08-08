@@ -233,7 +233,7 @@ module solution
         integer :: i
 
         do i = 1,ncells
-            ur2(i) = min( max( eps_weiss_smith,sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one)
+            ur2(i) = ( min( max( eps_weiss_smith,sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
         end do
 
     end subroutine compute_uR2

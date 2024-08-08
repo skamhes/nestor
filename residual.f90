@@ -10,7 +10,7 @@ module residual
 
         use common          , only : p2, zero, half, one, two
 
-        use config          , only : method_inv_flux, accuracy_order, use_limiter, eps_weiss_smith
+        use config          , only : method_inv_flux, accuracy_order, use_limiter, eps_weiss_smith, method_inv_jac
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -73,7 +73,7 @@ module residual
         if (use_limiter) call compute_limiter
 
         ! Compute low mach reference velocity
-        if(trim(method_inv_flux)=="roe_lm_w") call compute_uR2
+        if(trim(method_inv_flux)=="roe_lm_w" .OR. trim(method_inv_jac)=='roe_lm_w') call compute_uR2
 
 
         !--------------------------------------------------------------------------------
@@ -183,7 +183,7 @@ module residual
                     uR21 = ur2(c1)
                     ! At some point I will probably want to revisit this boundary treatment.  I'm not sure if it will cause issues 
                     ! for now...
-                    uR22 = min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one)
+                    uR22 = ( min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one) )**2
                 endif
 
                 call interface_flux(          q1,      qb, & !<- Left/right states

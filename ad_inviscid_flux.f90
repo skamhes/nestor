@@ -1191,7 +1191,7 @@
 
   use common      , only : half, one, two, p2
 
-  use solution    , only : gamma, gammamo
+  use solution    , only : gamma, gammamo, gmoinv
   
   use config      , only : eig_limiting_factor, entropy_fix
 
@@ -1218,8 +1218,8 @@
   !            R = Right
   ! No subscript = Roe average
 
-  type(derivative_data_type_df5) :: nx, ny, nz             ! Normal vector components
-  real(p2)                       :: uL, uR, vL, vR, wL, wR ! Velocity components.
+  real(p2) :: nx, ny, nz             ! Normal vector components
+  type(derivative_data_type_df5) :: uL, uR, vL, vR, wL, wR ! Velocity components.
   type(derivative_data_type_df5) :: rhoL, rhoR, pL, pR     ! Primitive variables.
   type(derivative_data_type_df5) :: qnL, qnR               ! Normal velocities
   type(derivative_data_type_df5) :: aL, aR, HL, HR         ! Speed of sound, Total enthalpy
@@ -1258,7 +1258,7 @@
    qnL = uL*nx + vL*ny + wL*nz
     pL = (gammamo)*( ucL(5) - half*rhoL*(uL*uL+vL*vL+wL*wL) )
     aL = ddt_sqrt(gamma*pL/rhoL)
-    HL = aL*aL/(gammamo) + half*(uL*uL+vL*vL+wL*wL)
+    HL = aL*aL*gmoinv + half*(uL*uL+vL*vL+wL*wL)
 
   !  Right state
 
@@ -1269,7 +1269,7 @@
    qnR = uR*nx + vR*ny + wR*nz
     pR = (gammamo)*( ucR(5) - half*rhoR*(uR*uR+vR*vR+wR*wR) )
     aR = ddt_sqrt(gamma*pR/rhoR)
-    HR = aR*aR/(gammamo) + half*(uR*uR+vR*vR+wR*wR)
+    HR = aR*aR*gmoinv + half*(uR*uR+vR*vR+wR*wR)
 
   !Compute the physical flux: fL = Fn(UL) and fR = Fn(UR)
        
