@@ -384,7 +384,7 @@ module inviscid_flux
         w = half * (wL   + wR  )                           !Arithemtic-averaged z-velocity
         H = half * (HL   + HR  )                           !Arithemtic-averaged total enthalpy
         p = half * (pL   + pR  )                           !Arithmetic-averaged pressure
-        a = sqrt( (gammamo)*(H-half*(u*u + v*v + w*w)) ) !Arithemtic-averaged speed of sound
+        a = half * (aL   + aR  )                           !Arithemtic-averaged speed of sound
         qn = u*nx + v*ny + w*nz                             !Arithemtic-averaged face-normal velocity
       uR2 = half * (uR2L + uR2R)                           !Arithmetic-averaged scaling term
 
@@ -400,7 +400,7 @@ module inviscid_flux
       drhoE = ucR(5) - ucL(5)
       absU  = abs(qn) ! wave speed one
 
-      T = gamma * P / rho
+      T = gamma * p / rho
       rho_p = gamma/T
       rho_T = - (p * gamma) / ( T**2 )
       beta = rho_p + rho_T * (gammamo) / (rho)
@@ -423,10 +423,6 @@ module inviscid_flux
         ! ws2 = max(ws2,eig_limiting_factor(1)*ws2) ! not needed
         ws3 = max(ws3,eig_limiting_factor(1)*ws2)
       endif
-
-      cstar = half * (ws2 + ws3)
-      Mstar = half * (ws2 - ws3) / cprime
-
 
       cstar = half * (ws2 + ws3)
       Mstar = half * (ws2 - ws3) / cprime

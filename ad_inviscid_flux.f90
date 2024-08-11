@@ -1235,6 +1235,7 @@
   type(derivative_data_type_df5) :: uprime, cprime, alpha, beta, uR2
   type(derivative_data_type_df5) :: cstar, Mstar, delu, delp
   type(derivative_data_type_df5) :: T, rho_p, rho_T
+  type(derivative_data_type_df5) :: ur21, ur22
 
   type(derivative_data_type_df5), dimension(4)   :: dws    ! Width of a parabolic fit for entropy fix
   type(derivative_data_type_df5), dimension(5)   :: diss   ! Dissipation term
@@ -1259,6 +1260,7 @@
     pL = (gammamo)*( ucL(5) - half*rhoL*(uL*uL+vL*vL+wL*wL) )
     aL = ddt_sqrt(gamma*pL/rhoL)
     HL = aL*aL*gmoinv + half*(uL*uL+vL*vL+wL*wL)
+    ur21 = ( ddt_min( ddt_max( 0.1_p2, ddt_sqrt(uL**2 + vL**2 + wL**2) ), aL) ) **2
 
   !  Right state
 
@@ -1270,6 +1272,7 @@
     pR = (gammamo)*( ucR(5) - half*rhoR*(uR*uR+vR*vR+wR*wR) )
     aR = ddt_sqrt(gamma*pR/rhoR)
     HR = aR*aR*gmoinv + half*(uR*uR+vR*vR+wR*wR)
+    ur22 = ( ddt_min( ddt_max( 0.1_p2, ddt_sqrt(uR**2 + vR**2 + wR**2) ), aR) ) **2
 
   !Compute the physical flux: fL = Fn(UL) and fR = Fn(UR)
        
@@ -1294,7 +1297,10 @@
     p = half * (pL   + pR  )                           !Arithmetic-averaged pressure
     a = ddt_sqrt( (gammamo)*(H-half*(u*u + v*v + w*w)) ) !Arithemtic-averaged speed of sound
     qn = u*nx + v*ny + w*nz                             !Arithemtic-averaged face-normal velocity
-  uR2 = half * (uR2L + uR2R)                           !Arithmetic-averaged scaling term
+  ! uR2 = half * (uR2L + uR2R)                           !Arithmetic-averaged scaling term
+    ! ur2 = ( ddt_min( ddt_max( 0.1_p2*(ddt_sqrt(ddt_abs(pR-pL)/rho)), ddt_sqrt(u**2 + v**2 + w**2) ), a) ) **2
+    ! ur2 = ( ddt_min( ddt_max( 0.1_p2, ddt_sqrt(u**2 + v**2 + w**2) ), a) ) **2
+    ur2 = half * (ur21 + ur22)
 
   !Wave Strengths
        
@@ -1308,7 +1314,7 @@
   drhoE = ucR(5) - ucL(5)
   absU  = ddt_abs(qn) ! wave speed one
 
-  T = gamma * P / rho
+  T = gamma * p / rho
   rho_p = gamma/T
   rho_T = - (p * gamma) / ( T**2 )
   beta = rho_p + rho_T * (gammamo) / (rho)

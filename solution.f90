@@ -222,18 +222,25 @@ module solution
 
     subroutine compute_uR2
 
-        use common , only : p2
+        use common , only : p2, third
 
-        use config , only : eps_weiss_smith
+        use config , only : eps_weiss_smith, accuracy_order
 
-        use grid   , only : ncells
+        use grid   , only : ncells, cell
 
         implicit none
 
-        integer :: i
+        integer  :: i
+        real(p2) :: clength, dp, rho
 
         do i = 1,ncells
-            ur2(i) = ( min( max( eps_weiss_smith,sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
+            ! if (accuracy_order == 2) then !dp term
+            !     ! clength = cell(i)%vol**third
+            !     dp = abs (  sqrt(ccgradq(1,1,i)**2 + ccgradq(2,1,i)**2 + ccgradq(3,1,i)**2) )
+            !     rho = q(1,i) * gamma / q(5,i)
+            ! endif
+            ! ur2(i) = ( min( max( 0.001_p2, 0.1_p2 * sqrt(dp/rho),sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
+            ur2(i) = ( min( max( 0.001_p2, sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
         end do
 
     end subroutine compute_uR2
