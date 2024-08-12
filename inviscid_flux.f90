@@ -138,7 +138,18 @@ module inviscid_flux
         real(p2), dimension(4)   :: dws    ! Width of a parabolic fit for entropy fix
         real(p2), dimension(5,4) :: R      ! Right-eigenvector matrix
         real(p2), dimension(5)   :: diss   ! Dissipation term
-       
+
+        ! testing vars
+        real(p2), dimension(5) :: LdU_test      ! Wave strengths = L*(UR-UL)
+        real(p2), dimension(5)   :: ws_test     ! Wave speeds
+        real(p2), dimension(5)   :: dws_test    ! Width of a parabolic fit for entropy fix
+        real(p2), dimension(5,5) :: R_test, L_test,Lambda_test      !
+        real(p2), dimension(5)   :: diss_test   ! Dissipation term
+        real(p2)                 :: K, q, ql, qm
+        real(p2)                 :: lx, ly, lz, mx, my, mz ! tangent vector coeff
+        real(p2)                 :: lmag, mmag ! tangent vector mag
+        real(p2)                 :: dql, dqm ! tangent vector mag
+
         integer  :: i
        
         ! Face normal vector (unit vector)
@@ -273,6 +284,59 @@ module inviscid_flux
        
         diss(:) = ws(1)*LdU(1)*R(:,1) + ws(2)*LdU(2)*R(:,2) &
                 + ws(3)*LdU(3)*R(:,3) + ws(4)*LdU(4)*R(:,4)
+
+        ! Testing based on eq 3.6.16 from I do like CFD
+        Lambda_test(1,1) = ws(1)
+        Lambda_test(2,2) = ws(3)
+        Lambda_test(3,3) = ws(2)
+        Lambda_test(4,4) = ws(3)
+        Lambda_test(5,5) = ws(3)
+
+        q = (u*u + v*v + w*w)
+
+        if ( nz /= 0 ) then
+          lx = one
+          ly = one
+          lz = (-lx*nx - ly*ny)/nz
+        else
+          lx = zero
+          ly = zero
+          lz = one
+        end if 
+        lmag = sqrt(lx**2 + ly**2 + lz**2)
+        lx = lx/lmag
+        ly = ly/lmag
+        lz = lz/lmag
+        ql = lx*u + ly*v + lz*w
+
+        mx = ny*lz - nz*ly
+        my = nz*lx - nx*lz
+        mz = nx*ly - ny*lx
+        mmag = sqrt(mx**2 + my**2 + mz**2)
+        mx = mx/mmag
+        my = my/mmag
+        mz = mz/mmag
+        qm = mx*u + my*v + mz*w
+
+        lmag = dot_product((/nx,ny,nz/),(/lx,ly,lz/))
+        mmag = dot_product((/nx,ny,nz/),(/mx,my,mz/))
+
+        R_test(1,:) = (/ one,     one,     one,     zero, zero /)
+        R_test(2,:) = (/ u - a*nx, u,      u + a*nx, lx, mx/)
+        R_test(3,:) = (/ v - a*ny, v,      v + a*ny, ly, my/)
+        R_test(4,:) = (/ w - a*nz, w,      w + a*nz, lz, mz/)
+        R_test(5,:) = (/ H - a*qn, half*q, H + a*qn, ql, qm/)
+
+        dql = (lx*uR + ly*vR + lz*wR) - (lx*uL + ly*vL + lz*wL)
+        dqm = (mx*uR + my*vR + mz*wR) - (mx*uL + my*vL + mz*wL)
+
+        LdU_test(1) = LdU(1)
+        LdU_test(2) = LdU(3)
+        LdU_test(3) = LdU(2)
+        LdU_test(4) = rho * dql
+        LdU_test(5) = rho * dqm
+
+        diss_test = matmul( matmul(R_test,Lambda_test) , LdU_test )
        
         ! This is the numerical flux: Roe flux = 1/2 *[  Fn(UL)+Fn(UR) - |An|(UR-UL) ]
         ! write(*,*) "Normal:", diss
@@ -287,7 +351,7 @@ module inviscid_flux
 
     subroutine roe_lm_w(ucL, ucR, ur2L, ur2R, njk, num_flux,wsn)
 
-      use common      , only : half, one, two
+      use common      , only : half, one, two, zero
       use solution    , only : gamma, gammamo
       use config      , only : eig_limiting_factor, entropy_fix
      
@@ -333,6 +397,11 @@ module inviscid_flux
       real(p2), dimension(5)   :: diss   ! Dissipation term
       real(p2), dimension(3,5) :: diss_cartesian
 
+
+      real(p2), dimension(5,4) :: R      ! Right-eigenvector matrix
+      real(p2), dimension(4) :: LdU      ! Wave strengths = L*(UR-UL)
+      real(p2) :: du, dv, dw             ! Velocity differences
+      real(p2), dimension(4)   :: ws     ! Wave speeds
       ! Face normal vector (unit vector)
            
       nx = njk(1)
@@ -387,6 +456,7 @@ module inviscid_flux
         a = half * (aL   + aR  )                           !Arithemtic-averaged speed of sound
         qn = u*nx + v*ny + w*nz                             !Arithemtic-averaged face-normal velocity
       uR2 = half * (uR2L + uR2R)                           !Arithmetic-averaged scaling term
+      ur2 = one
 
       !Wave Strengths
            
@@ -445,10 +515,62 @@ module inviscid_flux
       
       diss = matmul(transpose(diss_cartesian),njk) 
 
+      write(*,*) "lm ", diss
       ! This is the numerical flux: Roe flux = 1/2 *[  Fn(UL)+Fn(UR) - GAMMA|An|(WR-WL) ]
       num_flux = half * (fL + fR - diss)
            
       ! Max wave speed normal to the face:
       wsn = abs(uprime) + cprime
+
+              !Right Eigenvectors
+        !Note: Two shear wave components are combined into one, so that tangent vectors
+        !      are not required. And that's why there are only 4 vectors here.
+        !      See "I do like CFD, VOL.1" about how tangent vectors are eliminated.
+      LdU(1) = (dp - rho*a*dqn )/(two*a*a) !Left-moving acoustic wave strength
+      LdU(2) = (dp + rho*a*dqn )/(two*a*a) !Right-moving acoustic wave strength
+      LdU(3) =  drho - dp/(a*a)            !Entropy wave strength
+      LdU(4) = rho                         !Shear wave strength (not really, just a factor)
+       
+      ws(1) = ws3
+      ws(2) = ws2
+      ws(3) = absU
+      ws(4) = absU
+        ! Left-moving acoustic wave
+      R(1,1) = one    
+      R(2,1) = u - a*nx
+      R(3,1) = v - a*ny
+      R(4,1) = w - a*nz
+      R(5,1) = H - a*qn
+     
+      ! Right-moving acoustic wave
+      R(1,2) = one
+      R(2,2) = u + a*nx
+      R(3,2) = v + a*ny
+      R(4,2) = w + a*nz
+      R(5,2) = H + a*qn
+     
+      ! Entropy wave
+      R(1,3) = one
+      R(2,3) = u
+      R(3,3) = v 
+      R(4,3) = w
+      R(5,3) = half*(u*u + v*v + w*w)
+     
+      ! Two shear wave components combined into one (wave strength incorporated).
+      du = uR - uL
+      dv = vR - vL
+      dw = wR - wL
+      R(1,4) = zero
+      R(2,4) = du - dqn*nx
+      R(3,4) = dv - dqn*ny
+      R(4,4) = dw - dqn*nz
+      R(5,4) = u*du + v*dv + w*dw - qn*dqn
+     
+      !Dissipation Term: |An|(UR-UL) = R|Lambda|L*dU = sum_k of [ ws(k) * R(:,k) * L*dU(k) ]
+     
+      diss(:) = ws(1)*LdU(1)*R(:,1) + ws(2)*LdU(2)*R(:,2) &
+              + ws(3)*LdU(3)*R(:,3) + ws(4)*LdU(4)*R(:,4)
+      write(*,*) "rg ", diss
+      write(*,*) 
     end subroutine roe_lm_w
 end module inviscid_flux
