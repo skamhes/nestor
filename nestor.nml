@@ -12,12 +12,12 @@
   /
    
 &freestream   
-  M_inf = 0.2
+  M_inf = 0.01
   /
 
 &solver
-  CFL = 0.5
-  solver_type = "explicit"
+  CFL = 1000000
+  solver_type = "implicit"
   perturb_initial = .false.
   solver_tolerance = 1e-12
   solver_max_itr = 1000
@@ -26,7 +26,9 @@
 !  method_inv_flux = "roe"
 !   method_inv_jac = "roe"
 ! variable_ur = 0.5, 0.5, 0.5, 0.5, 0.5
-  eps_weiss_smith = 0.1
+! variable_ur = 0.2, 0.2, 0.2, 0.2, 0.2
+! variable_ur = 0.8, 0.8, 0.8, 0.8, 0.8
+  eps_weiss_smith = 0.001
   entropy_fix = 'harten'
   /
 

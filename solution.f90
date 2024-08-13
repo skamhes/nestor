@@ -222,7 +222,7 @@ module solution
 
     subroutine compute_uR2
 
-        use common , only : p2, third
+        use common , only : p2, third, half, one
 
         use config , only : eps_weiss_smith, accuracy_order
 
@@ -240,7 +240,7 @@ module solution
             !     rho = q(1,i) * gamma / q(5,i)
             ! endif
             ! ur2(i) = ( min( max( 0.001_p2, 0.1_p2 * sqrt(dp/rho),sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
-            ur2(i) = ( min( max( 0.001_p2, sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
+            ur2(i) = ( min( max( eps_weiss_smith, sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
         end do
 
     end subroutine compute_uR2

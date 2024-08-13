@@ -388,6 +388,17 @@ module inviscid_flux
         qn = u*nx + v*ny + w*nz                             !Arithemtic-averaged face-normal velocity
       uR2 = half * (uR2L + uR2R)                           !Arithmetic-averaged scaling term
 
+      ! RT = sqrt(rhoR/rhoL)
+      ! rho = RT*rhoL                                        !Roe-averaged density
+      !   u = (uL + RT*uR)/(one + RT)                        !Roe-averaged x-velocity
+      !   v = (vL + RT*vR)/(one + RT)                        !Roe-averaged y-velocity
+      !   w = (wL + RT*wR)/(one + RT)                        !Roe-averaged z-velocity
+      !   H = (HL + RT*HR)/(one + RT)                        !Roe-averaged total enthalpy
+      !   p = (pL + RT*pR)/(one + RT)                        !Roe-averaged pressure
+      !   a = sqrt( (gamma-one)*(H-half*(u*u + v*v + w*w)) ) !Roe-averaged speed of sound
+      !  qn = u*nx + v*ny + w*nz                             !Roe-averaged face-normal velocity
+      !  ur2 = (ur2L + RT*ur2R)/(one+RT)
+
       !Wave Strengths
            
       drho = rhoR - rhoL !Density difference

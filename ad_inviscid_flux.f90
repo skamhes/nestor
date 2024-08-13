@@ -1193,7 +1193,7 @@
 
   use solution    , only : gamma, gammamo, gmoinv
   
-  use config      , only : eig_limiting_factor, entropy_fix
+  use config      , only : eig_limiting_factor, entropy_fix, eps_weiss_smith
 
   use ad_operators
  
@@ -1260,7 +1260,7 @@
     pL = (gammamo)*( ucL(5) - half*rhoL*(uL*uL+vL*vL+wL*wL) )
     aL = ddt_sqrt(gamma*pL/rhoL)
     HL = aL*aL*gmoinv + half*(uL*uL+vL*vL+wL*wL)
-    ur21 = ( ddt_min( ddt_max( 0.1_p2, ddt_sqrt(uL**2 + vL**2 + wL**2) ), aL) ) **2
+    ur21 = ( ddt_min( ddt_max( eps_weiss_smith, ddt_sqrt(uL**2 + vL**2 + wL**2) ), one) ) **2
 
   !  Right state
 
@@ -1272,7 +1272,7 @@
     pR = (gammamo)*( ucR(5) - half*rhoR*(uR*uR+vR*vR+wR*wR) )
     aR = ddt_sqrt(gamma*pR/rhoR)
     HR = aR*aR*gmoinv + half*(uR*uR+vR*vR+wR*wR)
-    ur22 = ( ddt_min( ddt_max( 0.1_p2, ddt_sqrt(uR**2 + vR**2 + wR**2) ), aR) ) **2
+    ur22 = ( ddt_min( ddt_max( eps_weiss_smith, ddt_sqrt(uR**2 + vR**2 + wR**2) ), one) ) **2
 
   !Compute the physical flux: fL = Fn(UL) and fR = Fn(UR)
        
@@ -1301,6 +1301,17 @@
     ! ur2 = ( ddt_min( ddt_max( 0.1_p2*(ddt_sqrt(ddt_abs(pR-pL)/rho)), ddt_sqrt(u**2 + v**2 + w**2) ), a) ) **2
     ! ur2 = ( ddt_min( ddt_max( 0.1_p2, ddt_sqrt(u**2 + v**2 + w**2) ), a) ) **2
     ur2 = half * (ur21 + ur22)
+
+    ! RT = ddt_sqrt(rhoR/rhoL)
+    ! rho = RT*rhoL                                        !Roe-averaged density
+    !   u = (uL + RT*uR)/(one + RT)                        !Roe-averaged x-velocity
+    !   v = (vL + RT*vR)/(one + RT)                        !Roe-averaged y-velocity
+    !   w = (wL + RT*wR)/(one + RT)                        !Roe-averaged z-velocity
+    !   H = (HL + RT*HR)/(one + RT)                        !Roe-averaged total enthalpy
+    !   a = ddt_sqrt( (gamma-one)*(H-half*(u*u + v*v + w*w)) ) !Roe-averaged speed of sound
+    !   p = (pL + RT*pR)/(one + RT)                        !Roe-averaged pressure
+    !  qn = u*nx + v*ny + w*nz                             !Roe-averaged face-normal velocity
+    !  ur2 = (ur2L + RT*ur2R)/(one+RT)
 
   !Wave Strengths
        
