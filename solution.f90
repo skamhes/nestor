@@ -104,7 +104,7 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip
+        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip, turbulence_type
 
         implicit none
 
@@ -120,7 +120,7 @@ module solution
         dtau = zero
         wsn = zero
 
-        if ( accuracy_order > 1 ) then
+        if ( accuracy_order > 1 .OR. trim(turbulence_type) == 'laminar' ) then
             allocate( ccgradq(ndim,nq,ncells) )
             if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'w_vertex') then
                 allocate(  vgradq(ndim,nq,nnodes) )

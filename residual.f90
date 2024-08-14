@@ -10,7 +10,7 @@ module residual
 
         use common          , only : p2, zero, half, one, two
 
-        use config          , only : method_inv_flux, accuracy_order, use_limiter
+        use config          , only : method_inv_flux, accuracy_order, use_limiter, turbulence_type
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -20,7 +20,7 @@ module residual
                                      face_nrml_mag, &
                                      face_centroid
         
-        use solution        , only : res, q, ccgradq, wsn, q2u, phi
+        use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi
 
         use interface       , only : interface_flux
 
@@ -30,7 +30,7 @@ module residual
 
         use gradient        , only : compute_gradient
 
-
+        use viscous_flux    , only : visc_flux_boundary, visc_flux_internal
 
         implicit none
 
@@ -51,6 +51,9 @@ module residual
         ! Misc int/counters
         integer                     :: i, os
         integer                     :: j, ib, ix, iu, ii
+        integer                     :: face_sides
+        integer                     :: k, nk
+
         
         !--------------------------------------------------------------------------------
         ! Initialize the residuals and wsn = the sum of (max_wave_speed)*(face length)).
@@ -65,8 +68,8 @@ module residual
         !--------------------------------------------------------------------------------
         ! Compute gradients at cells.
         !
-        if (accuracy_order == 2) then
-            call compute_gradient(0)
+        if (accuracy_order == 2 .OR. trim(turbulence_type) == 'laminar') then
+            call compute_gradient(0) ! For now we are just using unweighted gradients
         endif
 
         if (use_limiter) call compute_limiter
@@ -138,6 +141,18 @@ module residual
             res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed*face_nrml_mag(i)
 
+            if ( trim(turbulence_type) == 'inviscid' ) cycle loop_faces
+
+            ! Viscous flux
+            call visc_flux_internal(q1,q2,gradq1,gradq2,unit_face_normal,  &
+                                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                    cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                                                                   num_flux)
+
+            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+
+            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+
         end do loop_faces
 
         boundary_loop : do ib = 1,nb
@@ -178,9 +193,26 @@ module residual
                                         bface_centroid(2), &
                                         bface_centroid(3), & !<- boundary ghost cell "center"
                                         phi1,        phi2, & !<- Limiter functions
+                
                                         num_flux, wave_speed  )
+
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
+
+                if ( trim(turbulence_type) == 'inviscid' ) cycle bface_loop
+                
+                face_sides = bound(ib)%bfaces(1,j)
+
+                gradqb = zero
+                do k = 1,face_sides
+                    nk = bound(ib)%bfaces(1,face_sides + 1)
+                    gradqb = gradqb + vgradq(:,:,nk)
+                end do
+                gradqb = gradqb / real(face_sides, p2)
+
+                call visc_flux_boundary(q1,q2,gradqb,unit_face_normal,num_flux)
+
+                res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
 
             end do bface_loop
 

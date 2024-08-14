@@ -10,13 +10,16 @@ module common
     real(p2), parameter ::   zero = 0.0_p2
     real(p2), parameter ::   half = 0.5_p2
     real(p2), parameter ::    one = 1.0_p2
+    real(p2), parameter :: three_half = 3.0_p2/2.0_p2
     real(p2), parameter ::    two = 2.0_p2
     real(p2), parameter ::  three = 3.0_p2
     real(p2), parameter ::   four = 4.0_p2
     real(p2), parameter ::   five = 5.0_p2
     real(p2), parameter ::    six = 6.0_p2
     real(p2), parameter ::  third = 1.0_p2/3.0_p2
+    real(p2), parameter :: two_third = 2.0_p2/3.0_p2
     real(p2), parameter :: fourth = 1.0_p2/4.0_p2
+    real(p2), parameter :: four_third = 4.0_p2/3.0_p2
     real(p2), parameter ::  sixth = 1.0_p2/6.0_p2
     real(p2), parameter :: my_eps = epsilon(one)  !Machine zero w.r.t. 1.0.
     real(p2), parameter :: pi = 3.141592653589793238_p2
@@ -122,6 +125,18 @@ module config
     namelist / gradient / &
       grad_method, accuracy_order, lsq_stencil, use_limiter, lsq_weight
 
+    !-------------------------------------------------------------------------
+    ! TURBULENCE SETTINGS (&turbulence)
+      character(80)         :: turbulence_type       = 'inviscid'
+      real(p2)              :: pr                    = 0.72_p2    ! Prandtl number for sea level air
+      real(p2)              :: Re_inf                = 10000      ! Free stream reynolds number
+      real(p2)              :: sutherland_constant   = 110.5_p2   ! (K) Sutherland's constant (C) for air
+      real(p2)              :: ideal_gas_constant    = 287.058_p2 ! ideal gas constant for air (R)
+      real(p2)              :: reference_temp        = 300        ! (K) T_inf in EQ 4.14.16 of I do Like CFD
+
+    namelist / turbulence / &
+      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant
+
     contains
         
     subroutine read_nml_config(namelist_file)
@@ -171,6 +186,7 @@ module config
         read(unit=10,nml=solver)
         read(unit=10,nml=amg)
         read(unit=10,nml=gradient)
+        read(unit=10,nml=turbulence)
         
     
         write(*,*)
@@ -199,6 +215,10 @@ module config
         write(*,*)
         write(*,*) "GRADIENT SETTINGS (&gradient)"
         write(*,nml=gradient)
+        
+        write(*,*)
+        write(*,*) "TURBULENCE SETTINGS (&turbulence)"
+        write(*,nml=turbulence)
         
         write(*,*)
         write(*,*) " End of Reading the input file: ",namelist_file,"..... "

@@ -30,7 +30,7 @@ module steady_solver
 
         use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag
+                                lift, drag, turbulence_type
                                 
         use initialize, only : set_initial_solution
 
@@ -103,7 +103,7 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2) then
+        if (accuracy_order == 2 .OR. trim(turbulence_type) == 'laminar' ) then
             call init_gradients
         endif    
 
