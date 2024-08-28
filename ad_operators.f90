@@ -376,6 +376,14 @@
    module procedure r_equal_d
   end interface
 
+!--------------------------------------------------------------------------------
+! isnan. check if the values are NaN's
+  public :: ddt_isnan
+  interface ddt_isnan
+    module procedure isnan_d
+  end interface
+
+
  contains
 
 !*******************************************************************************
@@ -1006,5 +1014,28 @@
 
   end function r_equal_d
 
+  pure elemental function isnan_d(d)
+
+    type(derivative_data_type_df5), intent(in) :: d
+    logical                                    :: isnan_d
+    
+    integer :: i
+
+    isnan_d = .false.
+
+
+    if (isnan(d%f))  then 
+      isnan_d = .true.
+      return
+    endif
+    
+    do i=1,5
+      if (isnan(d%df(i)))  then 
+        isnan_d = .true.
+        return
+      endif
+    end do
+
+  end function
  end module ad_operators
 

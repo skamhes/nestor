@@ -55,6 +55,7 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/inviscid_flux.o\
 		$(SDIR)/viscous_flux.o\
 		$(SDIR)/ad_inviscid_flux.o\
+		$(SDIR)/ad_viscous_flux.o\
 		$(SDIR)/interface.o\
 		$(SDIR)/limiter.o\
 		$(SDIR)/residual.o\

@@ -29,6 +29,8 @@ module jacobian
 
         use direct_solve        , only : gewp_solve
 
+        use ad_viscous_flux     , only : visc_flux_boundary_ddt, visc_flux_internal_ddt
+
         implicit none
         ! Local Vars
         integer                     :: c1, c2, i, k, ib, idestat, j, os, ii,jj

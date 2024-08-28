@@ -32,16 +32,16 @@ module viscous_flux
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
         
-        integer                      :: i
+        integer                      :: ivar
 
         ! Calculate the face gradients
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
         dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
 
         ! Equation 14
-        do i = 1,nq
-            gradq_face(:,i) = half * (gradq1(:,i) + gradq2(:,i))
-            gradq_face(:,i) = gradq_face(:,i) + ( (q2 - q1) - dot_product(gradq_face(:,i),ds)) * dsds2
+        do ivar = 1,nq
+            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar))
+            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
         end do
 
         ! This subroutine only handles computing the interface gradient.
@@ -61,7 +61,7 @@ module viscous_flux
         implicit none
 
         real(p2), dimension(nq),      intent(in)    :: q1, q2
-        real(p2), dimension(nq,ndim), intent(in)    :: interface_grad
+        real(p2), dimension(ndim,nq), intent(in)    :: interface_grad
         real(p2), dimension(ndim),    intent(in)    :: n12
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
@@ -82,7 +82,7 @@ module viscous_flux
         implicit none 
 
         real(p2), dimension(nq),      intent(in)    :: q1, q2
-        real(p2), dimension(nq,ndim), intent(in)    :: interface_grad
+        real(p2), dimension(ndim,nq), intent(in)    :: interface_grad
         real(p2), dimension(ndim),    intent(in)    :: n12
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
@@ -99,9 +99,9 @@ module viscous_flux
         real(p2), dimension(3)       :: grad_u, grad_v, grad_w   !Interface gradients of velocities
         real(p2), dimension(3)       :: grad_T
         
-        u = half * (q1(2)  + q1(2) ) ! u at the face
-        v = half * (q1(3)  + q1(3) ) ! v at the face
-        w = half * (q1(4)  + q1(4) ) ! w at the face
+        ! u = half * (q1(2)  + q1(2) ) ! u at the face
+        ! v = half * (q1(3)  + q1(3) ) ! v at the face
+        ! w = half * (q1(4)  + q1(4) ) ! w at the face
         T = half * (q1(nq) + q1(nq)) ! T at the face
         C0= sutherland_constant/reference_temp
         mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
