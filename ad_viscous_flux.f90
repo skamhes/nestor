@@ -52,7 +52,8 @@ module ad_viscous_flux
             ! Equation 14
             do ivar = 1,nq
                 gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar))
-                gradq_face(:,ivar) = gradq_face(:,ivar) + ( (qR_ddt(ivar) - qL_ddt(ivar)) - ddt_dot_product(gradq_face(:,ivar),ds,nq)) * dsds2
+                gradq_face(:,ivar) = gradq_face(:,ivar) + & 
+                                     ( (qR_ddt(ivar) - qL_ddt(ivar)) - ddt_dot_product(gradq_face(:,ivar),ds,nq)) * dsds2
             end do
 
             ! This subroutine only handles computing the interface gradient.
@@ -146,9 +147,9 @@ module ad_viscous_flux
 
         integer :: i, j
         
-        ! u = half * (q1(2)  + q1(2) ) ! u at the face
-        ! v = half * (q1(3)  + q1(3) ) ! v at the face
-        ! w = half * (q1(4)  + q1(4) ) ! w at the face
+        u = half * (q1(2)  + q1(2) ) ! u at the face
+        v = half * (q1(3)  + q1(3) ) ! v at the face
+        w = half * (q1(4)  + q1(4) ) ! w at the face
         T = half * (q1(nq) + q1(nq)) ! T at the face
         C0= sutherland_constant/reference_temp
         mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
