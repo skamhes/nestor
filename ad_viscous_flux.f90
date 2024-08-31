@@ -67,7 +67,7 @@ module ad_viscous_flux
         end do jac_L_R
     end subroutine visc_flux_internal_ddt
 
-    subroutine visc_flux_boundary_ddt(q1,q2,interface_grad_dummy,n12,dFndQL,dFndQR)
+    subroutine visc_flux_boundary_ddt(q1,qb,interface_grad_dummy,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
 
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third
 
@@ -79,23 +79,27 @@ module ad_viscous_flux
 
         implicit none
 
-        real(p2), dimension(nq),      intent(in)  :: q1, q2
+        real(p2), dimension(nq),      intent(in)  :: q1, qb
         real(p2), dimension(ndim,nq), intent(in)  :: interface_grad_dummy
         real(p2), dimension(ndim),    intent(in)  :: n12
+        real(p2),                     intent(in)  :: xc1, yc1, zc1     ! Left cell centroid
+        real(p2),                     intent(in)  :: xf2, yf2, zf2     ! Boundary face centroid
         real(p2), dimension(nq,nq),   INTENT(OUT) :: dFndQL, dFndQR
 
-        type(derivative_data_type_df5), dimension(ndim,nq)                   :: interface_grad
-        type(derivative_data_type_df5), dimension(5) :: qL_ddt, qR_ddt
+        ! Local Vars
+        type(derivative_data_type_df5), dimension(ndim,nq) :: gradq_face
+        type(derivative_data_type_df5), dimension(5)       :: qL_ddt, qR_ddt
         real(p2),                       dimension(nq,nq)   :: dFndQ
+        real(p2), dimension(ndim)                          :: ds,  dsds2
+        
+        integer :: icell, ivar
 
-        integer :: icell
-
-        ! turn it into a ddt type (with zero df values).
-        interface_grad = interface_grad_dummy
+        ds = (/xf2-xc1, yf2-yc1, zf2-zc1/) ! vector pointing from center of cell 1 to cell 2
+        dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
 
         jac_L_R : do icell = 1,2
             qL_ddt = q1
-            qR_ddt = q2
+            qR_ddt = qb
             if (icell == 1) then
                 ! Using derivative for uL_ddt
                 call ddt_seed(qL_ddt)
@@ -104,8 +108,16 @@ module ad_viscous_flux
                 call ddt_seed(qR_ddt)
             end if
 
+            gradq_face = interface_grad_dummy
+
+            ! Equation 14
+            do ivar = 1,nq
+                gradq_face(:,ivar) = gradq_face(:,ivar) + ( half * (qR_ddt(ivar) - qL_ddt(ivar)) &
+                                     - ddt_dot_product(gradq_face(:,ivar),ds,nq)) * dsds2
+            end do
+
             ! This is just a wrapper function since we already have the interface gradient computed.
-            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,interface_grad,n12,dFndQ)
+            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,gradq_face,n12,dFndQ)
 
             if (icell==1) then
                 dFndQL = dFndQ

@@ -132,7 +132,10 @@ module jacobian
                 end do
                 gradqb = gradqb / real(face_sides, p2)
 
-                call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml,dFnduL, dFnduR)
+                call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
+                                  cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                  bface_centroid(1),bface_centroid(2),bface_centroid(3), &
+                                                           dFnduL, dFnduR)
 
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag

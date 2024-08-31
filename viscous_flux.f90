@@ -50,7 +50,7 @@ module viscous_flux
 
     end subroutine visc_flux_internal
 
-    subroutine visc_flux_boundary(q1,q2,interface_grad,n12,num_flux)
+    subroutine visc_flux_boundary(q1,qb,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
 
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third
 
@@ -60,14 +60,34 @@ module viscous_flux
 
         implicit none
 
-        real(p2), dimension(nq),      intent(in)    :: q1, q2
-        real(p2), dimension(ndim,nq), intent(in)    :: interface_grad
-        real(p2), dimension(ndim),    intent(in)    :: n12
+        real(p2), dimension(nq),      intent(in)    :: q1, qb
+        real(p2), dimension(ndim,nq), intent(in)    :: face_gradient     ! Grad at bound interface computed using avg face's vgrad
+        real(p2), dimension(ndim),    intent(in)    :: n12               ! Normalized face vector
+        real(p2),                     intent(in)    :: xc1, yc1, zc1     ! Left cell centroid
+        real(p2),                     intent(in)    :: xf2, yf2, zf2     ! Boundary face centroid
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
 
+        ! Local Vars
+        real(p2), dimension(ndim,nq) :: gradq_face
+        real(p2), dimension(ndim)    :: ds,  dsds2
+        
+        integer                      :: ivar
+
+        gradq_face = face_gradient
+
+        ! Calculate the face gradients
+        ds = (/xf2-xc1, yf2-yc1, zf2-zc1/) ! vector pointing from center of cell 1 to cell 2
+        dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
+
+        ! Equation 14
+        do ivar = 1,nq
+            gradq_face(:,ivar) = gradq_face(:,ivar) + ( half * (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+        end do
+
+
         ! This is just a wrapper function since we already have the interface gradient computed.
-        call compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
+        call compute_visc_num_flux(q1,qb,gradq_face,n12,num_flux)
 
         
     end subroutine visc_flux_boundary
