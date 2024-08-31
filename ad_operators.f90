@@ -635,7 +635,7 @@
   pure function d_dot_d(d1, d2, n)
   
     integer                                    ,intent(in) :: n
-    type(derivative_data_type_df5),dimension(n),intent(in) :: d1, d2
+    type(derivative_data_type_df5),dimension(:),intent(in) :: d1, d2
     type(derivative_data_type_df5)                         :: d_dot_d
     integer :: i
 
@@ -649,8 +649,8 @@
   pure function d_dot_r(d1, d2, n)
     
     integer                                    ,intent(in) :: n
-    type(derivative_data_type_df5),dimension(n),intent(in) :: d1
-    real(my_precision)            ,dimension(n),intent(in) :: d2
+    type(derivative_data_type_df5),dimension(:),intent(in) :: d1
+    real(my_precision)            ,dimension(:),intent(in) :: d2
     type(derivative_data_type_df5)                         :: d_dot_r
     integer :: i
 
@@ -664,8 +664,8 @@
   pure function r_dot_d(d1, d2, n)
   
     integer                                    ,intent(in) :: n
-    real(my_precision)            ,dimension(n),intent(in) :: d1
-    type(derivative_data_type_df5),dimension(n),intent(in) :: d2
+    real(my_precision)            ,dimension(:),intent(in) :: d1
+    type(derivative_data_type_df5),dimension(:),intent(in) :: d2
     type(derivative_data_type_df5)                         :: r_dot_d
     integer :: i
 
