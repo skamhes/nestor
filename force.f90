@@ -98,8 +98,12 @@ module forces
             end do cell_loop
         end do boundary_loop
 
-        if ( lift ) force_lift = force_lift * force_normalization
-        if ( drag ) force_drag = force_drag * force_normalization
+        if ( lift ) then
+            force_lift = (vforce_lift + pforce_lift) * force_normalization
+        endif
+        if ( drag ) then
+            force_drag = (vforce_drag + pforce_drag) * force_normalization
+        endif
 
 
     end subroutine compute_forces
@@ -135,7 +139,7 @@ module forces
         if (drag) write(*,'(a,g0)') "  Drag force = ", force_drag
     end subroutine report_lift
 
-    function compute_tau_wall(T,face_grad) result(tau)
+    pure function compute_tau_wall(T,face_grad) result(tau)
         
         use common                  , only : p2, half, one, four_third, three_half, two_third
 
@@ -144,9 +148,9 @@ module forces
         use solution                , only : gammamo, nq, ndim, T_inf 
         implicit none
 
-        real(p2),                     intent(in) :: T              ! Temperature at the attached cell
-        real(p2), dimension(ndim,nq), intent(in) :: face_grad      ! Face grad (mean of face node gradients)
-        real(p2), dimension(ndim,ndim)           :: tau            ! Stress Tensor  
+        real(p2),                 intent(in) :: T              ! Temperature at the attached cell
+        real(p2), dimension(:,:), intent(in) :: face_grad      ! Face grad (mean of face node gradients)
+        real(p2), dimension(ndim,ndim)       :: tau            ! Stress Tensor  
         
                 ! Local Vars
         real(p2)                     :: mu
@@ -161,17 +165,17 @@ module forces
         C0= sutherland_constant/reference_temp
         mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
 
-        grad_u = face_grad(:,2)
-        grad_v = face_grad(:,3)
-        grad_w = face_grad(:,4)
+        grad_u = face_grad(:,ix)
+        grad_v = face_grad(:,iy)
+        grad_w = face_grad(:,iz)
 
-        tau(ix,ix) =  mu*(four_third*grad_u(1) - two_third*grad_v(2) - two_third*grad_w(3))
-        tau(iy,iy) =  mu*(four_third*grad_v(2) - two_third*grad_u(1) - two_third*grad_w(3))
-        tau(iz,iz) =  mu*(four_third*grad_w(3) - two_third*grad_u(1) - two_third*grad_v(2))
+        tau(ix,ix) =  mu*(four_third*grad_u(ix) - two_third*grad_v(iy) - two_third*grad_w(iz))
+        tau(iy,iy) =  mu*(four_third*grad_v(iy) - two_third*grad_u(ix) - two_third*grad_w(iz))
+        tau(iz,iz) =  mu*(four_third*grad_w(iz) - two_third*grad_u(ix) - two_third*grad_v(iy))
     
-        tau(ix,iy) =  mu*(grad_u(2) + grad_v(1))
-        tau(ix,iz) =  mu*(grad_u(3) + grad_w(1))
-        tau(iy,iz) =  mu*(grad_v(3) + grad_w(2))
+        tau(ix,iy) =  mu*(grad_u(iy) + grad_v(ix))
+        tau(ix,iz) =  mu*(grad_u(iz) + grad_w(ix))
+        tau(iy,iz) =  mu*(grad_v(iz) + grad_w(iy))
     
         tau(iy,ix) = tau(ix,iy)
         tau(iz,ix) = tau(ix,iz)
