@@ -285,7 +285,6 @@ module grid
         if ( nquad > 0) then
             do
                 if (ncells > nquad) EXIT
-                read(1,*) quad(ncells,5)
                 ncells = ncells + 1
             end do
         end if
@@ -644,7 +643,7 @@ module grid
             trim(io_path)//trim(filename_bc)
         write(*,*)
 
-        open(unit=2, file=filename_bc, status="unknown", iostat=os)
+        open(unit=2, file=trim(io_path)//trim(filename_bc), status="unknown", iostat=os)
         read(2,*) nb
         
         allocate(bc_type(nb))
