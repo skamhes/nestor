@@ -205,7 +205,7 @@ module residual
 
                 gradqb = zero
                 do k = 1,face_sides
-                    nk = bound(ib)%bfaces(1,face_sides + 1)
+                    nk = bound(ib)%bfaces(k + 1,i)
                     gradqb = gradqb + vgradq(:,:,nk)
                 end do
                 gradqb = gradqb / real(face_sides, p2)
