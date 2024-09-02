@@ -63,8 +63,8 @@ module grid_statists
             car_dim1(c1) = car_dim1(c1) + face_nrml_mag(iface)
             car_dim1(c2) = car_dim1(c2) + face_nrml_mag(iface)
 
-            car_dim2(c1) = car_dim2(c1) + abs(dot_product(face_nrml(:,iface),fc1) / face_nrml_mag(iface))
-            car_dim2(c2) = car_dim2(c2) + abs(dot_product(face_nrml(:,iface),fc2) / face_nrml_mag(iface))
+            car_dim2(c1) = car_dim2(c1) + abs(dot_product(face_nrml(:,iface),fc1))
+            car_dim2(c2) = car_dim2(c2) + abs(dot_product(face_nrml(:,iface),fc2))
             
         end do
 
