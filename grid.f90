@@ -285,6 +285,7 @@ module grid
         if ( nquad > 0) then
             do
                 if (ncells > nquad) EXIT
+                read(1,*) quad(ncells,5)
                 ncells = ncells + 1
             end do
         end if

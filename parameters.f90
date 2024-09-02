@@ -93,6 +93,7 @@ module config
     logical                :: limit_update           = .false.
     logical                :: perturb_initial        = .false.
     logical                :: random_perturb         = .false.
+    logical                :: high_ar_correction     = .true.
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
@@ -100,7 +101,7 @@ module config
       solver_max_itr, solver_tolerance, &
       method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
-      variable_ur, limit_update, perturb_initial
+      variable_ur, limit_update, perturb_initial, high_ar_correction
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)

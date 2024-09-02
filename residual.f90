@@ -210,7 +210,7 @@ module residual
                 end do
                 gradqb = gradqb / real(face_sides, p2)
 
-                call visc_flux_boundary(q1,q2,gradqb,unit_face_normal, &
+                call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                 bface_centroid(1),bface_centroid(2),bface_centroid(3), &
                                                               num_flux )

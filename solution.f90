@@ -225,9 +225,12 @@ module initialize
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference, &
+                            high_ar_correction
 
         use solution
+
+        use grid_statists , only : init_ar_array, compute_aspect_ratio
 
         implicit none
 
@@ -256,6 +259,11 @@ module initialize
         if (trim(solver_type) == 'implicit' ) call init_jacobian
         
         force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
+
+        if (high_ar_correction) then
+            call init_ar_array
+            call compute_aspect_ratio
+        endif
         
     end subroutine set_initial_solution
 
