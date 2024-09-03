@@ -376,6 +376,14 @@
    module procedure r_equal_d
   end interface
 
+!--------------------------------------------------------------------------------
+! isnan. check if the values are NaN's
+  public :: ddt_isnan
+  interface ddt_isnan
+    module procedure isnan_d
+  end interface
+
+
  contains
 
 !*******************************************************************************
@@ -627,7 +635,7 @@
   pure function d_dot_d(d1, d2, n)
   
     integer                                    ,intent(in) :: n
-    type(derivative_data_type_df5),dimension(n),intent(in) :: d1, d2
+    type(derivative_data_type_df5),dimension(:),intent(in) :: d1, d2
     type(derivative_data_type_df5)                         :: d_dot_d
     integer :: i
 
@@ -641,8 +649,8 @@
   pure function d_dot_r(d1, d2, n)
     
     integer                                    ,intent(in) :: n
-    type(derivative_data_type_df5),dimension(n),intent(in) :: d1
-    real(my_precision)            ,dimension(n),intent(in) :: d2
+    type(derivative_data_type_df5),dimension(:),intent(in) :: d1
+    real(my_precision)            ,dimension(:),intent(in) :: d2
     type(derivative_data_type_df5)                         :: d_dot_r
     integer :: i
 
@@ -656,8 +664,8 @@
   pure function r_dot_d(d1, d2, n)
   
     integer                                    ,intent(in) :: n
-    real(my_precision)            ,dimension(n),intent(in) :: d1
-    type(derivative_data_type_df5),dimension(n),intent(in) :: d2
+    real(my_precision)            ,dimension(:),intent(in) :: d1
+    type(derivative_data_type_df5),dimension(:),intent(in) :: d2
     type(derivative_data_type_df5)                         :: r_dot_d
     integer :: i
 
@@ -1006,5 +1014,28 @@
 
   end function r_equal_d
 
+  pure elemental function isnan_d(d)
+
+    type(derivative_data_type_df5), intent(in) :: d
+    logical                                    :: isnan_d
+    
+    integer :: i
+
+    isnan_d = .false.
+
+
+    if (isnan(d%f))  then 
+      isnan_d = .true.
+      return
+    endif
+    
+    do i=1,5
+      if (isnan(d%df(i)))  then 
+        isnan_d = .true.
+        return
+      endif
+    end do
+
+  end function
  end module ad_operators
 

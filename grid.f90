@@ -644,7 +644,7 @@ module grid
             trim(io_path)//trim(filename_bc)
         write(*,*)
 
-        open(unit=2, file=filename_bc, status="unknown", iostat=os)
+        open(unit=2, file=trim(io_path)//trim(filename_bc), status="unknown", iostat=os)
         read(2,*) nb
         
         allocate(bc_type(nb))

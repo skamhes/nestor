@@ -30,7 +30,7 @@ module steady_solver
 
         use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag
+                                lift, drag, turbulence_type
                                 
         use initialize, only : set_initial_solution
 
@@ -103,7 +103,7 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2) then
+        if (accuracy_order == 2 .OR. trim(turbulence_type) == 'laminar' ) then
             call init_gradients
         endif    
 
@@ -247,7 +247,8 @@ module steady_solver
         use common                  , only : half, p2
         use grid                    , only : ncells, cell
         use solution                , only : dtau, wsn
-        use config                  , only : CFL
+        use config                  , only : CFL, high_ar_correction
+        use grid_statists           , only : cell_aspect_ratio
 
         implicit none
 
@@ -256,7 +257,7 @@ module steady_solver
 
         cell_loop : do i = 1,ncells
             dtau(i) = CFL * cell(i)%vol/( half * wsn(i) )
-
+            if (high_ar_correction) dtau(i) = dtau(i) * cell_aspect_ratio(i)
         end do cell_loop
     end subroutine compute_local_time_step_dtau
 

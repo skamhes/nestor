@@ -106,7 +106,7 @@ module solution
         use grid , only : ncells, nnodes
 
         use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, method_inv_flux, method_inv_jac, &
-                            sideslip, aoa, lift, drag
+                            sideslip, aoa, lift, drag, turbulence_type
 
         implicit none
 
@@ -122,7 +122,7 @@ module solution
         dtau = zero
         wsn = zero
 
-        if ( accuracy_order > 1 ) then
+        if ( accuracy_order > 1 .OR. trim(turbulence_type) == 'laminar' ) then
             allocate( ccgradq(ndim,nq,ncells) )
             if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'w_vertex') then
                 allocate(  vgradq(ndim,nq,nnodes) )
@@ -262,9 +262,12 @@ module initialize
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference, &
+                            high_ar_correction
 
         use solution
+
+        use grid_statists , only : init_ar_array, compute_aspect_ratio
 
         implicit none
 
@@ -293,6 +296,11 @@ module initialize
         if (trim(solver_type) == 'implicit' ) call init_jacobian
         
         force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
+
+        if (high_ar_correction) then
+            call init_ar_array
+            call compute_aspect_ratio
+        endif
         
     end subroutine set_initial_solution
 

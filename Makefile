@@ -43,6 +43,7 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/parameters.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
+		$(SDIR)/grid_statistics.o\
 		$(SDIR)/solution.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/sparse_common.o\
@@ -53,7 +54,9 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/lsq.o\
 		$(SDIR)/gradient.o\
 		$(SDIR)/inviscid_flux.o\
+		$(SDIR)/viscous_flux.o\
 		$(SDIR)/ad_inviscid_flux.o\
+		$(SDIR)/ad_viscous_flux.o\
 		$(SDIR)/interface.o\
 		$(SDIR)/limiter.o\
 		$(SDIR)/residual.o\
