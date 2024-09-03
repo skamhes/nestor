@@ -21,14 +21,13 @@ module grid_statists
         use grid , only : ncells, cell, face, nfaces, & 
                           face_centroid, face_nrml_mag, face_nrml
 
-        use solution , only : ndim
-
         implicit none
         integer                     :: icell, iface
+        real(p2), parameter         :: NDIM = 3.0_p2 ! Don't feel like dealing with circular depndancies right now...
         integer                     :: c1, c2
         real(p2)                    :: xc1, yc1, zc1, xc2, yc2, zc2
         real(p2)                    :: xf,  yf,  zf
-        real(p2), dimension(ndim)   :: fc1, fc2                  ! vector from face centroid to cell centroid
+        real(p2), dimension(3)      :: fc1, fc2                  ! vector from face centroid to cell centroid
         real(p2)                    :: cvol, cnfaces
         real(p2), dimension(ncells) :: car_dim1, car_dim2
 
