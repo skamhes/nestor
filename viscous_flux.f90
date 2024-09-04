@@ -128,7 +128,7 @@ module viscous_flux
 
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
         if (isnan(mu)) then 
-            write (*,*) "nan value present - press [Enter] to continue"
+            write (*,*) "visc_flux: nan value present - press [Enter] to continue"
             read(unit=*,fmt=*)
         end if
 

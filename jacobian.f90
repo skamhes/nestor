@@ -123,7 +123,8 @@ module jacobian
 
                 if(trim(method_inv_jac)=="roe_lm_w") then
                     uR21 = ur2(c1)
-                    uR22 = ( min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one) )**2
+                    !uR22 = ( min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one) )**2
+                    ur22 = ur21
                     call interface_jac(q(:,c1), q(:,c2), unit_face_nrml, ur21, ur22, dFnduL, dFnduR)
                 else
                     call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)

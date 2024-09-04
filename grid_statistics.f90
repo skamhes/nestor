@@ -6,9 +6,11 @@ module grid_statists
     public :: cell_aspect_ratio
     public :: compute_aspect_ratio
     public :: init_ar_array
+    public :: grid_spacing
     private :: get_face_nsides
     
     real(p2), dimension(:), pointer :: cell_aspect_ratio
+    real(p2), dimension(:), pointer :: grid_spacing ! Nominal delta_x, defined as the distance to the closest cell center.
 
     contains
 
@@ -110,4 +112,53 @@ module grid_statists
             get_face_nsides = -1.0_p2
         end select
     end function get_face_nsides
+
+    subroutine compute_grid_spacing
+        
+        use common  , only : p2, zero, one
+
+        use grid    , only : ncells, cell, nfaces, face
+
+        implicit none
+
+        real(p2) :: xc1, yc1, zc1
+        real(p2) :: xc2, yc2, zc2
+        real(p2) :: dist
+        integer  :: c1, c2
+        integer  :: iface
+
+        if (.NOT.associated(grid_spacing)) allocate(grid_spacing(ncells))
+
+        grid_spacing = - one
+
+        do iface = 1,ncells
+            c1 = face(1,iface)
+            c2 = face(2,iface)
+            
+            xc1 = cell(c1)%xc
+            yc1 = cell(c1)%yc
+            zc1 = cell(c1)%zc
+
+            xc2 = cell(c2)%xc
+            yc2 = cell(c2)%yc
+            zc2 = cell(c2)%zc
+
+            dist = sqrt((xc2-xc1)**2 + (yc2-yc1)**2 + (zc2-zc1)**2)
+
+            ! dist >= 0 will always be true.  So grid_spacing < 0 only occurs if the value is unassigned.
+            if ( grid_spacing(c1) < zero ) then
+                grid_spacing(c1) = dist
+            else
+                grid_spacing(c1) = min(grid_spacing(c1),dist)
+            endif
+
+            if ( grid_spacing(c2) < zero ) then
+                grid_spacing(c2) = dist
+            else
+                grid_spacing(c2) = min(grid_spacing(c2),dist)
+            endif
+
+        enddo
+
+    end subroutine compute_grid_spacing
 end module grid_statists

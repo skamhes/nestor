@@ -23,6 +23,7 @@ module solution
     real(p2), dimension(:,:,:), pointer :: vgradq   ! gradients of q at vertices (nodes).
     real(p2), dimension(:)    , pointer :: phi      ! limiter of ccgradq
     real(p2), dimension(:)    , pointer :: ur2      ! U_R^2 for Weiss-Smith Low Mach Preconditioning
+    
 
     real(p2), dimension(:)    , pointer :: dtau  !pseudo time step
     real(p2), dimension(:)    , pointer :: wsn   !maximum eigenvalue at faces
@@ -222,25 +223,42 @@ module solution
 
     subroutine compute_uR2
 
-        use common , only : p2, third, half, one
+        use common , only : p2, third, half, one, three_half
 
         use config , only : eps_weiss_smith, accuracy_order
 
+        use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
+
         use grid   , only : ncells, cell
+
+        use grid_statists , only : grid_spacing
 
         implicit none
 
-        integer  :: i
+        integer  :: icell
         real(p2) :: clength, dp, rho
+        real(p2) :: C0, mu, T
+        C0= sutherland_constant/reference_temp
 
-        do i = 1,ncells
+        do icell = 1,ncells
             ! if (accuracy_order == 2) then !dp term
-            !     ! clength = cell(i)%vol**third
+            !     ! clength = cell(icell)%vol**third
             !     dp = abs (  sqrt(ccgradq(1,1,i)**2 + ccgradq(2,1,i)**2 + ccgradq(3,1,i)**2) )
             !     rho = q(1,i) * gamma / q(5,i)
             ! endif
             ! ur2(i) = ( min( max( 0.001_p2, 0.1_p2 * sqrt(dp/rho),sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
-            ur2(i) = ( min( max( eps_weiss_smith, sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
+            clength = grid_spacing(icell)
+            ! dp ~= dp/dx * dx ( just don't show this to a mathematician)
+            dp = clength * abs (  sqrt(ccgradq(1,1,icell)**2 + ccgradq(2,1,icell)**2 + ccgradq(3,1,icell)**2) )
+            T = q(5,icell)
+            rho = q(1,icell) * gamma / T
+
+            mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+
+            ur2(icell) = ( min( max( eps_weiss_smith * sqrt(dp/rho), &
+                                     mu/rho/clength , &
+                                     sqrt(q(2,icell)**2 + q(3,icell)**2 + q(4,icell)**2) ), &
+                                     T ) )**2
         end do
 
     end subroutine compute_uR2
@@ -263,11 +281,11 @@ module initialize
         use grid   , only : ncells
 
         use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference, &
-                            high_ar_correction
+                            high_ar_correction, method_inv_flux, method_inv_jac
 
         use solution
 
-        use grid_statists , only : init_ar_array, compute_aspect_ratio
+        use grid_statists , only : init_ar_array, compute_aspect_ratio, compute_grid_spacing
 
         implicit none
 
@@ -300,6 +318,10 @@ module initialize
         if (high_ar_correction) then
             call init_ar_array
             call compute_aspect_ratio
+        endif
+
+        if (trim(method_inv_flux) == 'roe_lm_w' .OR. trim(method_inv_jac) == 'roe_lm_w' ) then
+            call compute_grid_spacing
         endif
         
     end subroutine set_initial_solution
@@ -348,4 +370,5 @@ module initialize
         end do
 
     end subroutine init_jacobian
+
 end module initialize
