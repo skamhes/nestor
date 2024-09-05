@@ -70,7 +70,7 @@ module solution
     !------------------------------------------------------------------------------------
     !------------------------------------------------------------------------------------
 
-    ! because I just had a bug where i used the wronog index.......
+    ! because I just had a bug where i used the wrong index.......
     integer, parameter :: ip = 1
     integer, parameter :: iu = 2
     integer, parameter :: iv = 3
@@ -93,6 +93,15 @@ module solution
     public :: jac
     type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
     
+    ! ! Jacobian Free Newton-Krylov Variables
+    ! real(p2), dimension(:,:,:), pointer :: gcr_precond_correction
+    ! real(p2), dimension(:,:),   pointer :: gcr_final_correction
+    ! real(p2), dimension(:,:,:), pointer :: gcr_search_direction
+    real(p2)                                           :: inv_ncells ! 1/ncells
+
+
+
+
     ! Force values
     real(p2) :: force_normalization
 
@@ -104,7 +113,8 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip, turbulence_type
+        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip, turbulence_type,&
+                            gcr_max_projections
 
         implicit none
 
@@ -130,20 +140,28 @@ module solution
         allocate( res(nq,ncells) )
         res = zero
 
-        if ( trim(solver_type) == 'implicit') allocate(solution_update(nq,ncells))
+        if ( trim(solver_type) == 'implicit') then 
+            allocate(solution_update(nq,ncells))
+        ! else if ( trim(solver_type) == 'gcr') then
+        !     allocate(gcr_final_correction(nq,ncells))
+        !     allocate(gcr_precond_correction(nq,ncells,gcr_max_projections))
+        !     allocate(gcr_search_direction(  nq,ncells,gcr_max_projections))
+        endif
 
         if ( lift ) then 
             ! These might even be correct :)
-            vector_lift(1) = -sin(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
-            vector_lift(2) = -sin(aoa*pi/180_p2)*sin(sideslip*pi/180_p2)
-            vector_lift(3) =  cos(aoa*pi/180_p2)
+            vector_lift(1) = -sin(aoa*pi/180.0_p2)*cos(sideslip*pi/180.0_p2)
+            vector_lift(2) = -sin(aoa*pi/180.0_p2)*sin(sideslip*pi/180.0_p2)
+            vector_lift(3) =  cos(aoa*pi/180.0_p2)
         endif
         if ( drag ) then
             ! ditto:)
-            vector_drag(1) =  cos(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
-            vector_drag(2) =  cos(aoa*pi/180_p2)*sin(sideslip*pi/180_p2)
-            vector_drag(3) =  sin(aoa*pi/180_p2)
+            vector_drag(1) =  cos(aoa*pi/180.0_p2)*cos(sideslip*pi/180.0_p2)
+            vector_drag(2) =  cos(aoa*pi/180.0_p2)*sin(sideslip*pi/180.0_p2)
+            vector_drag(3) =  sin(aoa*pi/180.0_p2)
         endif
+
+        inv_ncells = one / real(ncells,p2)
 
     end subroutine allocate_solution_vars
 

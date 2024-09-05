@@ -85,7 +85,7 @@ module config
     integer                :: solver_max_itr         = 1000
     real(p2)               :: solver_tolerance       = 1.0e-05_p2
     character(80)          :: method_inv_flux        = "roe"
-    character(80)          :: method_inv_jac           = "roe"
+    character(80)          :: method_inv_jac         = "roe"
     character(80)          :: solver_type            = "rk"
     character(80)          :: jacobian_method        = "analytical"
     real(p2), dimension(5) :: eig_limiting_factor    = (/ 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2, 0.1_p2 /)  !eigenvalue limiting factor
@@ -94,6 +94,8 @@ module config
     logical                :: perturb_initial        = .false.
     logical                :: random_perturb         = .false.
     logical                :: high_ar_correction     = .true.
+    integer                :: gcr_max_projections    = 5
+    real(p2)               :: gcr_reduction_target   = 0.9
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
@@ -101,7 +103,8 @@ module config
       solver_max_itr, solver_tolerance, &
       method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
-      variable_ur, limit_update, perturb_initial, high_ar_correction
+      variable_ur, limit_update, perturb_initial, high_ar_correction, &
+      gcr_max_projections, gcr_reduction_target
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)
