@@ -161,11 +161,7 @@ module jacobian
             preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
             preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
 
-            do ii = 1,5
-                do jj = 1,5
-                    jac(i)%diag(ii,jj) = jac(i)%diag(ii,jj) + (cell(i)%vol/dtau(i))*preconditioner(ii,jj)
-                end do
-            end do
+            jac(i)%diag(:,:) = jac(i)%diag(:,:) + (cell(i)%vol/dtau(i))*preconditioner(:,:)
 
             ! Invert the diagonal
             idestat = 0
