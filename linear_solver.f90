@@ -23,7 +23,7 @@ module linear_solver
     ! b = residual block vector with 1xNQ blocks
     ! x = correction is the solution to x=A^(-1)b (also a block vector)
     ! num_eq is the size of the blocks
-    subroutine linear_relaxation_block(num_eq,jacobian_block,residual,correction)
+    subroutine linear_relaxation_block(num_eq,jacobian_block,residual,correction,iostat)
 
         use common              , only : p2, one, &
                                          my_eps
@@ -45,6 +45,7 @@ module linear_solver
         real(p2), dimension(   num_eq, ncells), intent( in) :: residual
 
         real(p2), dimension(   num_eq, ncells), intent(out) :: correction
+        integer,                                intent(out) :: iostat
 
         real(p2), dimension(:,:,:), allocatable :: V   ! Values (5x5 block matrix) plus corresponding index
         integer , dimension(:),     allocatable :: C   ! Column index of each value
@@ -52,7 +53,6 @@ module linear_solver
         integer                                 :: nnz
         real(p2), dimension(5,5,ncells)             :: Dinv
 
-        integer                     :: os
         integer                     :: level = 1
         integer                     :: direction
 
@@ -62,7 +62,7 @@ module linear_solver
 
         direction = UP 
 
-        call linear_sweeps(ncells,num_eq,nnz,V,C,R,residual,Dinv,level,direction,correction,os)
+        call linear_sweeps(ncells,num_eq,nnz,V,C,R,residual,Dinv,level,direction,correction,iostat)
 
     end subroutine linear_relaxation_block
 
