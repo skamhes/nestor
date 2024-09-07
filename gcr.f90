@@ -1,5 +1,6 @@
 module gcr
 
+    use common , only : p2
     ! Method for computing the generalized conjugate residual, a Jacobian Free Newton-Krylov method.
     ! This is based on the paper: https://doi.org/10.2514/6.2021-0857 (A free version can be found on the NASA TRS).
 
@@ -12,10 +13,13 @@ module gcr
     public :: GCR_SUCCESS, GCR_STALL, GCR_PRECOND_DIVERGE, GCR_PRECOND_STALL, GCR_REAL_FAIL
     
     integer, parameter :: GCR_SUCCESS = 0
-    integer, parameter :: GCR_STALL   = 1
-    integer, parameter :: GCR_PRECOND_DIVERGE = 2
-    integer, parameter :: GCR_PRECOND_STALL = 3
-    integer, parameter :: GCR_REAL_FAIL = 4
+    integer, parameter :: GCR_CFL_FREEZE = 1
+    integer, parameter :: GCR_STALL   = 2
+    integer, parameter :: GCR_PRECOND_DIVERGE = 3
+    integer, parameter :: GCR_PRECOND_STALL = 4
+    integer, parameter :: GCR_REAL_FAIL = 5
+
+    real(p2) :: gcr_relaxation
 
 
     contains
@@ -66,7 +70,8 @@ module gcr
         R0 = res
         RMS_R0 = rms(nq,ncells,R0,inv_ncells)
         gcr_residual = -res
-        Q0 = Q
+        Q0 = Q ! This can probably be optimized a bit by juggling things around with pointer.  But for now we'll do it slightly
+        ! less efficiently to ensure it's right.  Then we can optimize
 
         gcr_final_correction = zero
 
@@ -93,7 +98,7 @@ module gcr
             end do frechet
             correction_rms = sqrt( correction_rms*inv_ncells )
             correction_mag = l2norm(nq,ncells,gcr_precond_correction(:,:,kdir))
-            eps_frechet = max(one,correction_rms)
+            eps_frechet = max(one,correction_rms) * 1.0e-07_p2
 
             q(:,:) = q0(:,:) + eps_frechet * gcr_precond_correction(:,:,kdir) / correction_mag
 
@@ -104,12 +109,12 @@ module gcr
             gcr_search_direction_mag = zero 
 
             do icell = 1,ncells
-                preconditioner = compute_primative_jacobian(q(:,icell))
+                preconditioner = compute_primative_jacobian(q0(:,icell))
 
                 preconditioner(:,:) = preconditioner(:,:) * cell(icell)%vol/dtau(icell)
 
                 gcr_search_direction(:,icell,kdir) = matmul(preconditioner,gcr_precond_correction(:,icell,kdir)) + &
-                                                     ( res(:,icell) - r0(:,icell) ) / eps_frechet
+                                                     ( res(:,icell) - R0(:,icell) ) / eps_frechet
             end do
 
             gcr_search_direction_mag = l2norm(nq,ncells,gcr_search_direction(:,:,kdir))
@@ -150,11 +155,15 @@ module gcr
 
             if (gcr_reduction < gcr_reduction_target) then
                 iostat = GCR_SUCCESS
+                q = Q0
+                res = R0
                 return
             endif
         enddo project_loop
 
         iostat = GCR_STALL
+        q = Q0
+        res = R0
 
     end subroutine gcr_solve
 
@@ -185,9 +194,116 @@ module gcr
 
         iostat = GCR_SUCCESS
 
-
-
     end subroutine gcr_real_check
+
+    subroutine gcr_nl_control(sol_update, iostat)
+
+        ! Determine the optimum underrelaxation factor for the nonlinear solution update.
+
+        use common , only : p2, zero, half, one, two
+
+        use config , only : gcr_reduction_target
+
+        use solution , only : nq, q, res, compute_primative_jacobian, dtau, inv_ncells
+
+        use grid , only : ncells, cell
+
+        use residual , only : compute_residual
+
+        implicit none
+
+        real(p2), dimension(nq,ncells), intent(in) :: sol_update
+        integer,                        intent(out):: iostat
+
+        real(p2), dimension(nq,ncells) :: q0, R0
+        real(p2)                       :: residual_reduct_target
+        real(p2)                       :: Rtau_rms, R0_rms
+        real(p2)                       :: delQ_rms, Qn_rms
+        real(p2)                       :: f_0, f_1, g_1     ! terms in the optimization equation 22
+        real(p2), dimension(nq)        :: update_i, frechet_i, R0_i
+        real(p2)                       :: eps_frechet
+        real(p2)                       :: update_rms
+        real(p2)                       :: ur_opt
+
+        integer :: icell, ivar
+
+        q0 = q
+        r0 = res
+
+        q = q0 + sol_update
+
+        residual_reduct_target = half * (one + gcr_reduction_target)
+
+        call compute_residual
+
+        do icell = 1,ncells
+            res = res + matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
+        end do  
+
+        Rtau_rms = rms(nq,ncells,res,inv_ncells)
+        R0_rms   = rms(nq,ncells,R0 ,inv_ncells)
+
+        if ( Rtau_rms / R0_rms < residual_reduct_target ) then
+            ! q and res have already been updated and the residual has reduced. We can return successful
+            iostat = GCR_SUCCESS
+            return
+        endif
+
+        ! Check if the change is comperable to the computer percision
+        delQ_rms = rms(nq,ncells,q,inv_ncells)
+        Qn_rms   = rms(nq,ncells,q0,inv_ncells)
+
+        if ( delQ_rms / Qn_rms < 1.0e-12_p2) then
+            if ( Rtau_rms / R0_rms < one) then
+                ! Any reduction can be considered a success at this point
+                iostat = GCR_CFL_FREEZE
+                return
+            endif
+        endif
+
+        ! The residual did not reduce so now we will apply an underrelaxation factor to minimize the residual
+        f_0 = R0_rms
+        f_1 = Rtau_rms
+        
+        eps_frechet = max(one,Qn_rms) * 1.0e-07_p2
+        update_rms = rms(nq,ncells,sol_update,inv_ncells)
+        q = q0 + eps_frechet * sol_update / update_rms
+        call compute_residual
+        g_1 = zero
+
+        do icell = 1,ncells
+            update_i = matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
+            frechet_i = update_rms * (res(:,icell) - R0(:,icell)) / eps_frechet
+            R0_i = R0(:,icell)
+            do ivar = 1,nq
+                g_1 = g_1 + (update_i(ivar) + frechet_i(ivar) + R0_i(ivar))**2
+            end do
+        end do
+        g_1 = sqrt( g_1 * inv_ncells )
+
+        ur_opt = ( g_1 - f_0 ) / (two * (f_1 - g_1) )
+
+        q = q0 + ur_opt * sol_update
+
+        ! Check convergence
+        call compute_residual
+        ! Using R0 since we're done with it and we want to leave the residual untouched
+        do icell = 1,ncells
+            R0 = res + matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
+        end do  
+
+        Rtau_rms = rms(nq,ncells,R0,inv_ncells)
+
+        if ( Rtau_rms / R0_rms < residual_reduct_target .OR. delQ_rms / Qn_rms < 1.0e-12_p2) then
+            ! q and res have already been updated and the residual has reduced.
+            iostat = GCR_CFL_FREEZE
+            return
+        endif
+
+        ! If we've made it this far we failed :(
+        iostat = GCR_STALL
+
+    end subroutine gcr_nl_control
 
     pure function rms(nq,ncells,vector,div)
 
