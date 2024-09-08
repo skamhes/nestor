@@ -178,6 +178,8 @@ module steady_solver
                 call explicit_pseudo_time_forward_euler
             elseif (trim(solver_type) == "implicit") then
                 call implicit
+            elseif (trim(solver_type) == 'gcr') then
+                call gcr
             else
                 write(*,*) " Unsopported iteration method: Solver = ", solver_type
             end if
@@ -411,14 +413,14 @@ module steady_solver
         use linear_solver       , only : linear_relaxation
 
         implicit none
-        integer         :: i
+        integer         :: i, os
         real(p2)        :: omegan !under-relaxation factor for nonlinear iteration
         
         ! First compute the jacobian
         call compute_jacobian
 
         ! next compute the correction by relaxing the linear system
-        call linear_relaxation(nq, jac, res, solution_update)
+        call linear_relaxation(nq, jac, res, solution_update,os)
 
         loop_cells : do i = 1,ncells
             omegan = safety_factor_primative(q(:,i),solution_update(:,i))
@@ -430,6 +432,28 @@ module steady_solver
         end do loop_cells
 
     end subroutine implicit
+
+    subroutine gcr
+
+        use common              , only : p2
+
+        use gcr                 , only : gcr_run, GCR_SUCCESS, gcr_failure_handler
+
+        use config              , only : variable_ur
+
+        implicit none
+        
+        integer :: os
+
+        os = 1
+
+        do while (os /= GCR_SUCCESS)
+            call run_gcr(os)
+
+            if (os /= GCR_SUCCESS) call gcr_failure_handler(os)
+        end do
+
+    end subroutine gcr
 
     !********************************************************************************
     ! Compute a safety factor (under relaxation for nonlinear update) to make sure

@@ -97,7 +97,9 @@ module solution
     ! real(p2), dimension(:,:,:), pointer :: gcr_precond_correction
     ! real(p2), dimension(:,:),   pointer :: gcr_final_correction
     ! real(p2), dimension(:,:,:), pointer :: gcr_search_direction
-    real(p2)                                           :: inv_ncells ! 1/ncells/nq
+    real(p2) :: inv_ncells ! 1/ncells/nq
+    integer  :: nl_reduction
+    integer  :: n_projections                   
 
 
 

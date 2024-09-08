@@ -170,6 +170,8 @@ module inout
 
         if (trim(solver_type) == "implicit") then
             write(*,*) " sweeps     reduction       time          CFL"
+        elseif (trim(solver_type) == "gcr") then
+            write(*,*) " projs.     reduction       time          CFL"
         else
             write(*,*) "   time     CFL"
         end if
@@ -180,7 +182,8 @@ module inout
 
         use config   , only : CFL, solver_type, lift, drag
 
-        use solution , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift
+        use solution , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift, &
+                              n_projections, nl_reduction
 
         implicit none
 
@@ -208,6 +211,9 @@ module inout
         ! Print out residual
         if ( trim(solver_type) == 'implicit' ) then
             write(*,implicit_format) lrelax_sweeps_actual, lrelax_roc, &
+                                     minutes, ":", seconds, CFL
+        elseif ( trim(solver_type) == 'gcr' ) then
+            write(*,implicit_format) n_projections, nl_reduction, &
                                      minutes, ":", seconds, CFL
         else ! RK Explicit
             write(*,explicit_format) minutes, ":", seconds, CFL

@@ -8,7 +8,8 @@ module gcr
 
     private 
 
-    public :: gcr_solve
+    public :: gcr_run
+    public :: gcr_failure_handler
 
     public :: GCR_SUCCESS, GCR_STALL, GCR_PRECOND_DIVERGE, GCR_PRECOND_STALL, GCR_REAL_FAIL
     
@@ -24,6 +25,46 @@ module gcr
 
     contains
 
+    subroutine gcr_run(iostat)
+
+        use common      , only : p2
+
+        use grid        , only : ncells
+
+        use solution    , only : nq, q
+
+        implicit none
+
+        integer, intent(out) :: iostat
+
+        real(p2), dimension(nq,ncells) :: sol_update
+
+        call gcr_solve(sol_update,iostat)
+
+        if (iostat /= GCR_SUCCESS) return
+
+        call gcr_real_check(q,sol_update,iostat)
+
+        if (iostat /= GCR_SUCCESS) return
+
+        call gcr_nl_control(sol_update,iostat)
+
+    end subroutine gcr_run
+
+    subroutine gcr_failure_handler(gcr_failure_code)
+
+        use common , only : p2
+        
+        use config , only : CFL
+
+        implicit none
+
+        integer, intent(in) :: gcr_failure_code ! not actually used for now...
+
+        CFL = CFL / 10.0_p2
+
+    end subroutine gcr_failure_handler
+
     subroutine gcr_solve(gcr_final_correction, iostat)
 
         use common      , only : p2, zero, one, half
@@ -35,6 +76,8 @@ module gcr
         use solution    , only : res, nq, ndim, jac, Q, inv_ncells, gamma, gammamo, gmoinv, dtau, compute_primative_jacobian
 
         use jacobian    , only : compute_jacobian
+
+        use residual    , only : compute_residual
 
         use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE
 
@@ -237,7 +280,8 @@ module gcr
         call compute_residual
 
         do icell = 1,ncells
-            res = res + matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
+            res(:,icell) = res(:,icell) +  &
+                            matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
         end do  
 
         Rtau_rms = rms(nq,ncells,res,inv_ncells)
@@ -289,7 +333,8 @@ module gcr
         call compute_residual
         ! Using R0 since we're done with it and we want to leave the residual untouched
         do icell = 1,ncells
-            R0 = res + matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
+            R0(:,icell) = res(:,icell) + &
+                        matmul( compute_primative_jacobian(q0(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
         end do  
 
         Rtau_rms = rms(nq,ncells,R0,inv_ncells)
