@@ -1,7 +1,7 @@
 &project
-  project_name = "none"
-  second_namelist = "grids/flat_plate/final_grids/nestor.nml"
-  io_path = "grids/flat_plate/final_grids/"
+  project_name = "quad_3d"
+!  second_namelist = "grids/flat_plate/final_grids/nestor.nml"
+!  io_path = "grids/flat_plate/final_grids/"
   /
 
 &inputoutput
@@ -16,7 +16,7 @@
 
 &solver
   CFL = 1000000
-  solver_type = "implicit"
+  solver_type = "gcr"
   perturb_initial = .false.
   solver_tolerance = 1e-2
   solver_max_itr = 1000

@@ -34,7 +34,8 @@ module steady_solver
                                 
         use initialize, only : set_initial_solution
 
-        use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi
+        use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
+                               n_projections, nl_reduction, nl_num_proj
 
         use grid      , only : cell, ncells
 
@@ -115,6 +116,8 @@ module steady_solver
         ! Initialize some miscellaneous variables
         lrelax_sweeps_actual = 0
         lrelax_roc = zero
+        n_projections = 0
+        nl_reduction = zero
         n_residual_evaluation = 0
         if (use_limiter) then
             allocate(phi(ncells))
@@ -448,7 +451,7 @@ module steady_solver
         os = 1
 
         do while (os /= GCR_SUCCESS)
-            call run_gcr(os)
+            call gcr_run(os)
 
             if (os /= GCR_SUCCESS) call gcr_failure_handler(os)
         end do
