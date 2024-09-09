@@ -35,7 +35,7 @@ module steady_solver
         use initialize, only : set_initial_solution
 
         use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
-                               n_projections, nl_reduction, nl_num_proj
+                               n_projections, nl_reduction
 
         use grid      , only : cell, ncells
 
@@ -440,20 +440,33 @@ module steady_solver
 
         use common              , only : p2
 
-        use gcr                 , only : gcr_run, GCR_SUCCESS, gcr_failure_handler
+        use grid                , only : ncells
+
+        use gcr                 , only : gcr_run, GCR_SUCCESS, gcr_failure_handler, GCR_CFL_FREEZE
 
         use config              , only : variable_ur
 
+        use jacobian            , only : compute_jacobian
+
+        use solution            , only : jac, q, res,nq
+
         implicit none
         
+        real(p2), dimension(nq,ncells) :: sol_update
+
         integer :: os
 
         os = 1
 
         do while (os /= GCR_SUCCESS)
-            call gcr_run(os)
 
-            if (os /= GCR_SUCCESS) call gcr_failure_handler(os)
+            call compute_jacobian
+
+            call gcr_run(sol_update,os)
+
+            if (os == GCR_SUCCESS) call gcr_failure_handler(os)
+
+            ! Create a subroutine to update jac%diag and move compute jac outside of the loop.
         end do
 
     end subroutine gcr

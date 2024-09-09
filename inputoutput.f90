@@ -16,10 +16,8 @@ module inout
         use common          , only : p2, zero
                                      
         use grid            , only : nnodes, x, y, z, &
-                                     ntria, tria, &
-                                     nquad, quad, &
-                                     bc_type, nb, &
-                                     cell, ncells, &
+                                     nb, &
+                                     cell, &
                                      bound, bgrid_type
 
         use solution        , only : q, nq, gamma
@@ -39,15 +37,14 @@ module inout
         type(bnode_type), dimension(nb)               :: bnode_data
             
         type(bgrid_type), dimension(:), pointer       :: bound_export
-        integer :: i, os, ibn
+        integer :: i, os
         
-        integer                           :: j, k, ib, nk, nj, ni, j_count
+        integer                           :: j, k, ib, nk, j_count
         integer                           :: bcell_i, candidate_node
         real(p2), dimension(:,:), pointer :: qn
         real(p2), dimension(:), pointer   :: Mn, rhon
         integer , dimension(:  ), pointer :: nc
         logical                           :: already_added
-        real(p2)                          :: an
         ! integer, dimension(:), pointer    :: nbnodes
 
         allocate(qn(nq, nnodes))

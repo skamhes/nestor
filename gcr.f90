@@ -11,7 +11,7 @@ module gcr
     public :: gcr_run
     public :: gcr_failure_handler
 
-    public :: GCR_SUCCESS, GCR_STALL, GCR_PRECOND_DIVERGE, GCR_PRECOND_STALL, GCR_REAL_FAIL
+    public :: GCR_SUCCESS,GCR_CFL_FREEZE, GCR_STALL, GCR_PRECOND_DIVERGE, GCR_PRECOND_STALL, GCR_REAL_FAIL
     
     integer, parameter :: GCR_SUCCESS = 0
     integer, parameter :: GCR_CFL_FREEZE = 1
@@ -25,19 +25,20 @@ module gcr
 
     contains
 
-    subroutine gcr_run(iostat)
+    subroutine gcr_run(sol_update,iostat)
 
         use common      , only : p2
 
         use grid        , only : ncells
 
-        use solution    , only : nq, q
+        use solution    , only : nq, jacobian_type, q
 
         implicit none
 
-        integer, intent(out) :: iostat
+        real(p2),            dimension(nq,ncells), intent(out) :: sol_update
+        integer ,                                  intent(out) :: iostat
 
-        real(p2), dimension(nq,ncells) :: sol_update
+        
 
         call gcr_solve(sol_update,iostat)
 
@@ -65,7 +66,7 @@ module gcr
 
     end subroutine gcr_failure_handler
 
-    subroutine gcr_solve(gcr_final_correction, iostat)
+    subroutine gcr_solve(gcr_final_update, iostat)
 
         use common      , only : p2, zero, one, half
 
@@ -73,32 +74,33 @@ module gcr
 
         use grid        , only : ncells, cell
 
-        use solution    , only : res, nq, ndim, jac, Q, inv_ncells, gamma, gammamo, gmoinv, dtau, compute_primative_jacobian
-
-        use jacobian    , only : compute_jacobian
+        use solution    , only : nq, inv_ncells, dtau, compute_primative_jacobian, jacobian_type, q, res, jac, &
+                                 nl_reduction, n_projections
 
         use residual    , only : compute_residual
 
         use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE
 
-        real(p2), dimension(nq,ncells), intent(out)        :: gcr_final_correction   ! delta_Q_n+1
-        integer,                        intent(out)        :: iostat                 ! status of gcr solve
+        implicit none
 
-        real(p2), dimension(nq,ncells,gcr_max_projections) :: gcr_precond_correction ! delta_Q_k
-        real(p2), dimension(nq,ncells,gcr_max_projections) :: gcr_search_direction   ! b_k
+        real(p2),            dimension(nq,ncells), intent(out) :: gcr_final_update   ! delta_Q_n+1
+        integer,                                   intent(out) :: iostat                 ! status of gcr solve
 
-        real(p2)                                           :: gcr_search_direction_mag ! | b_k |
+        real(p2), dimension(nq,ncells,gcr_max_projections) :: delta_Q_k ! delta_Q_k
+        real(p2), dimension(nq,ncells,gcr_max_projections) :: b_k   ! b_k
+
+        real(p2)                                           :: b_k_mag ! | b_k |
         real(p2)                                           :: gcr_inner_prod           ! b_k^T * b_j = mu
-        real(p2), dimension(nq,ncells)                     :: Q0    ! Initial primative vector at the start of outer iteration
-        real(p2), dimension(nq,ncells)                     :: R0    ! Initial residual from the outer NL iteration
+        ! real(p2), dimension(nq,ncells)                     :: Q0    ! Initial primative vector at the start of outer iteration
+        ! real(p2), dimension(nq,ncells)                     :: R0    ! Initial residual from the outer NL iteration
         real(p2)                                           :: RMS_R0
-        real(p2)                                           :: correction_rms ! || delta_Q_k ||
-        real(p2)                                           :: correction_mag ! l2 norm of preconditioned correction
+        real(p2)                                           :: update_rms ! || delta_Q_k ||
+        real(p2)                                           :: update_mag ! l2 norm of preconditioned correction
         real(p2)                                           :: eps_frechet
-        real(p2)                                           :: gcr_projection ! gamma_k from EQ. 14
+        real(p2), dimension(nq,ncells)                     :: frechet_vector
+        real(p2)                                           :: gamma_k ! gamma_k from EQ. 14
         real(p2), dimension(nq,ncells)                     :: gcr_residual
         real(p2)                                           :: gcr_res_rms
-        real(p2)                                           :: gcr_reduction
         
         real(p2), dimension(5,5)    :: preconditioner
 
@@ -109,21 +111,15 @@ module gcr
         integer :: ivar
         integer :: os
 
-        ! Store the initial values.  For now this isn't terribly efficient.  Maybe I'll change it later...
-        R0 = res
-        RMS_R0 = rms(nq,ncells,R0,inv_ncells)
+        ! Initialize the final correction
+        gcr_final_update = zero
         gcr_residual = -res
-        Q0 = Q ! This can probably be optimized a bit by juggling things around with pointer.  But for now we'll do it slightly
-        ! less efficiently to ensure it's right.  Then we can optimize
-
-        gcr_final_correction = zero
-
-
-        ! Generate the initial Approximate Jacobian and compute an initial update (preconditioner)
-        call compute_jacobian
+        RMS_R0 = rms(nq,ncells,res,inv_ncells)
         
         project_loop : do kdir = 1,gcr_max_projections
-            call linear_relaxation(nq, jac, res, gcr_precond_correction(:,:,kdir),os)
+
+            ! Run Preconditioner sweeps on the approximate jacobian
+            call linear_relaxation(nq, jac, -gcr_residual, delta_Q_k(:,:,kdir),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
                 return
@@ -133,82 +129,127 @@ module gcr
             endif
 
             ! Compute Frechet Derivative
-            correction_rms = zero
-            frechet : do icell = 1,ncells
-                do ivar = 1,nq
-                    correction_rms = correction_rms + gcr_precond_correction(ivar,icell,kdir)**2
-                end do
-            end do frechet
-            correction_rms = sqrt( correction_rms*inv_ncells )
-            correction_mag = l2norm(nq,ncells,gcr_precond_correction(:,:,kdir))
-            eps_frechet = max(one,correction_rms) * 1.0e-07_p2
-
-            q(:,:) = q0(:,:) + eps_frechet * gcr_precond_correction(:,:,kdir) / correction_mag
-
-            call compute_residual
+            update_rms = rms(nq,ncells,delta_Q_k(:,:,kdir),inv_ncells)
+            update_mag = l2norm(nq,ncells,delta_Q_k(:,:,kdir))
+            
+            call compute_frechet( delta_Q_k(:,:,kdir),update_mag,update_rms,b_k(:,:,kdir) )
 
             ! Generate new search direction
 
-            gcr_search_direction_mag = zero 
-
             do icell = 1,ncells
-                preconditioner = compute_primative_jacobian(q0(:,icell))
+                preconditioner = compute_primative_jacobian(q(:,icell))
 
-                preconditioner(:,:) = preconditioner(:,:) * cell(icell)%vol/dtau(icell)
+                preconditioner = preconditioner * cell(icell)%vol/dtau(icell)
 
-                gcr_search_direction(:,icell,kdir) = matmul(preconditioner,gcr_precond_correction(:,icell,kdir)) + &
-                                                     ( res(:,icell) - R0(:,icell) ) / eps_frechet
+                b_k(:,icell,kdir) = b_k(:,icell,kdir) + matmul(preconditioner,delta_Q_k(:,icell,kdir))
+
             end do
 
-            gcr_search_direction_mag = l2norm(nq,ncells,gcr_search_direction(:,:,kdir))
+            b_k_mag = l2norm(nq,ncells,b_k(:,:,kdir))
 
             ! Normalize the correction and search direction
-            gcr_precond_correction(:,:,kdir) = gcr_precond_correction(:,:,kdir) / gcr_search_direction_mag
+            delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) / b_k_mag
 
-            gcr_search_direction(:,:,kdir)   = gcr_search_direction(:,:,kdir)   / gcr_search_direction_mag
+            b_k(:,:,kdir)       = b_k(:,:,kdir)       / b_k_mag
 
             ! Normalize direction k to previous search direactions
             jdir = 1
 
             do while (jdir < kdir)
-                gcr_inner_prod = inner_product(ncells, gcr_search_direction(:,:,kdir), gcr_search_direction(:,:,jdir))
+                ! Pretty sure this is just a modified Gram-Schmidt... suppose I could check...
+                gcr_inner_prod = inner_product(ncells, b_k(:,:,kdir), b_k(:,:,jdir)) ! mu
 
-                gcr_search_direction(:,:,kdir) = gcr_search_direction(:,:,kdir) - gcr_inner_prod * gcr_search_direction(:,:,jdir)
-                gcr_precond_correction(:,:,kdir)=gcr_precond_correction(:,:,kdir)-gcr_inner_prod * gcr_precond_correction(:,:,jdir)
+                b_k(:,:,kdir) = b_k(:,:,kdir) - gcr_inner_prod * b_k(:,:,jdir)
+                delta_Q_k(:,:,kdir)=delta_Q_k(:,:,kdir)-gcr_inner_prod * delta_Q_k(:,:,jdir)
 
                 ! Renormalize
-                gcr_search_direction_mag = l2norm(nq,ncells,gcr_search_direction(:,:,kdir)) 
-                gcr_precond_correction(:,:,kdir) = gcr_precond_correction(:,:,kdir) / gcr_search_direction_mag
-                gcr_search_direction(:,:,kdir)   = gcr_search_direction(:,:,kdir)   / gcr_search_direction_mag
+                b_k_mag = l2norm(nq,ncells,b_k(:,:,kdir)) 
+                delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) / b_k_mag
+                b_k(:,:,kdir)   = b_k(:,:,kdir)   / b_k_mag
 
             end do
 
-            gcr_projection = inner_product(ncells, gcr_search_direction(:,:,kdir), gcr_residual(:,:))
+            ! Compute projection of the current search direction and the previous residual
+            gamma_k = inner_product(ncells, b_k(:,:,kdir), gcr_residual(:,:))
 
-            ! TODO: Add logic for the case where gcr_projection << mag(gcr_residual)
-            if ( gcr_projection < 1.0e-03_p2 * l2norm(nq,ncells,gcr_residual) ) exit project_loop
+            ! if they are (nearly) orthogonal the solution has stalled and we should quit
+            if ( gamma_k < 1.0e-03_p2 * l2norm(nq,ncells,gcr_residual) ) exit project_loop
 
-            gcr_final_correction = gcr_final_correction + gcr_projection * gcr_precond_correction(:,:,kdir)
+            ! Update the final correction with the projection of delta_q_k
+            gcr_final_update = gcr_final_update + gamma_k * delta_Q_k(:,:,kdir)
 
-            gcr_residual = gcr_residual - gcr_projection * gcr_search_direction(:,:,kdir)
+            ! Update the residual of the GCR system
+            gcr_residual = gcr_residual - gamma_k * b_k(:,:,kdir)
 
             gcr_res_rms = rms(nq,ncells,gcr_residual,inv_ncells)
 
-            gcr_reduction = gcr_res_rms / RMS_R0
+            nl_reduction = gcr_res_rms / RMS_R0
 
-            if (gcr_reduction < gcr_reduction_target) then
+            if (nl_reduction < gcr_reduction_target) then
                 iostat = GCR_SUCCESS
-                q = Q0
-                res = R0
+                n_projections = kdir
                 return
             endif
         enddo project_loop
 
+        ! We shouldn't be able to get here unless we ran out of projection directions
         iostat = GCR_STALL
-        q = Q0
-        res = R0
+        n_projections = gcr_max_projections
 
     end subroutine gcr_solve
+
+    subroutine compute_frechet(sol_update,update_length,sol_rms,frechet_deriv)
+
+        use common , only : p2, one
+
+        use solution , only : nq, q, res
+
+        use grid , only : ncells
+
+        use residual , only : compute_residual
+
+        implicit none
+
+        real(p2), dimension(nq,ncells), intent(in) :: sol_update
+        real(p2),                       intent(in) :: update_length
+        real(p2),                       intent(in) :: sol_rms
+        real(p2), dimension(nq,ncells), intent(out):: frechet_deriv
+
+        real(p2), dimension(:,:), pointer :: q_n
+        real(p2), dimension(:,:), pointer :: r_0
+        real(p2)                          :: eps_frechet
+        real(p2)                          :: frech_min_bound = 1.0e-07_p2
+
+        ! compute eps to be used in the frechet derivative
+        eps_frechet = max(sol_rms,one)*frech_min_bound
+
+        ! move the lates solution vector to the temp vector q_n
+        q_n => q
+        r_0 => res
+
+        ! Set q = q + eps * dq/|dq|
+        ! I think nullifying and reallocating the solution and residual vectors should be faster than directly copying them to 
+        ! temp variables.  At some point I may test that to confirm.
+        nullify(q,res)
+
+        allocate(  q(nq,ncells))
+        allocate(res(nq,ncells))
+
+        q = q_n + eps_frechet * sol_update / update_length
+
+        call compute_residual
+
+        frechet_deriv = update_length * ( res - r_0 ) / eps_frechet
+
+        deallocate(  q)
+        deallocate(res)
+
+        q   => q_n
+        res => r_0
+
+        nullify(q_n,r_0)
+
+    end subroutine compute_frechet
 
     subroutine gcr_real_check(sol_current,sol_update, iostat)
 

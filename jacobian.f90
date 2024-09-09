@@ -23,7 +23,7 @@ module jacobian
                                          bound, nb, bc_type
 
         use solution            , only : q, gamma, gammamo, gmoinv, dtau, jac, &
-                                         kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq
+                                         kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, compute_primative_jacobian
 
         use interface_jacobian  , only : interface_jac
 
@@ -147,26 +147,10 @@ module jacobian
         ! Now we need to add the pseudo time vol/dtau to the diagonal term along with the jacobian
         ! DQ/DW and generate the inverse diagonal block
         do i = 1,ncells
-            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
-            rho_p = gamma/q(5,i)
-            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
-            rho = q(1,i)*gamma/q(5,i)
-            UR2inv = one ! will be 1/uR2(i)
-            theta = (UR2inv) - rho_T*(gammamo)/(rho)
+            preconditioner = compute_primative_jacobian(q(:,i))
+
+            jac(i)%diag = jac(i)%diag + (cell(i)%vol/dtau(i))*preconditioner
             
-            ! Note transposing this assignment would likely be marginally faster if slightly less easy to read
-            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
-            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
-            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
-            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
-            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
-
-            do ii = 1,5
-                do jj = 1,5
-                    jac(i)%diag(ii,jj) = jac(i)%diag(ii,jj) + (cell(i)%vol/dtau(i))*preconditioner(ii,jj)
-                end do
-            end do
-
             ! Invert the diagonal
             idestat = 0
             !                A                 dim  A^{-1}           error check

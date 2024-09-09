@@ -142,7 +142,7 @@ module solution
         allocate( res(nq,ncells) )
         res = zero
 
-        if ( trim(solver_type) == 'implicit') then 
+        if ( trim(solver_type) == 'implicit' .OR. trim(solver_type) == 'gcr') then 
             allocate(solution_update(nq,ncells))
         ! else if ( trim(solver_type) == 'gcr') then
         !     allocate(gcr_final_correction(nq,ncells))
@@ -309,7 +309,7 @@ module initialize
             endif
         end do cell_loop
         
-        if (trim(solver_type) == 'implicit' ) call init_jacobian
+        if (trim(solver_type) == 'implicit' .OR. trim(solver_type) == 'gcr' ) call init_jacobian
         
         force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
 
