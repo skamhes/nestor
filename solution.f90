@@ -167,6 +167,24 @@ module solution
 
     end subroutine allocate_solution_vars
 
+    subroutine compute_local_time_step_dtau
+
+        use common                  , only : half, p2
+        use grid                    , only : ncells, cell
+        use config                  , only : CFL, high_ar_correction
+        use grid_statists           , only : cell_aspect_ratio
+
+        implicit none
+
+        integer :: i
+        ! real(p2), dimension(ncells) :: viscous_dtau
+
+        cell_loop : do i = 1,ncells
+            dtau(i) = CFL * cell(i)%vol/( half * wsn(i) )
+            if (high_ar_correction) dtau(i) = dtau(i) * cell_aspect_ratio(i)
+        end do cell_loop
+    end subroutine compute_local_time_step_dtau
+
     !********************************************************************************
     ! Compute Q from W
     !

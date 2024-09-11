@@ -82,6 +82,8 @@ module config
     real(p2)               :: CFL_init               = 0.1_p2
     integer                :: CFL_start_iter         = 10
     integer                :: CFL_ramp_steps         = 100
+    real(p2)               :: CFL_max                = 1e+010
+    real(p2)               :: CFL_min                = 1e-012
     integer                :: solver_max_itr         = 1000
     real(p2)               :: solver_tolerance       = 1.0e-05_p2
     character(80)          :: method_inv_flux        = "roe"

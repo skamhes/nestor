@@ -11,7 +11,6 @@ module steady_solver
     public :: steady_solve
 
     public :: compute_residual_norm
-    public :: compute_local_time_step_dtau
 
     public :: dq ! solution update
     real(p2), dimension(:,:), pointer :: dq
@@ -35,7 +34,7 @@ module steady_solver
         use initialize, only : set_initial_solution
 
         use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
-                               n_projections, nl_reduction
+                               n_projections, nl_reduction, compute_local_time_step_dtau
 
         use grid      , only : cell, ncells
 
@@ -247,24 +246,7 @@ module steady_solver
   
     end subroutine compute_residual_norm
 
-    subroutine compute_local_time_step_dtau
 
-        use common                  , only : half, p2
-        use grid                    , only : ncells, cell
-        use solution                , only : dtau, wsn
-        use config                  , only : CFL, high_ar_correction
-        use grid_statists           , only : cell_aspect_ratio
-
-        implicit none
-
-        integer :: i
-        ! real(p2), dimension(ncells) :: viscous_dtau
-
-        cell_loop : do i = 1,ncells
-            dtau(i) = CFL * cell(i)%vol/( half * wsn(i) )
-            if (high_ar_correction) dtau(i) = dtau(i) * cell_aspect_ratio(i)
-        end do cell_loop
-    end subroutine compute_local_time_step_dtau
 
     subroutine explicit_pseudo_time_rk
 
@@ -442,7 +424,7 @@ module steady_solver
 
         use grid                , only : ncells
 
-        use gcr                 , only : gcr_run, GCR_SUCCESS, gcr_failure_handler, GCR_CFL_FREEZE
+        use gcr                 , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control, GCR_CFL_FREEZE
 
         use config              , only : variable_ur
 
@@ -458,15 +440,14 @@ module steady_solver
 
         os = 1
 
+        call compute_jacobian
+
         do while (os /= GCR_SUCCESS)
 
-            call compute_jacobian
+            call gcr_run(os)
 
-            call gcr_run(sol_update,os)
+            call gcr_CFL_control(os)
 
-            if (os == GCR_SUCCESS) call gcr_failure_handler(os)
-
-            ! Create a subroutine to update jac%diag and move compute jac outside of the loop.
         end do
 
     end subroutine gcr
