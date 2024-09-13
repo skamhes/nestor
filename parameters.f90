@@ -143,6 +143,14 @@ module config
     namelist / turbulence / &
       turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant
 
+
+    !-------------------------------------------------------------------------
+    ! DEBUG SETTINGS (&debug)
+      integer :: gcr_verbosity = 0
+
+    namelist / debug / &
+      gcr_verbosity
+
     contains
         
     subroutine read_nml_config(namelist_file)
@@ -193,6 +201,7 @@ module config
         read(unit=10,nml=amg)
         read(unit=10,nml=gradient)
         read(unit=10,nml=turbulence)
+        read(unit=10,nml=debug)
         
     
         write(*,*)
@@ -225,6 +234,10 @@ module config
         write(*,*)
         write(*,*) "TURBULENCE SETTINGS (&turbulence)"
         write(*,nml=turbulence)
+
+        write(*,*)
+        write(*,*) "VERBOSITY SETTINGS (&verbosity)"
+        write(*,nml=debug)
         
         write(*,*)
         write(*,*) " End of Reading the input file: ",namelist_file,"..... "

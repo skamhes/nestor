@@ -6,7 +6,7 @@
 
 &inputoutput
   generate_tec_file_b = .true.
-    drag = .true.
+    !drag = .true.
   area_reference = 1.0
   /
    
@@ -15,13 +15,15 @@
   /
 
 &solver
-  CFL = 1000000
+  CFL = 1
   solver_type = "gcr"
   perturb_initial = .true.
   solver_tolerance = 1e-2
   solver_max_itr = 1000
 !  method_inv_flux = "roe_lm_w"
 !   method_inv_jac = "roe_lm_w"
+gcr_max_projections = 2
+gcr_reduction_target = 0.5
   /
 
 &amg
@@ -40,6 +42,9 @@
   /
 
 &turbulence
-  turbulence_type = 'viscous'
+  !turbulence_type = 'viscous'
   /
 
+&debug
+  gcr_verbosity = 3
+  /

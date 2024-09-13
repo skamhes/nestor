@@ -33,10 +33,10 @@ module steady_solver
                                 
         use initialize, only : set_initial_solution
 
-        use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
+        use solution  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
                                n_projections, nl_reduction, compute_local_time_step_dtau
 
-        use grid      , only : cell, ncells
+        use grid      , only : ncells
 
         use gradient  , only : init_gradients
 
@@ -49,7 +49,6 @@ module steady_solver
         implicit none
 
         integer                       :: i, n_residual_evaluation
-        integer                       :: L1 = 1
 
         ! Timing Variables
         real                          :: time, totalTime
@@ -60,7 +59,7 @@ module steady_solver
         logical                       :: stop_me
         integer                       :: ierr
 
-        real(p2)                      :: CFL_multiplier, CFL_final, CFL_running_mult
+        real(p2)                      :: CFL_multiplier, CFL_final
 
         real(p2), parameter :: MIN_RES_NORM_INIT = 1e-012_p2
 
@@ -265,7 +264,7 @@ module steady_solver
         real(p2), dimension(5,ncells) :: q0
         integer                       :: i, os
         real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
-        real(p2), dimension(5,5) :: preconditioner, dwdq, pre_inv
+        real(p2), dimension(5,5) :: preconditioner, pre_inv
 
         q0 = q
 
@@ -422,19 +421,13 @@ module steady_solver
 
         use common              , only : p2
 
-        use grid                , only : ncells
-
         use gcr                 , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control, GCR_CFL_FREEZE
 
         use config              , only : variable_ur
 
         use jacobian            , only : compute_jacobian
 
-        use solution            , only : jac, q, res,nq
-
         implicit none
-        
-        real(p2), dimension(nq,ncells) :: sol_update
 
         integer :: os
 
@@ -460,7 +453,7 @@ module steady_solver
     ! Can you come up with a better and more efficient way to control this?
     !
     !********************************************************************************
-    function safety_factor_primative(q,dq)
+    function safety_factor_primative(q,deltaq)
 
         use common          , only : p2
 
@@ -471,11 +464,9 @@ module steady_solver
        
         real(p2) ::    zero = 0.00_p2
        
-        real(p2), dimension(5), intent(in) :: q, dq
+        real(p2), dimension(5), intent(in) :: q, deltaq
         real(p2)                           :: safety_factor_primative
-        integer                            :: ir = 1, ip = 5
         real(p2), dimension(5)             :: q_updated
-        real(p2), dimension(5)             :: w_updated
         real(p2)                           :: p_updated
        
         ! Default safety_factor
@@ -484,7 +475,7 @@ module steady_solver
     
         ! Temporarily update the solution:
     
-        q_updated = q + safety_factor_primative*dq
+        q_updated = q + safety_factor_primative*deltaq
         
         !-----------------------------
         ! Return if both updated density and pressure are positive
@@ -502,7 +493,7 @@ module steady_solver
     
         if ( q_updated(5) <= zero) then ! meaning du(ir) < zero, reducing the density.
     
-            safety_factor_primative = -q(5)/dq(5) * 0.25_p2 ! to reduce the density only by half.
+            safety_factor_primative = -q(5)/deltaq(5) * 0.25_p2 ! to reduce the density only by half.
     
         endif
     
@@ -518,7 +509,7 @@ module steady_solver
             !Note: Limiting value of safety_factor is zero, i.e., no update and pressure > 0.
             do
     
-            q_updated = q + safety_factor_primative*dq
+            q_updated = q + safety_factor_primative*deltaq
             p_updated = q_updated(1)
     
             ! For low-Mach flows, theoretically, pressure = O(Mach^2).
@@ -533,12 +524,12 @@ module steady_solver
     
         endif
 
-        if (abs(safety_factor_primative * dq(1))/q(1)  > 0.2_p2  ) then 
-            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(1) / dq(1)
+        if (abs(safety_factor_primative * deltaq(1))/q(1)  > 0.2_p2  ) then 
+            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(1) / deltaq(1)
         endif   
         
-        if (abs(safety_factor_primative * dq(5))/q(5)  > 0.2_p2  ) then 
-            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(5) / dq(5)
+        if (abs(safety_factor_primative * deltaq(5))/q(5)  > 0.2_p2  ) then 
+            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(5) / deltaq(5)
         endif   
     end function safety_factor_primative
 

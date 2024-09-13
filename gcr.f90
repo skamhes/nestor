@@ -1,6 +1,8 @@
 module gcr
 
     use common , only : p2
+
+    use config , only : gcr_verbosity
     ! Method for computing the generalized conjugate residual, a Jacobian Free Newton-Krylov method.
     ! This is based on the paper: https://doi.org/10.2514/6.2021-0857 (A free version can be found on the NASA TRS).
 
@@ -53,7 +55,7 @@ module gcr
 
     subroutine gcr_solve(gcr_final_update, iostat)
 
-        use common      , only : p2, zero, one, half
+        use common      , only : p2, zero
 
         use config      , only : gcr_max_projections, gcr_reduction_target
 
@@ -84,6 +86,7 @@ module gcr
         real(p2)                                           :: gamma_k ! gamma_k from EQ. 14
         real(p2), dimension(nq,ncells)                     :: gcr_residual
         real(p2)                                           :: gcr_res_rms
+        real(p2)                                           :: max_bk
         
         real(p2), dimension(5,5)    :: preconditioner
 
@@ -119,12 +122,13 @@ module gcr
             ! Generate new search direction
 
             do icell = 1,ncells
-                preconditioner = compute_primative_jacobian(q(:,icell))
+                ! preconditioner = compute_primative_jacobian(q(:,icell))
 
-                preconditioner = preconditioner * cell(icell)%vol/dtau(icell)
+                ! preconditioner = preconditioner * cell(icell)%vol/dtau(icell)
 
-                b_k(:,icell,kdir) = b_k(:,icell,kdir) + matmul(preconditioner,delta_Q_k(:,icell,kdir))
+                ! b_k(:,icell,kdir) = b_k(:,icell,kdir) + matmul(preconditioner,delta_Q_k(:,icell,kdir))
 
+                b_k(:,icell,kdir) = b_k(:,icell,kdir) + delta_Q_k(:,icell,kdir) * cell(icell)%vol/dtau(icell)
             end do
 
             b_k_mag = l2norm(nq,ncells,b_k(:,:,kdir))
@@ -149,13 +153,17 @@ module gcr
                 delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) / b_k_mag
                 b_k(:,:,kdir)   = b_k(:,:,kdir)   / b_k_mag
 
+                jdir = jdir + 1
             end do
 
             ! Compute projection of the current search direction and the previous residual
             gamma_k = inner_product(ncells, b_k(:,:,kdir), gcr_residual(:,:))
 
             ! if they are (nearly) orthogonal the solution has stalled and we should quit
-            if ( gamma_k < 1.0e-03_p2 * l2norm(nq,ncells,gcr_residual) ) exit project_loop
+            gcr_res_rms = rms(nq,ncells,gcr_residual,inv_ncells)
+            max_bk = maxval(b_k(:,:,kdir))
+            max_bk = gamma_k * max_bk
+            ! if ( max_bk < gcr_res_rms ) exit project_loop
 
             ! Update the final correction with the projection of delta_q_k
             gcr_final_update = gcr_final_update + gamma_k * delta_Q_k(:,:,kdir)
@@ -237,7 +245,7 @@ module gcr
 
         ! Realizability chekc for the proposed nonlinear update from gcr_run
 
-        use common  , only : p2,zero
+        use common  , only : p2
 
         use solution, only : nq
 
@@ -252,18 +260,23 @@ module gcr
         integer :: icell
         
         do icell = 1,ncells
-            if ( check_non_real_update(nq, sol_current(:,icell), sol_update(:,icell)) ) then
+            if ( .not.check_non_real_update(nq, sol_current(:,icell), sol_update(:,icell)) ) then
                 iostat = GCR_REAL_FAIL
                 return
             endif
         end do  
 
+        ! If we made it this far we know the update was valid
         iostat = GCR_SUCCESS
 
     end subroutine gcr_real_check
 
     pure function check_non_real_update(nq,sol_current,sol_update) result(is_real)
-
+        !
+        ! Check that the proposed solution does not result in a non-real solution (such as negative pressure or temperature) 
+        ! Output:
+        ! .TRUE. = The proposed solution real (pass)
+        ! .FALSE.= The proposed solution is not real (fail)
         use common , only : p2, zero
 
         implicit none
@@ -285,7 +298,7 @@ module gcr
 
         ! Determine the optimum underrelaxation factor for the nonlinear solution update.
 
-        use common , only : p2, zero, half, one, two
+        use common , only : p2, half, one, two
 
         use config , only : gcr_reduction_target
 
@@ -366,17 +379,16 @@ module gcr
         deallocate(res)
         q   => q_n
         res => r_0
-        deallocate(q_n)
-        deallocate(r_0)
+        nullify(q_n,r_0)
 
         delQ_norm = l2norm(nq,ncells,sol_update)
-        call compute_frechet(sol_update,delQ_norm,Qn_rms,frechet_deriv)
+            call compute_frechet(sol_update,delQ_norm,Qn_rms,frechet_deriv)
         
         ! Doing rms here so we don't have to store th
         ! We will temporarily reuse the res vector to save memory space
         do icell = 1,ncells
             ! EQ 21 from FUN 3D paper where omega = 1
-            res(:,icell) = matmul( compute_primative_jacobian(q_n(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) ) + &
+            res(:,icell) = matmul( compute_primative_jacobian(q(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) ) + &
                            frechet_deriv(:,icell) + res(:,icell) 
         end do
         g_1 = rms(nq,ncells,res,inv_ncells)
@@ -410,13 +422,15 @@ module gcr
 
     subroutine gcr_CFL_control(gcr_status)
 
-        use common , only : p2, two
+        use common          , only : p2, two
         
-        use config , only : CFL, CFL_max, CFL_min
+        use config          , only : CFL, CFL_max, CFL_min
 
-        use grid , only : ncells, cell
+        use grid            , only : ncells, cell
 
-        use solution , only : jac, q, compute_primative_jacobian, nq, dtau, compute_local_time_step_dtau
+        use solution        , only : jac, q, compute_primative_jacobian, nq, dtau, compute_local_time_step_dtau
+
+        use direct_solve    , only : gewp_solve
 
         implicit none
 
@@ -429,7 +443,15 @@ module gcr
 
 
         if (gcr_status == GCR_SUCCESS) then
+            if (gcr_verbosity == 3) then
+                write(*,*) "Successful iteration:"
+                write(*,*) "CFL old: ", CFL
+            endif
             CFL = min(CFL * two, CFL_max)
+            if (gcr_verbosity == 3) then
+                write(*,*) "CFL new: ", CFL
+            endif
+
         elseif (gcr_status == GCR_CFL_FREEZE) then
             ! Nothing to actually do here
         else ! fail
@@ -441,8 +463,14 @@ module gcr
                 
             end do
 
+            if (gcr_verbosity == 3) then
+                write(*,*) "Stall detected:"
+                write(*,*) "CFL old: ", CFL
+            endif
             CFL = max(CFL / 10.0_p2, CFL_min)
-
+            if (gcr_verbosity == 3) then
+                write(*,*) "CFL new: ", CFL
+            endif
             ! Update the time step with the new CFL
             call compute_local_time_step_dtau
 

@@ -211,7 +211,9 @@ module inout
                                      minutes, ":", seconds, CFL
         elseif ( trim(solver_type) == 'gcr' ) then
             write(*,implicit_format) n_projections, nl_reduction, &
-                                     minutes, ":", seconds, CFL
+                                     minutes, ":", seconds, CFL 
+            ! note: the CFL is most likely wrong as it is updated for the next iteration before this line has had a chance to print.
+            ! refactoring will take a little work so for now I'm leaving this note to remind me that it is wrong...
         else ! RK Explicit
             write(*,explicit_format) minutes, ":", seconds, CFL
         endif
