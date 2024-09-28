@@ -56,14 +56,15 @@ module gcr
     subroutine gcr_solve(gcr_final_update, iostat)
 
         ! Right preconditioned version of Algorithm 6.21 from Y. Saad. Iterative Methods for Sparse Linear Systems, 2nd Edition
+        ! Right preconditioning is done using the same linear solver and the approximate (1st order jacobian)
 
-        use common      , only : p2, zero
+        use common      , only : p2, zero, my_eps
 
         use config      , only : gcr_max_projections, gcr_reduction_target
 
-        use grid        , only : ncells, cell
+        use grid        , only : ncells
 
-        use solution    , only : nq, inv_ncells, dtau, compute_primative_jacobian, jacobian_type, res, jac, &
+        use solution    , only : nq, inv_ncells, compute_primative_jacobian, jacobian_type, res, jac, &
                                  nl_reduction, n_projections, q
 
         use residual    , only : compute_residual
@@ -78,11 +79,13 @@ module gcr
         !+++++++++++++++++
         real(p2), dimension(nq,ncells)                     :: gcr_residual 
         real(p2)                                           :: RMS_R0, RMS_Qn ! RMS of outer residual and solution vectors
+        real(p2)                                           :: rms_resj
         real(p2), dimension(nq,ncells,gcr_max_projections) :: p ! Preconditioned vector p_i = M^{-1}*r_i
         real(p2), dimension(nq,ncells,gcr_max_projections) :: Ap ! Exact jacobian (A computed w Frechet Deriv) times p 
         real(p2)                                           :: length_p
         real(p2), dimension(gcr_max_projections)           :: length_Ap2
         real(p2)                                           :: alpha, beta
+        logical                                            :: stall_cond
 
 
         integer :: idir, jdir
@@ -92,6 +95,7 @@ module gcr
         gcr_residual = -res
         RMS_R0 = rms(nq,ncells,res,inv_ncells)
         RMS_Qn = rms(nq,ncells,q  ,inv_ncells)
+        stall_cond = .false.
 
         jdir = 1
 
@@ -111,23 +115,40 @@ module gcr
 
         proj_loop : do
 
-            length_Ap2 = l2norm(nq,ncells,Ap(:,:,jdir))**2
+            length_Ap2(jdir) = max(l2norm(nq,ncells,Ap(:,:,jdir))**2,my_eps)
 
-            alpha = inner_product(ncells,p(:,:,jdir),Ap(:,:,jdir)) / (length_Ap2(jdir))
+            alpha = inner_product(nq,ncells,gcr_residual(:,:),Ap(:,:,jdir)) / (length_Ap2(jdir))
 
             gcr_final_update = gcr_final_update + alpha * p(:,:,jdir)
 
             gcr_residual = gcr_residual - alpha * Ap(:,:,jdir)
 
             ! Check for sufficient rms reduction
-            if (rms(nq,ncells,gcr_residual,inv_ncells) / RMS_R0 < nl_reduction) then
+            rms_resj = rms(nq,ncells,gcr_residual,inv_ncells)
+            if (rms_resj / RMS_R0 < gcr_reduction_target) then
                 iostat = GCR_SUCCESS
+                n_projections = jdir
+                nl_reduction = rms_resj / RMS_R0
                 return
             ! Check for max projections
-            elseif (jdir == gcr_max_projections) then
+            elseif (jdir >= gcr_max_projections) then
                 iostat = GCR_STALL
+                n_projections = jdir
                 return
             endif
+            ! Check for stall
+            if (jdir > 1) then
+                if (gcr_verbosity >= 3) then
+                    write(*,*) "res * Ap_jdir", inner_product(nq,ncells,gcr_residual(:,:),p(:,:,idir))
+                endif
+                stall_cond = maxval(alpha * Ap(:,:,jdir)) > rms_resj
+            endif
+            if (stall_cond) then
+                iostat = GCR_STALL
+                n_projections = jdir
+                return
+            endif
+
 
             ! Generate new search direction
             call linear_relaxation(nq, jac, -gcr_residual, p(:,:,jdir+1), os)
@@ -143,10 +164,20 @@ module gcr
 
             ! Modified Gram-Schmidt Orthogonalization
             do idir = 1,jdir
-                beta = - inner_product(ncells,Ap(:,:,jdir+1),Ap(:,:,jdir)) / length_Ap2(idir)
+                beta = - inner_product(nq,ncells,Ap(:,:,jdir+1),Ap(:,:,idir)) / length_Ap2(idir)
                 
                 p(:,:,jdir+1) = p(:,:,jdir+1) + beta * p(:,:,idir)
                 Ap(:,:,jdir+1)=Ap(:,:,jdir+1) + beta *Ap(:,:,idir)
+
+                ! Sanity check orthogonality
+                if (gcr_verbosity >= 3) then
+                    ! Note: the P vectors are A^{T}A-orthogonal. meaning Ap_i * Ap_j = 0.  However, the vectors P_i * P_j need not be 
+                    ! orthogonal themselves.  In fact, they won't be unless A^{T}A = c*I (I think, I haven't done an exhaustive 
+                    ! proof)
+                    write(*,*) "j=",jdir+1,"i=",idir,"inner_product (p) = ", inner_product(nq,ncells,p(:,:,jdir + 1),p(:,:,idir))
+                    write(*,*) "j=",jdir+1,"i=",idir,"inner_product (Ap) = ", inner_product(nq,ncells,Ap(:,:,jdir + 1),Ap(:,:,idir))
+                endif
+                continue
             end do
 
             jdir = jdir + 1
@@ -245,7 +276,7 @@ module gcr
 
             do while (jdir < kdir)
                 ! Pretty sure this is just a modified Gram-Schmidt... suppose I could check...
-                gcr_inner_prod = inner_product(ncells, b_k(:,:,kdir), b_k(:,:,jdir)) ! mu
+                gcr_inner_prod = inner_product(nq,ncells, b_k(:,:,kdir), b_k(:,:,jdir)) ! mu
 
                 b_k(:,:,kdir)       = b_k(:,:,kdir)       - gcr_inner_prod * b_k(:,:,jdir)
                 delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) - gcr_inner_prod * delta_Q_k(:,:,jdir)
@@ -260,7 +291,7 @@ module gcr
             end do
 
             ! Compute projection of the current search direction and the previous residual
-            gamma_k = inner_product(ncells, b_k(:,:,kdir), gcr_residual(:,:))
+            gamma_k = inner_product(nq,ncells, b_k(:,:,kdir), gcr_residual(:,:))
 
             ! if they are (nearly) orthogonal the solution has stalled and we should quit
             gcr_res_rms = rms(nq,ncells,gcr_residual,inv_ncells)
@@ -302,7 +333,7 @@ module gcr
 
         use common , only : p2, one
 
-        use solution , only : nq, q, res, dtau
+        use solution , only : nq, q, res, dtau, compute_primative_jacobian
 
         use grid , only : ncells, cell
 
@@ -317,6 +348,7 @@ module gcr
 
         real(p2), dimension(:,:), pointer :: q_n
         real(p2), dimension(:,:), pointer :: r_0
+        real(p2), dimension(5,5)          :: prim_jac
         real(p2)                          :: eps_frechet
         real(p2)                          :: frech_min_bound = 1.0e-07_p2
 
@@ -344,7 +376,9 @@ module gcr
         frechet_deriv = update_length * ( res - r_0 ) / eps_frechet
 
         do icell = 1,ncells
-            frechet_deriv(:,icell) = frechet_deriv(:,icell) + sol_update(:,icell) * cell(icell)%vol/dtau(icell)
+            prim_jac = compute_primative_jacobian(q_n(:,icell))
+            frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * matmul(prim_jac,sol_update(:,icell))
+            ! frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * sol_update(:,icell)
         end do
 
         deallocate(  q)
