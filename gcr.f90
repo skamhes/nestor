@@ -62,14 +62,16 @@ module gcr
 
         use config      , only : gcr_max_projections, gcr_reduction_target
 
-        use grid        , only : ncells
+        use grid        , only : ncells, cell
 
         use solution    , only : nq, inv_ncells, compute_primative_jacobian, jacobian_type, res, jac, &
                                  nl_reduction, n_projections, q
 
         use residual    , only : compute_residual
 
-        use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE
+        use linear_solver, only: build_A_BCSM, build_Dinv_array, linear_sweeps, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE
+
+        use algebraic_multigird, only : UP
 
         implicit none
 
@@ -87,6 +89,13 @@ module gcr
         real(p2)                                           :: alpha, beta
         logical                                            :: stall_cond
 
+        ! Variables for preconditioning matrix M
+        real(p2), dimension(:,:,:), allocatable :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer , dimension(:),     allocatable :: C   ! Column index of each value
+        integer , dimension(ncells+1)           :: R   ! Start index of each new row
+        integer                                 :: nnz
+        real(p2), dimension(5,5,ncells)         :: Dinv
+        integer                                 :: direction, level
 
         integer :: idir, jdir
         integer :: os
@@ -99,8 +108,16 @@ module gcr
 
         jdir = 1
 
+        ! Build M (A Approx) for precondition solve
+        call build_A_BCSM(ncells,cell,jac,V,C,R,nnz=nnz)
+
+        call build_Dinv_array(ncells,nq,jac,Dinv)
+
+        direction = UP 
+        level = 1
+
         ! Compute the initial search direction
-        call linear_relaxation(nq, jac, -gcr_residual, p(:,:,jdir),os)
+        call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
         if (os == RELAX_FAIL_DIVERGE) then
             iostat = GCR_PRECOND_DIVERGE
             return
@@ -151,7 +168,7 @@ module gcr
 
 
             ! Generate new search direction
-            call linear_relaxation(nq, jac, -gcr_residual, p(:,:,jdir+1), os)
+            call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
                 return

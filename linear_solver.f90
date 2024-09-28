@@ -53,13 +53,14 @@ module linear_solver
         integer                                 :: nnz
         real(p2), dimension(5,5,ncells)             :: Dinv
 
-        integer                     :: level = 1
+        integer                     :: level
         integer                     :: direction
 
         call build_A_BCSM(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
 
         call build_Dinv_array(ncells,num_eq,jacobian_block,Dinv)
 
+        level = 1
         direction = UP 
 
         call linear_sweeps(ncells,num_eq,nnz,V,C,R,residual,Dinv,level,direction,correction,iostat)
