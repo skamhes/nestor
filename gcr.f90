@@ -634,16 +634,16 @@ module gcr
             ! Loop unrolling
             case(5)
                 do i = 1,ncells
-                    rms = rms + vector(1,ncells)**2 &
-                              + vector(2,ncells)**2 &
-                              + vector(3,ncells)**2 &
-                              + vector(4,ncells)**2 &
-                              + vector(5,ncells)**2
+                    rms = rms + vector(1,i)**2 &
+                              + vector(2,i)**2 &
+                              + vector(3,i)**2 &
+                              + vector(4,i)**2 &
+                              + vector(5,i)**2
                 end do
             case default
                 do i = 1,ncells
                     do j = 1,nq
-                        rms = rms + vector(nq,ncells)**2
+                        rms = rms + vector(j,i)**2
                     end do
                 end do
         end select
@@ -671,16 +671,16 @@ module gcr
             ! Loop unrolling
             case(5)
                 do i = 1,ncells
-                    l2norm = l2norm + vector(1,ncells)**2 &
-                                    + vector(2,ncells)**2 &
-                                    + vector(3,ncells)**2 &
-                                    + vector(4,ncells)**2 &
-                                    + vector(5,ncells)**2
+                    l2norm = l2norm + vector(1,i)**2 &
+                                    + vector(2,i)**2 &
+                                    + vector(3,i)**2 &
+                                    + vector(4,i)**2 &
+                                    + vector(5,i)**2
                 end do
             case default
                 do i = 1,ncells
                     do j = 1,nq
-                        l2norm = l2norm + vector(nq,ncells)**2
+                        l2norm = l2norm + vector(j,i)**2
                     end do
                 end do
         end select
@@ -688,7 +688,7 @@ module gcr
         l2norm = sqrt(l2norm)
     end function
 
-    pure function inner_product(ncells,vector1,vector2)
+    pure function inner_product(nq,ncells,vector1,vector2)
 
         ! Function for computing the inner_product of block vectors
 
@@ -696,17 +696,31 @@ module gcr
 
         implicit none
 
-        integer, intent(in)                 :: ncells
-        real(p2),dimension(:,:), intent(in) :: vector1,vector2
+        integer, intent(in)                 :: nq, ncells
+        real(p2),dimension(:,:), intent(in) :: vector1, vector2
         real(p2)                            :: inner_product
 
-        integer :: i
+        integer :: i,j
 
         inner_product = zero
 
-        do i = 1,ncells
-            inner_product = inner_product + dot_product(vector1(:,i),vector2(:,i))
-        end do
+        select case(nq)
+            ! Loop unrolling
+            case(5)
+                do i = 1,ncells
+                    inner_product = inner_product + vector1(1,i) * vector2(1,i) &
+                                                  + vector1(2,i) * vector2(2,i) &
+                                                  + vector1(3,i) * vector2(3,i) &
+                                                  + vector1(4,i) * vector2(4,i) &
+                                                  + vector1(5,i) * vector2(5,i) 
+                end do
+            case default
+                do i = 1,ncells
+                    do j = 1,nq
+                        inner_product = inner_product + vector1(j,i) * vector2(j,i)
+                    end do
+                end do
+        end select
 
     end function
 
