@@ -575,7 +575,7 @@ module gcr
 
         use grid            , only : ncells, cell
 
-        use solution        , only : jac, q, compute_primative_jacobian, nq, dtau, compute_local_time_step_dtau
+        use solution        , only : jac, q, compute_primative_jacobian, nq, dtau, compute_local_time_step_dtau, CFL_used
 
         use direct_solve    , only : gewp_solve
 
@@ -594,11 +594,11 @@ module gcr
                 write(*,*) "Successful iteration:"
                 write(*,*) "CFL old: ", CFL
             endif
+            CFL_used = CFL
             CFL = min(CFL * two, CFL_max)
             if (gcr_verbosity >= 3) then
                 write(*,*) "CFL new: ", CFL
             endif
-
         elseif (gcr_status == GCR_CFL_FREEZE) then
             ! Nothing to actually do here
         else ! fail

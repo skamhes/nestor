@@ -24,6 +24,7 @@ module solution
     real(p2), dimension(:)    , pointer :: phi      ! limiter of ccgradq
 
     real(p2), dimension(:)    , pointer :: dtau  !pseudo time step
+    real(p2)                            :: CFL_used ! used for GCR as CFL changes most iterations 
     real(p2), dimension(:)    , pointer :: wsn   !maximum eigenvalue at faces
 
     real(p2), dimension(:,:), pointer   :: res     !residual vector
@@ -116,7 +117,7 @@ module solution
         use grid , only : ncells, nnodes
 
         use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip, turbulence_type,&
-                            gcr_max_projections
+                            gcr_max_projections, CFL
 
         implicit none
 
@@ -164,6 +165,8 @@ module solution
         endif
 
         inv_ncells = one / real(ncells*nq,p2) 
+
+        CFL_used = CFL
 
     end subroutine allocate_solution_vars
 
