@@ -168,7 +168,7 @@ module gcr
 
 
             ! Generate new search direction
-            call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
+            call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
                 return
@@ -609,12 +609,12 @@ module gcr
         if (gcr_status == GCR_SUCCESS) then
             if (gcr_verbosity >= 3) then
                 write(*,*) "Successful iteration:"
-                write(*,*) "CFL old: ", CFL
+                write(*,*) "CFL used:   ", CFL
             endif
             CFL_used = CFL
             CFL = min(CFL * two, CFL_max)
             if (gcr_verbosity >= 3) then
-                write(*,*) "CFL new: ", CFL
+                write(*,*) "CFL update: ", CFL
             endif
         elseif (gcr_status == GCR_CFL_FREEZE) then
             ! Nothing to actually do here

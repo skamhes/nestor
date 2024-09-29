@@ -23,7 +23,7 @@
 !  method_inv_flux = "roe_lm_w"
 !   method_inv_jac = "roe_lm_w"
 gcr_max_projections = 20
-gcr_reduction_target = 0.92
+gcr_reduction_target = 0.05
   /
 
 &amg
