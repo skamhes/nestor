@@ -1,6 +1,6 @@
 &project
   project_name = "quad_3d"
-  second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
   /
 
 &inputoutput
@@ -19,10 +19,10 @@
   /
 
 &amg
-  use_amg = .false.
+  use_amg = .true.
   smoother = 'gs'
-  lrelax_tolerance = 0.0001
-  max_amg_levels = 3
+  lrelax_tolerance = 0.1
+  max_amg_levels = 4
   /
 
 

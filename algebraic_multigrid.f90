@@ -6,6 +6,11 @@ module algebraic_multigird
     integer, parameter :: UP    = 1 ! Coarsen
     integer, parameter :: DOWN  = 2 ! Refine
 
+    public :: AMG_F, AMG_V, AMG_W
+    integer, parameter :: AMG_F = 1
+    integer, parameter :: AMG_W = 2
+    integer, parameter :: AMG_V = 3
+
     contains
 
     subroutine algebraic_multigrid_restrict(ncells,nq,phi,V,C,R,nnz,res,level, &
@@ -346,5 +351,25 @@ module algebraic_multigird
         defect = product + b
 
     end subroutine compute_defect
+
+    function convert_amg_c_to_i(amg_char) result(amg_int)
+
+        character(1), intent(in) :: amg_char
+        integer                  :: amg_int
+
+        select case(amg_char)
+        case('f')
+            amg_int = AMG_F
+        case('w')
+            amg_int = AMG_W
+        case('v')
+            amg_int = AMG_V
+        case default
+            write(*,*) "convert_amg_c_to_i: invalid AMG cycle tpye. STOP!"
+            stop
+        end select
+
+    end function convert_amg_c_to_i
+
 
 end module algebraic_multigird

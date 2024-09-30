@@ -99,9 +99,13 @@ module config
     logical                 :: use_amg              = .true.  
     character(80)           :: smoother             = "gs"    ! relaxation scheme type
     integer                 :: lrelax_sweeps        = 500     ! number of sweeps
+    integer                 :: pre_sweeps           = 0       ! number of sweeps before AMG restriction
+    integer                 :: post_sweeps          = 2       ! number of sweeps after AMG prolongation
     real(p2)                :: lrelax_tolerance     = 0.1_p2  ! relaxation tolerance (reduction)
-    integer                 :: max_amg_levels       = 5
-    integer                 :: pre_sweeps           = 2
+    integer                 :: max_amg_levels       = 8
+    integer                 :: min_amg_blcoks       = 1       ! minimum number of blocks before AMG will not further restrict
+    character(1)            :: amg_cycle            = 'f'     ! amg cycle type.
+    integer                 :: max_amg_cycles       = 16      ! Total complete AMG Cycles
     
     namelist / amg / &
     use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels, pre_sweeps
