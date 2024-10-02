@@ -13,7 +13,7 @@ module algebraic_multigird
 
     contains
 
-    subroutine algebraic_multigrid_restrict(ncells,nq,phi,V,C,R,nnz,res,level, &
+    subroutine algebraic_multigrid_restrict_legacy(ncells,nq,phi,V,C,R,nnz,res,level, &
                                                       ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,defect_res)
     
         ! Implementation of algebraic multi grid using additive correction.
@@ -215,7 +215,93 @@ module algebraic_multigird
 
         ! direction = DOWN ! we've finished a multigrid level that means we're going back down the levels
     
-    end subroutine algebraic_multigrid_restrict
+    end subroutine algebraic_multigrid_restrict_legacy
+
+    subroutine amg_restric_rs(ncells,nq,phi,V,C,R,nnz,res,level, &
+        ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,defect_res)
+
+        use common                  , only : p2, zero
+        
+        use grid                    , only : cc_data_type
+        
+        use direct_solve            , only : gewp_solve
+
+        use sparse_common           , only : insertion_sort_int, insertion_sort_real
+
+        use ruge_stuben             , only : rs_agglom
+
+
+        !use stdlib_sorting, only : sort
+        
+        implicit none
+
+        ! INPUT
+        integer,                                intent(in)  :: ncells ! number of cells (level 1) or groups (level 2+)
+        integer,                                intent(in)  :: nq     ! number of equations for the flow
+        real(p2), dimension(:,:),               intent(in)  :: phi    ! dependent variables (du for level 1, del for level 2+)
+        real(p2), dimension(:,:,:),             intent(in)  :: V   ! Values (nq x nq block matrix) plus corresponding index
+        integer, dimension(:),                  intent(in)  :: C   ! Column index of each value
+        integer, dimension(:),                  intent(in)  :: R   ! Start index of each new row
+        integer,                                intent(in)  :: nnz
+        real(p2), dimension(:,:),               intent(in)  :: res    ! RHS of the NL equation
+        integer,                                intent(in)  :: level  ! Multigrid level (not sure if we'll need it yet)
+        ! OUTPUT
+        integer,                                intent(out) :: ngroup
+        integer,                                intent(out) :: nnz_restrict
+        integer,  dimension(:),                 intent(out) :: prolongC
+        real(p2), dimension(:,:,:), pointer,    intent(out) :: RAP_V
+        integer, dimension(:), pointer,         intent(out)  :: RAP_C
+        integer, dimension(:), pointer,         intent(out)  :: RAP_R
+        real(p2), dimension(:,:,:), pointer,    intent(out)  :: RAP_Dinv
+        real(p2), dimension(:,:), pointer,      intent(out) :: defect_res ! R(A*phi + b)
+
+        ! Local Vars
+        integer                                 :: i, j, gi
+        integer                                 :: idestat
+        real(p2), dimension(nq,ncells)          :: defect ! defect used in RHS for AMG
+        integer, dimension(ncells)              :: RestrictC ! ProlongC defined above
+        integer, dimension(ncells + 1)          :: ProlongR ! Restrict array is longer than needed but this proves fine.
+        integer, dimension(:), pointer          :: RestrictR
+
+
+        
+        nullify(RestrictR)
+
+        call rs_agglom(ncells, C, R, RestrictR, RestrictC, ProlongR, prolongC)
+
+        ! Create coarse level operetor A^H = RAP
+        allocate(RAP_R(ngroup + 1))
+        call R_A_P(ncells,ngroup,nq,nnz,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_restrict)
+        
+        ! Create inverse block matrix of RAP diagonal terms
+        allocate(RAP_Dinv(5,5,ngroup))
+        do gi = 1,ngroup
+            do j = RAP_R(gi),(RAP_R(gi+1)-1)
+                if (RAP_C(j) == gi) then ! diag
+                    call gewp_solve(RAP_V(:,:,j),5, RAP_Dinv(:,:,gi),idestat)
+                end if
+            end do
+        end do
+        
+        if (idestat/=0) then
+            write(*,*) " Error in inverting the diagonal block... Stop"
+            write(*,*) "  Group number = ", i
+            write(*,*) "  Level        = ", level
+            stop
+        endif
+
+        ! Calculate and restrict the defect d = A*phi + b
+        call compute_defect(ncells,nq,V,C,R,phi,res,defect)
+        allocate(defect_res(5,ngroup))
+        defect_res = zero
+        do i = 1,ngroup
+            do j = RestrictR(i),(RestrictR(i+1)-1)
+                defect_res(:,i) = defect_res(:,i) + defect(:,RestrictC(j))
+            end do
+        end do
+
+    end subroutine amg_restric_rs
+
 
     subroutine algebraic_multigrid_prolong(ncells,prolongC,restricted_correction,correction)
     
