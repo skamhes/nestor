@@ -1,41 +1,55 @@
 module ruge_stuben
 
+
+    ! use common , only : p2
+
     implicit none
 
     private
     
+    integer, parameter :: RS_U = 0 ! unassigned
     integer, parameter :: RS_C = 1
     integer, parameter :: RS_F = 2
+    integer, parameter :: RS_Fnew = 3
+
+    logical, parameter :: STRONG_AGGLOM = .TRUE.
+    integer, parameter :: STRONG_AGGLOM_INT = 1
+    ! real(p2), parameter    :: THRESHOLD = 0.25_p2
     
     public rs_agglom
     
     contains
 
-    subroutine rs_agglom(ncells,C,R,restrictR,restrictC,prolongR,prolongC)
+    subroutine rs_agglom(ncells,C,R,ngroups,restrictR,restrictC,prolongR,prolongC)
 
         implicit none
 
-        integer, intent(in)                 :: ncells
-        integer, dimension(:), intent(in)   :: C
-        integer, dimension(:), intent(in)   :: R
+        integer, intent(in)                     :: ncells
+        ! real(p2),dimension(:,:,:), intent(in)   :: V
+        integer, dimension(:), intent(in)       :: C
+        integer, dimension(:), intent(in)       :: R
 
         integer, dimension(:), pointer, intent(out)  :: restrictR
         integer, dimension(:),          intent(out)  :: restrictC
         integer, dimension(:),          intent(out)  :: prolongR
         integer, dimension(:),          intent(out)  :: prolongC
+        integer,                        intent(out)  :: ngroups
 
-        integer, dimension(ncells)  :: w, CF
-        integer                     :: ngroups
+        integer, dimension(ncells)      :: w, CF
+        integer, dimension(ncells)      :: Sr
+        integer, dimension(ncells)      :: sorted_to_w  ! vector of weight that corresponds to ith sorted index
+        integer, dimension(:), pointer  :: Sc
+        integer                         :: nC
 
-        w = rs_weight(C,R,ncells)
+        call rs_weight(C,R,ncells, w)
 
-        call rs_build_CF(ncells,C,R,w,CF,ngroups)
+        call rs_build_CF(ncells,C,R,w,CF,nc,sorted_to_w)
 
-        call rs_build_r(ncells,ngroups,CF,C,R,restrictC,restrictR,prolongR,prolongC)
+        call rs_build_r(ncells,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
 
     end subroutine rs_agglom
 
-    function rs_weight(C,R, ncells) result(w)
+    subroutine rs_weight(C,R, ncells, w) 
         ! Computes the number of strong influences for each cell i.  Note: ordinarily strong influence would be defined as some 
         ! value |a_ij| > theta, where theta is some threashold.  In this case we are setting the threashold to be any nonzero 
         ! index.  As a result we only need the pointer vector R (in CSR format).
@@ -49,31 +63,38 @@ module ruge_stuben
 
         implicit none
 
-        integer, dimension(:)       :: C        ! column indices of strongly dependent cells
-        integer, dimension(:)       :: R        ! pointer of row starts in CSR format
-        integer                     :: ncells
+        !real(p2),dimension(:,:,:), intent(in)   :: V        ! Value array of jacobian
+        integer, dimension(:), intent(in)       :: C        ! column indices of association matrix (non-zero jacobian blocks)
+        integer, dimension(:), intent(in)       :: R        ! pointer of row starts in CSR format
+        integer              , intent(in)       :: ncells
 
-        integer, dimension(ncells)  :: w        ! vector of the number of cells strongly influenced by i
+        ! integer, dimension(:), intent(out)      :: Sr       ! column indices of strongly dependent cells
+        ! integer, dimension(:), intent(out)      :: Sc       ! pointer of row starts in CSR format
+        integer, dimension(:)                   :: w        ! vector of the number of cells strongly influenced by i
 
         integer :: i, j
         integer :: cj
+        !integer :: nstrong
+        !real(p2) :: ti ! threshold_i = |A_ik|*theta
 
         w(:) = 0
+        ! nstrong = 0
 
         do i = 1,ncells
-            do j = R(i),R(i+1)-1
+            ! ti = THRESHOLD * maxval( abs(V(1, 1, R(i):R(i+1)-1)) )
+            f_loop : do j = R(i),R(i+1)-1
                 cj = c(j)
-                w(cj) = w(cj) + 1
-            end do
+                w(cj) = w(cj) + 1 ! all face neighbors are automatically added
+            end do f_loop 
         end do
 
-    end function rs_weight
+    end subroutine rs_weight
 
-    subroutine rs_build_CF(ncells,C,R,w,CF,nC)
+    subroutine rs_build_CF(ncells,C,R,w,CF,nC,sorted_to_w)
 
         implicit none
 
-        integer, dimension(:), target, intent(in)   :: C
+        integer, dimension(:), target, intent(in)   :: C    ! columns of strongly 
         integer, dimension(:),         intent(in)   :: R
         integer,                       intent(in)   :: ncells
         integer, dimension(:),         intent(inout):: w
@@ -81,6 +102,7 @@ module ruge_stuben
         integer, dimension(:),         intent(out)  :: CF ! I briefly considered doing this as a logical but a brief google search 
         ! seems to say that logicals occupy the same amount of space in memory as integers so this is easier to read.
         integer,                       intent(out)  :: nC ! number of C-cells (and number of groups since each group has one C-cell)
+        integer, dimension(:)                       :: sorted_to_w  ! vector of weight that corresponds to ith sorted index
 
         integer                             :: nadded
         logical, dimension(ncells)          :: isadded
@@ -92,136 +114,218 @@ module ruge_stuben
         integer, dimension(:), pointer      :: si, sj, sintr
         integer                             :: nintr
 
-        nullify(sintr)
+        
+        integer, dimension(ncells)          :: w_to_sorted  ! vector of sorted index that corresponds to ith
+        integer, dimension(:), allocatable  :: wcounter 
+        integer, dimension(:), allocatable  :: psorted ! Pointer to first sorted value (same method as CSR)
 
-        ! First pass
-        isadded = .false.
-        nadded  = 0 
-        nc = 0
+        integer :: nweights
+        integer :: cur_pos, end_pos, tmp, endwi
+        integer :: icell, kk
+        integer :: wi, vi
 
-        ! define a start variable for our search
-        i = 1
+        wmax = maxval(w)
+        nweights = max(ncells,2*wmax)
+        CF = 0
 
-        fp_rs : do while ( nadded < ncells )
-            do while ( isadded(i) ) ! breaks when isadded(i) = .false.
-                ! This is slightly convoluted.  I will only increment if isadded(i) = .true. which means we should not accidentally
-                ! pass an unadded cell.  This means we don't have to start at i=1 each time we cycle the outer loop.
-                i = i + 1
-            end do
+        allocate(wcounter(0:nweights)) ! Zero index!!! becuse theoretically we could have a weight of 0
+        wcounter = 0
+        allocate(psorted( 0:nweights+1))
+        do icell = 1,ncells
+            wi = w(icell)
+            wcounter(wi) = wcounter(wi) + 1
+        end do
 
-            ! i is now our start vertex
-            ! Travel along nodes until we find a local maximum of w.
-            wmax = -1
-            ni = i
-            nn = -1
-            do while (ni /= nn)
-                nloop1 : do j = R(ni),R(ni+1)-1
-                    cj = C(j)
-                    if (isadded(cj)) cycle nloop1
-                    if (w(cj) > wmax) then
-                        wmax = w(cj)
-                        nn = cj
-                    endif
-                end do nloop1
-            end do
+        psorted(0) = 1
+        do i = 0,nweights
+            psorted(i+1) = psorted(i) + wcounter(i)
+            wcounter(i)  = 0 
+        end do
 
-            ! Now ni represents a local maxima
-            ! assign it to {C}
-            CF(ni) = RS_C
-            nC = nC + 1
-            isadded(ni) = .true.
-            nadded = nadded + 1
-            
-            ! Assign all the unassigned neighbors to {F}
-            nloop2 : do j = R(ni),R(ni+1)-1
+        do icell = 1,ncells
+            wi = w(icell)
+            vi = psorted(wi) + wcounter(wi)
+            sorted_to_w(vi)    = icell
+            w_to_sorted(icell) = vi
+            wcounter(wi) = wcounter(wi) + 1
+        end do
+
+        max_loop : do i = nweights,1,-1
+            ! Pick out the cell with the max weight
+            wi = sorted_to_w(i)
+            if (CF(wi) /= 0) cycle max_loop ! already assigned
+            CF(wi) = RS_C
+            nloop1 : do j = R(wi),R(wi+1)-1
                 cj = C(j)
-                if (isadded(cj)) cycle nloop2
+                if (CF(cj) /= 0) cycle nloop1
+                CF(cj) = RS_Fnew
+            end do nloop1
+            ! Increment the weight on the surrounding cells
+            nloopj : do j = R(wi),R(wi+1)-1
+                cj = C(j)
+                if (CF(cj) /= RS_Fnew) cycle nloopj
                 CF(cj) = RS_F
-                isadded(cj) = .true.
-                nadded = nadded + 1
-                ! Increment weight of neighbors to nodes in {F_new}
-                nk_loop : do k = R(cj),R(cj+1)-1
-                    ! technically this could increment the weight of cells that are about to be added, but once they're added their
-                    ! weight doesn't matter and creating a seperate vector of neighbors seems more expensive.
+                nloopk : do k = R(cj),R(cj+1)-1
                     ck = C(k)
-                    if (isadded(ck)) cycle nk_loop
+                    if (CF(ck) /= 0) cycle nloopk
                     w(ck) = w(ck) + 1
-                end do nk_loop 
-            enddo nloop2
-        end do fp_rs
+                    
+                    ! Swap places with the last variable w/ w(ck)'s old weight
+                    cur_pos = w_to_sorted(ck) ! current sort index of ck
+                    psorted(w(ck)) = min(i-1,psorted(w(ck)) - 1) ! decrease the start index by one
+                    end_pos = psorted(w(ck))   ! sort index that ck is moving to, must be less than i to be visited
+                    endwi = sorted_to_w(end_pos) ! weight index that is moving to cur_pos
+                    ! swap w pointers
+                    w_to_sorted(ck)    = end_pos
+                    w_to_sorted(endwi) = cur_pos
+                    ! swap sorting pointers
+                    tmp = sorted_to_w(cur_pos)
+                    sorted_to_w(cur_pos) = sorted_to_w(end_pos)
+                    sorted_to_w(end_pos) = tmp
+                end do nloopk
+            end do nloopj
+        end do max_loop
+
+        ! Ensure every cell is assigned
+        where (CF == 0) CF = 2
 
         ! 2nd Pass
         sp_rs : do i = 1,ncells
             if (CF(i) == RS_C) cycle sp_rs
             si => C(R(i):R(i+1)-1)
             si_loop : do j = 1,(R(i+1)-R(i))
-                cj = si(i)
+                cj = si(j)
                 if ( CF(cj) == RS_C ) cycle si_loop
                 sj => C(R(cj):R(cj+1)-1)
                 call set_intersect(si,sj,sintr,nintr)
                 if (nintr == 0) cycle si_loop
+                do k = 1,nintr
+                    if (CF(sintr(k)) == RS_C) cycle si_loop
+                end do
                 CF(cj) = RS_C
                 nC = nC + 1
                 if (associated(sintr)) deallocate(sintr)
             end do si_loop
         end do sp_rs
 
+        write(*,*)
     end subroutine rs_build_CF
 
-    subroutine rs_build_r(ncells,ngroups,CF,C,R,restrictC,restrictR,prolongR,prolongC)
+    subroutine rs_build_r(ncells,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
 
         implicit none
 
-        integer,               intent(in)           :: ncells, ngroups
-        integer, dimension(:), intent(in)           :: CF   
+        integer,               intent(in)           :: ncells, nc
+        integer, dimension(:), intent(in)           :: sorted_to_w
+        integer, dimension(:), intent(inout)        :: CF ! we will set CF back to unassigned to signal it's been added to P & R   
         integer, dimension(:), intent(in)           :: C
         integer, dimension(:), intent(in)           :: R
 
+        integer,                        intent(out) :: ngroups
         integer, dimension(:), pointer, intent(out) :: restrictR
         integer, dimension(:),          intent(out) :: prolongR
         integer, dimension(:),          intent(out) :: prolongC
         integer, dimension(:),          intent(out) :: restrictC
 
-        logical, dimension(ncells) :: added
-        integer :: igroup, ic, j
-        integer :: cj
+        integer, dimension(nc) :: tmprestrictR
+        integer :: i, j, k, l
+        integer :: ci, cj, ck, cl
         integer :: ccounter
         
         ! initialize some values
-        ic           = 1
-        allocate(restrictR(ngroups))
-        prolongR(:) = (/ (ic, ic=1,ncells+1)/) ! 1 value per row
-        restrictR(1) = 1
-        ccounter     = 1
-        added        = .false.
+        ccounter           = 1
+        prolongR(:)  = (/ (i, i=1,ncells+1)/) ! 1 value per row
+        tmprestrictR(1) = 1
+        ngroups      = 0
+        ! added        = .false.
 
-        do igroup = 1,ngroups
-            do while(CF(ic) == RS_F)
-                ic = ic + 1
-            end do
-
-            rloop : do j = R(ic),R(ic+1)-1
+        cloop : do i = ncells,1,-1
+            ! we're going to work backwards through the sorted weights max --> min
+            ci = sorted_to_w(i)
+            if ( CF(ci) /= RS_C ) cycle cloop
+            CF(ci) = RS_U
+            ngroups = ngroups + 1
+            floop1 : do j = R(ci),R(ci+1)-1
                 cj = C(j)
-                if (added(cj)) cycle rloop
-                if (cj == ic) then
+                if (CF(cj) == RS_U) then ! already added
+                    cycle floop1
+                elseif (CF(cj) == RS_F) then
                     restrictC(ccounter) = cj
-                    prolongC(ccounter)  = igroup
-                    added(cj) = .true.
+                    prolongC( ccounter) = ngroups
+                    CF(cj) = RS_Fnew * STRONG_AGGLOM_INT
                     ccounter = ccounter + 1
-                elseif (CF(cj) == RS_C) then
-                    cycle rloop
-                else ! CF == RS_F
+                elseif (cj == ci) then
                     restrictC(ccounter) = cj
-                    prolongC(ccounter)  = igroup
-                    added(cj) = .true.
+                    prolongC( ccounter) = ngroups
+                    CF(cj) = RS_U
                     ccounter = ccounter + 1
-                endif
-            end do rloop
+                end if
+            end do floop1
+            if (STRONG_AGGLOM) cycle cloop
+            ! With agressive (strong) coarsening we add 2nd face neighbors
+            floop2 : do j = R(ci),R(ci+1)-1
+                cj = C(j)
+                if (CF(cj) /= RS_Fnew) cycle floop2
+                CF(cj) = RS_U
+                f2loop : do k = R(cj),R(cj+1)-1 ! loop 2nd face neighbors
+                    ck = C(k)
+                    ! If a C cell is a 2nd face nghbr to ci we will add it to the agglomeration
+                    if ( CF(ck) /= RS_C) cycle f2loop
+                    floop3 : do l = R(ck),R(ck+1)-1
+                        cl = C(l)
+                        if (CF(cl) == RS_F) then
+                            restrictC(ccounter) = cl
+                            prolongC( ccounter) = ngroups
+                            CF(cl) = RS_U
+                            ccounter = ccounter + 1
+                        elseif (cl == ck) then
+                            restrictC(ccounter) = cl
+                            prolongC( ccounter) = ngroups
+                            CF(cl) = RS_U
+                            ccounter = ccounter + 1
+                        end if
+                    end do floop3
+                end do f2loop
+            end do floop2
+        tmprestrictR(ngroups+1) = ccounter
+        end do cloop
 
-            restrictR((igroup+1)) = ccounter
+        allocate(restrictR(ngroups+1))
+        restrictR(:) = tmprestrictR(1:ngroups+1)
+
+
+        !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+        STOP
+        !@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+
+
+        ! do igroup = 1,ngroups
+        !     do while(CF(ic) == RS_F)
+        !         ic = ic + 1
+        !     end do
+
+        !     rloop : do j = R(ic),R(ic+1)-1
+        !         cj = C(j)
+        !         if (added(cj)) cycle rloop
+        !         if (cj == ic) then
+        !             restrictC(ccounter) = cj
+        !             prolongC(ccounter)  = igroup
+        !             added(cj) = .true.
+        !             ccounter = ccounter + 1
+        !         elseif (CF(cj) == RS_C) then
+        !             cycle rloop
+        !         else ! CF == RS_F
+        !             restrictC(ccounter) = cj
+        !             prolongC(ccounter)  = igroup
+        !             added(cj) = .true.
+        !             ccounter = ccounter + 1
+        !         endif
+        !     end do rloop
+
+        !     restrictR((igroup+1)) = ccounter
             
-
-        end do
+        !     ic = ic + 1
+        ! end do
 
 
 

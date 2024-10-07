@@ -145,8 +145,10 @@ module linear_solver
 
         use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
 
-        use algebraic_multigird , only : algebraic_multigrid_prolong, algebraic_multigrid_restrict, UP, DOWN, convert_amg_c_to_i, &
-                                         AMG_F, AMG_W, AMG_V
+        use algebraic_multigird , only : algebraic_multigrid_prolong, UP, DOWN, convert_amg_c_to_i, & !,algebraic_multigrid_restrict
+                                         AMG_F, AMG_W, AMG_V, amg_restric_rs
+
+        use ruge_stuben , only : rs_agglom
 
         implicit none
         
@@ -217,8 +219,11 @@ module linear_solver
         ! Restrict system
         if (use_amg .and. level < max_amg_levels .and. ncells > min_amg_blcoks) then
             ! Restrict the current linear system
-            call algebraic_multigrid_restrict(ncells,num_eq,correction,V,C,R,nnz,res,level, & ! input
-                                            ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,restricted_res) ! output
+            ! call algebraic_multigrid_restrict(ncells,num_eq,correction,V,C,R,nnz,res,level, & ! input
+            !                                 ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,restricted_res) ! output
+            
+            call amg_restric_rs(ncells,num_eq,correction,V,C,R,nnz,res,level, & ! input
+                                             ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,restricted_res) ! output
             
             ! prepare the restricted correction
             allocate(restricted_correction(num_eq,ngroup))

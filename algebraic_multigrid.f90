@@ -175,7 +175,7 @@ module algebraic_multigird
         end do
         
         if (idestat/=0) then
-            write(*,*) " Error in inverting the diagonal block... Stop"
+            write(*,*) "  Error in inverting the diagonal block... Stop"
             write(*,*) "  Group number = ", i
             write(*,*) "  Level        = ", level
             stop
@@ -267,7 +267,7 @@ module algebraic_multigird
         
         nullify(RestrictR)
 
-        call rs_agglom(ncells, C, R, RestrictR, RestrictC, ProlongR, prolongC)
+        call rs_agglom(ncells, C, R, ngroup, RestrictR, RestrictC, ProlongR, prolongC)
 
         ! Create coarse level operetor A^H = RAP
         allocate(RAP_R(ngroup + 1))
@@ -279,16 +279,17 @@ module algebraic_multigird
             do j = RAP_R(gi),(RAP_R(gi+1)-1)
                 if (RAP_C(j) == gi) then ! diag
                     call gewp_solve(RAP_V(:,:,j),5, RAP_Dinv(:,:,gi),idestat)
+                    if (idestat/=0) then
+                        write(*,*) " amg_restrict_rs: Error in inverting the diagonal block... Stop"
+                        write(*,*) "  Group number = ", i
+                        write(*,*) "  Level        = ", level
+                        stop
+                    endif
                 end if
             end do
         end do
         
-        if (idestat/=0) then
-            write(*,*) " Error in inverting the diagonal block... Stop"
-            write(*,*) "  Group number = ", i
-            write(*,*) "  Level        = ", level
-            stop
-        endif
+        
 
         ! Calculate and restrict the defect d = A*phi + b
         call compute_defect(ncells,nq,V,C,R,phi,res,defect)
