@@ -267,7 +267,7 @@ module algebraic_multigird
         
         nullify(RestrictR)
 
-        call rs_agglom(ncells, C, R, ngroup, RestrictR, RestrictC, ProlongR, prolongC)
+        call rs_agglom(ncells, level, C, R, ngroup, RestrictR, RestrictC, ProlongR, prolongC)
 
         ! Create coarse level operetor A^H = RAP
         allocate(RAP_R(ngroup + 1))
@@ -281,7 +281,7 @@ module algebraic_multigird
                     call gewp_solve(RAP_V(:,:,j),5, RAP_Dinv(:,:,gi),idestat)
                     if (idestat/=0) then
                         write(*,*) " amg_restrict_rs: Error in inverting the diagonal block... Stop"
-                        write(*,*) "  Group number = ", i
+                        write(*,*) "  Group number = ", gi
                         write(*,*) "  Level        = ", level
                         stop
                     endif

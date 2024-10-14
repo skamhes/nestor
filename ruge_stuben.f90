@@ -46,7 +46,7 @@ module ruge_stuben
 
         call rs_build_CF(ncells,C,R,w,CF,nc,sorted_to_w)
 
-        call rs_build_r_p1(ncells,strong_agglom,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
+        call rs_build_r_p2(ncells,strong_agglom,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
 
     end subroutine rs_agglom
 
@@ -149,7 +149,7 @@ module ruge_stuben
             wcounter(wi) = wcounter(wi) + 1
         end do
 
-        max_loop : do i = nweights,1,-1
+        max_loop : do i = ncells,1,-1
             ! Pick out the cell with the max weight
             wi = sorted_to_w(i)
             if (CF(wi) /= 0) cycle max_loop ! already assigned
@@ -256,12 +256,12 @@ module ruge_stuben
                     cycle floop1
                 elseif (CF(cj) == RS_F) then
                     restrictC(ccounter) = cj
-                    prolongC( ccounter) = ngroups
+                    prolongC(       cj) = ngroups
                     CF(cj) = RS_Fnew * strong_agglom_int
                     ccounter = ccounter + 1
                 elseif (cj == ci) then
                     restrictC(ccounter) = cj
-                    prolongC( ccounter) = ngroups
+                    prolongC(       cj) = ngroups
                     CF(cj) = RS_U
                     ccounter = ccounter + 1
                 end if
@@ -283,12 +283,12 @@ module ruge_stuben
                         cl = C(l)
                         if (CF(cl) == RS_F) then
                             restrictC(ccounter) = cl
-                            prolongC( ccounter) = ngroups
+                            prolongC(       cl) = ngroups
                             CF(cl) = RS_U
                             ccounter = ccounter + 1
                         elseif (cl == ck) then
                             restrictC(ccounter) = cl
-                            prolongC( ccounter) = ngroups
+                            prolongC(       cl) = ngroups
                             CF(cl) = RS_U
                             ccounter = ccounter + 1
                         end if
@@ -355,12 +355,12 @@ module ruge_stuben
                     cycle floop1
                 elseif (CF(cj) == RS_F) then
                     restrictC(ccounter) = cj
-                    prolongC( ccounter) = ngroups
+                    prolongC(       cj) = ngroups
                     CF(cj) = RS_Fnew * strong_agglom_int
                     ccounter = ccounter + 1
                 elseif (cj == ci) then
                     restrictC(ccounter) = cj
-                    prolongC( ccounter) = ngroups
+                    prolongC(       cj) = ngroups
                     CF(cj) = RS_U
                     ccounter = ccounter + 1
                 end if
@@ -377,17 +377,22 @@ module ruge_stuben
                 f2loop : do k = R(cj),R(cj+1)-1 ! loop 2nd face neighbors
                     ck = C(k)
                     ! If a C cell is a 2nd face nghbr to ci we will add it to the agglomeration
-                    if ( CF(ck) /= RS_C .AND. CF(ci) >=0 ) cycle f2loop
+                    if ( CF(ck) /= RS_C .AND. CF(ck) >=0 ) cycle f2loop
+                    if ( CF(ck) == RS_C .or. CF(ck) /= -ci ) then ! p = 1
+                        CF(ck) = -ci
+                        cycle f2loop
+                    endif
+                    ! if we make it here p>=2
                     floop3 : do l = R(ck),R(ck+1)-1
                         cl = C(l)
                         if (CF(cl) == RS_F) then
                             restrictC(ccounter) = cl
-                            prolongC( ccounter) = ngroups
+                            prolongC(       cl) = ngroups
                             CF(cl) = RS_U
                             ccounter = ccounter + 1
                         elseif (cl == ck) then
                             restrictC(ccounter) = cl
-                            prolongC( ccounter) = ngroups
+                            prolongC(       cl) = ngroups
                             CF(cl) = RS_U
                             ccounter = ccounter + 1
                         end if
