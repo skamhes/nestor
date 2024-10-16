@@ -30,9 +30,9 @@ module ruge_stuben
         integer, dimension(:), intent(in)       :: R
 
         integer, dimension(:), pointer, intent(out)  :: restrictR
-        integer, dimension(:),          intent(out)  :: restrictC
-        integer, dimension(:),          intent(out)  :: prolongR
-        integer, dimension(:),          intent(out)  :: prolongC
+        integer, dimension(:), pointer, intent(out)  :: restrictC
+        integer, dimension(:), pointer, intent(out)  :: prolongR
+        integer, dimension(:), pointer, intent(out)  :: prolongC
         integer,                        intent(out)  :: ngroups
 
         integer, dimension(ncells)      :: w, CF
@@ -324,9 +324,9 @@ module ruge_stuben
 
         integer,                        intent(out) :: ngroups
         integer, dimension(:), pointer, intent(out) :: restrictR
-        integer, dimension(:),          intent(out) :: prolongR
-        integer, dimension(:),          intent(out) :: prolongC
-        integer, dimension(:),          intent(out) :: restrictC
+        integer, dimension(:), pointer, intent(out) :: prolongR
+        integer, dimension(:), pointer, intent(out) :: prolongC
+        integer, dimension(:), pointer, intent(out) :: restrictC
 
         integer, dimension(nc+1) :: tmprestrictR
         integer :: i, j, k, l
@@ -339,6 +339,9 @@ module ruge_stuben
         strong_agglom_int = 0
         if (strong_agglom) strong_agglom_int = 1
         ccounter           = 1
+        allocate(prolongR(ncells+1))
+        allocate(prolongC( ncells ))
+        allocate(restrictC(ncells ))
         prolongR(:)  = (/ (i, i=1,ncells+1)/) ! 1 value per row
         tmprestrictR(1) = 1
         ngroups      = 0

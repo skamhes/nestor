@@ -49,15 +49,16 @@ module linear_solver
         real(p2), dimension(:,:,:), pointer :: V   ! Values (5x5 block matrix) plus corresponding index
         integer , dimension(:),     pointer :: C   ! Column index of each value
         integer , dimension(:),     pointer :: R   ! Start index of each new row
-        integer                                 :: nnz
-        real(p2), dimension(5,5,ncells)             :: Dinv
+        integer                             :: nnz
+        real(p2), dimension(:,:,:), pointer :: Dinv
 
         integer                     :: os
         integer                     :: level
         integer                     :: cycle_type
 
         allocate(R(ncells+1))
-        
+        allocate(Dinv(5,5,ncells))
+
         call build_A_BCSM(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
 
         call build_Dinv_array(ncells,num_eq,jacobian_block,Dinv)
@@ -338,8 +339,8 @@ module linear_solver
         type(cc_data_type), dimension(ncells), intent(in) :: cell
         type(jacobian_type), dimension(ncells), intent(in) :: jac
 
-        real(p2), dimension(:,:,:), allocatable, intent(out)  :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer, dimension(:),  allocatable, intent(out)       :: C   ! Column index of each value
+        real(p2), dimension(:,:,:), pointer, intent(out)  :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer, dimension(:),  pointer, intent(out)       :: C   ! Column index of each value
         integer,dimension(ncells+1), intent(out) :: R   ! Start index of each new row
         integer, INTENT(OUT), optional :: nnz
 

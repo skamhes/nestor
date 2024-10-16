@@ -269,6 +269,7 @@ module algebraic_multigird
         integer,                                intent(out) :: nnz_restrict
         ! integer,  dimension(:),                 intent(out) :: prolongC
         type(amg_level_type), pointer,          intent(out) :: coarse_level
+        
         real(p2), dimension(:,:), pointer,      intent(out) :: defect_res ! R(A*phi + b)
 
         ! Local Vars
@@ -291,14 +292,16 @@ module algebraic_multigird
                             coarse_level%RestrictR, coarse_level%RestrictC, coarse_level%ProlongR, coarse_level%prolongC)
 
             coarse_level%ncells = fine_level%ngroup
-            
+
             ! Create coarse level operetor A^H = RAP
-            allocate(coarse_level%R(coarse_level%ncells))
+            allocate(coarse_level%R(coarse_level%ncells + 1))
             call R_A_P(fine_level%ncells,fine_level%ngroup,nq,nnz, &
                         coarse_level%RestrictC,coarse_level%RestrictR,coarse_level%ProlongC,coarse_level%ProlongR,&
                         fine_level%V,fine_level%C,fine_level%R,&
                         coarse_level%V,coarse_level%C,coarse_level%R,nnz_restrict)
         
+
+            
             ! Create inverse block matrix of RAP diagonal terms
             allocate(coarse_level%Dinv(5,5,coarse_level%ncells))
             do gi = 1,coarse_level%ncells
@@ -532,21 +535,24 @@ module algebraic_multigird
 
         implicit none
 
-        type(amg_level_type), intent(out) :: amg_struct
+        type(amg_level_type), intent(inout) :: amg_struct
 
-        if associated(amg_struct%restrictC) deallocate(amg_struct%restrictC)
-        if associated(amg_struct%restrictR) deallocate(amg_struct%restrictR)
-        if associated(amg_struct%prolongC) deallocate(amg_struct%prolongC)
-        if associated(amg_struct%prolongR) deallocate(amg_struct%prolongR)
-        if associated(amg_struct%V) deallocate(V)
-        if associated(amg_struct%R) deallocate(R)
-        if associated(amg_struct%C) deallocate(C)
-        if associated(amg_struct%Dinv) deallocate(Dinv)
-        if associated(amg_struct%fine) nullify(amg_struct%fine)
+        if ( associated(amg_struct%restrictC) ) deallocate(amg_struct%restrictC)
+        if ( associated(amg_struct%restrictR) ) deallocate(amg_struct%restrictR)
+        if ( associated(amg_struct%prolongC) ) deallocate(amg_struct%prolongC)
+        if ( associated(amg_struct%prolongR) ) deallocate(amg_struct%prolongR)
+        if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
+        if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
+        if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
+        if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
+        if ( associated(amg_struct%fine) ) nullify(amg_struct%fine)
 
-        if associated(amg_struct%coarse) call amg_destroy(amg_struct%coarse)
+        if ( associated(amg_struct%coarse) ) then
+            call amg_destroy(amg_struct%coarse)
+            deallocate(amg_struct%coarse)
+        endif
 
-        if allocated(amg_struct) deallocate(amg_struct)
+        
 
 
     end subroutine amg_destroy
