@@ -275,13 +275,15 @@ module algebraic_multigird
         ! Local Vars
         integer                                 :: i, j, gi
         integer                                 :: idestat
+        logical                                 :: isassoc
         real(p2), dimension(nq,fine_level%ncells)          :: defect ! defect used in RHS for AMG
         ! integer, dimension(ncells)              :: RestrictC ! ProlongC defined above
         ! integer, dimension(ncells + 1)          :: ProlongR ! Restrict array is longer than needed but this proves fine.
         ! integer, dimension(:), pointer          :: RestrictR
 
         ! if this is the first amg_cycle we need to build all of the agglom functions
-        if (.not.associated(fine_level%coarse)) then
+        isassoc = .not.associated(fine_level%coarse)
+        if (isassoc) then
             ! Each level points to the next coarse/fine level
             allocate(fine_level%coarse)
             coarse_level => fine_level%coarse
@@ -317,7 +319,8 @@ module algebraic_multigird
                     end if
                 end do
             end do
-    
+        else
+            coarse_level => fine_level%coarse
         endif   
         
 
