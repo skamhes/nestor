@@ -415,7 +415,7 @@ module steady_solver
 
         use solution            , only : q, res, solution_update, nq, jac
 
-        use linear_solver       , only : linear_relaxation
+        use linear_solver       , only : linear_relaxation_block
 
         implicit none
         integer         :: i
@@ -425,7 +425,8 @@ module steady_solver
         call compute_jacobian
 
         ! next compute the correction by relaxing the linear system
-        call linear_relaxation(nq, jac, res, solution_update)
+        ! It turns out calling a generic interface with an assumed shape derived data type causes issues with fortran.  Interesting.
+        call linear_relaxation_block(nq, jac, res, solution_update)
 
         loop_cells : do i = 1,ncells
             omegan = safety_factor_primative(q(:,i),solution_update(:,i))

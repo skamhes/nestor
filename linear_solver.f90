@@ -40,11 +40,11 @@ module linear_solver
 
         implicit none
 
-        integer,                                intent( in) :: num_eq
-        type(jacobian_type), dimension(ncells), intent( in) :: jacobian_block
-        real(p2), dimension(   num_eq, ncells), intent( in) :: residual
-
-        real(p2), dimension(   num_eq, ncells), intent(out) :: correction
+        integer,                             intent( in) :: num_eq
+        type(jacobian_type), dimension(:),   intent( in) :: jacobian_block
+        real(p2),            dimension(:,:), intent( in) :: residual
+                 
+        real(p2),            dimension(:,:), intent(out) :: correction
 
         real(p2), dimension(:,:,:), pointer :: V   ! Values (5x5 block matrix) plus corresponding index
         integer , dimension(:),     pointer :: C   ! Column index of each value
@@ -61,17 +61,17 @@ module linear_solver
 
         call build_A_BCSM(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
 
-        call build_Dinv_array(ncells,num_eq,jacobian_block,Dinv)
+        call build_Dinv_array(ncells,jacobian_block,Dinv)
 
         cycle_type = convert_amg_c_to_i(amg_cycle)
 
         level = 1
 
-        call multilevel_cycle(ncells,num_eq,nnz,V,C,R,residual,Dinv,cycle_type,level,correction,os)
+        call multilevel_cycle(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,level,correction,os)
 
     end subroutine linear_relaxation_block
 
-    subroutine multilevel_cycle(ncells,num_eq,nnz,V,C,R,res,Dinv,cycle_type,level,correction,stat)
+    subroutine multilevel_cycle(ncells,num_eq,V,C,R,res,Dinv,cycle_type,keep_A,level,correction,stat)
 
         use common          , only : p2, zero
 
@@ -83,19 +83,19 @@ module linear_solver
 
         implicit none
         
-        integer, intent(in)                                 :: ncells
-        integer, intent(in)                                 :: num_eq
-        integer, intent(in)                                 :: nnz
-        real(p2), dimension(:,:,:), target, intent(in)  :: V    ! Values of A
-        integer , dimension(:), target           , intent(in)     :: C    ! Column index of A
-        integer , dimension(:), target, intent(in)           :: R    ! Start index of A
-        real(p2), dimension(:,:), intent(in)      :: res  ! RHS (= -b)
-        real(p2), dimension(:,:,:), target,intent(in):: Dinv ! Inverse of A(i,i)
-        integer, intent(inout)                              :: level
-        integer, intent(in)                                 :: cycle_type
+        integer,                            intent(in)      :: ncells
+        integer,                            intent(in)      :: num_eq
+        real(p2), dimension(:,:,:), target, intent(in)      :: V    ! Values of A
+        integer , dimension(:),     target, intent(in)      :: C    ! Column index of A
+        integer , dimension(:),     target, intent(in)      :: R    ! Start index of A
+        real(p2), dimension(:,:),           intent(in)      :: res  ! RHS (= -b)
+        real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
+        integer,                            intent(inout)   :: level
+        integer,                            intent(in)      :: cycle_type
+        logical,                            intent(in)      :: keep_A
         
-        real(p2), dimension(num_eq,ncells), intent(out)          :: correction
-        integer,                       intent(out)          :: stat ! Return 
+        real(p2), dimension(:,:),           intent(out)     :: correction
+        integer,                            intent(out)     :: stat ! Return 
 
         type(amg_level_type) :: base_level
 
@@ -118,7 +118,7 @@ module linear_solver
 
         amg_cycles : do icycle = 1,max_amg_cycles
 
-            call linear_sweeps(num_eq,nnz,base_level,res,cycle_type,level,correction,linear_res_norm,stat)
+            call linear_sweeps(num_eq,base_level,res,cycle_type,level,correction,linear_res_norm,stat)
             
             ! Check for convergence
             roc = maxval(linear_res_norm(1:5)/linear_res_norm_init(1:5))
@@ -143,11 +143,17 @@ module linear_solver
         lrelax_roc = roc
 
         ! Destroy the amg levels
+        if (keep_A) then
+            if ( associated(base_level%V) )     nullify(base_level%V)
+            if ( associated(base_level%R) )     nullify(base_level%R)
+            if ( associated(base_level%C) )     nullify(base_level%C)
+            if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
+        endif
         call amg_destroy(base_level)
 
     end subroutine multilevel_cycle
 
-    recursive subroutine linear_sweeps(num_eq,nnz,solve_level,res,cycle_type,level,correction,l1_res_norm,stat)
+    recursive subroutine linear_sweeps(num_eq,solve_level,res,cycle_type,level,correction,l1_res_norm,stat)
 
         use common          , only : p2, zero, one, half, two, my_eps
 
@@ -166,22 +172,21 @@ module linear_solver
         implicit none
         
         ! integer, intent(in)                                 :: ncells
-        integer, intent(in)                                 :: num_eq
-        integer, intent(in)                                 :: nnz
-        type(amg_level_type), intent(inout), target         :: solve_level
-        real(p2), dimension(:,:), intent(in)                :: res  ! RHS (= -b)
-        integer, intent(in)                                 :: level
-        integer, intent(in)                                 :: cycle_type
+        integer,                        intent(in)      :: num_eq
+        type(amg_level_type), target,   intent(inout)   :: solve_level
+        real(p2), dimension(:,:),       intent(in)      :: res  ! RHS (= -b)
+        integer,                        intent(in)      :: level
+        integer,                        intent(in)      :: cycle_type
         
-        real(p2), dimension(:,:), intent(inout)             :: correction
+        real(p2), dimension(:,:),       intent(inout)   :: correction
 
-        integer,                       intent(out)          :: stat ! Return 
-        real(p2), dimension(:) , intent(out)                :: l1_res_norm
+        integer,                        intent(out)     :: stat ! Return 
+        real(p2), dimension(:) ,        intent(out)     :: l1_res_norm
 
         ! Residual norms(L1,L2,Linf)
-        real(p2), dimension(num_eq)    :: linear_res_norm, linear_res_norm_init
+        real(p2), dimension(num_eq)    :: linear_res_norm
 
-        integer                     :: icell, isweep
+        integer                     :: isweep
 
         ! Under-relaxation parameter
         real(p2) :: omega_lrelax
@@ -189,29 +194,17 @@ module linear_solver
         type(amg_level_type), pointer :: coarse_level
 
         ! Variables to be computed by restricted multigrid
-        ! integer                             :: ngroup           ! Number of groups in level n + 1
         integer                             :: nnz_restrict     ! number of non-zero entries in restricted matrix
-        ! integer,  dimension(ncells)         :: prolongC         ! Column ind. of prolongation matrix. Needed to prolong correction
-        ! real(p2), dimension(:,:,:), pointer :: RAP_V            ! Values of restricted matrix RAP
-        ! integer,  dimension(:),     pointer :: RAP_C            ! Column indices of RAP
-        ! integer,  dimension(:),     pointer :: RAP_R            ! Row indices of RAP (length = ngroups + 1)
-        ! real(p2), dimension(:,:,:), pointer :: RAP_Dinv         ! Inverse of RAP diagonal blocks (dim = nq x nq x ngroups)
         real(p2), dimension(:,:),   pointer :: restricted_res   ! R*(A*x + b), dimension (nq x ngroups)
         real(p2), dimension(:,:),   pointer :: restricted_correction ! Correction of the restricted linear system 
 
         ! Ensure the RAP pointers are not in an undefined state:
-        ! nullify(RAP_V)
-        ! nullify(RAP_C)
-        ! nullify(RAP_R)
-        ! nullify(RAP_Dinv)
         nullify(restricted_correction)
         nullify(restricted_res)
 
         ! Initialize some variables
         omega_lrelax         = one
 
-        ! write(*,*) "level: ", level
-        
         pre_sweeps  = max(0,pre_sweeps) ! I use the sweeps to calculate the residual norm
         post_sweeps = max(1,pre_sweeps + post_sweeps) ! we need at least one total sweep
 
@@ -232,11 +225,7 @@ module linear_solver
         ! Restrict system
         if (use_amg .and. level < max_amg_levels .and. solve_level%ncells > min_amg_blcoks) then
             ! Restrict the current linear system
-            ! call algebraic_multigrid_restrict(ncells,num_eq,correction,V,C,R,nnz,res,level, & ! input
-            !                                 ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,restricted_res) ! output
-
-                
-            call amg_restric_rs(num_eq,correction,solve_level,nnz,res,level, & ! input
+            call amg_restric_rs(num_eq,correction,solve_level,res,level, & ! input
                                             nnz_restrict,coarse_level,restricted_res) ! output
             
             ! prepare the restricted correction
@@ -245,21 +234,21 @@ module linear_solver
             ! Initialize the restricted correction
             restricted_correction = zero 
 
-            ! Recursively call the linear solver
-            call linear_sweeps(num_eq,nnz_restrict,coarse_level,restricted_res,cycle_type,level + 1,& ! input
+            ! Recursively call the linear solver on the restricted system
+            call linear_sweeps(num_eq,coarse_level,restricted_res,cycle_type,level + 1,& ! input
                             restricted_correction, & ! inout
                             linear_res_norm,stat)    ! Output
             
-            ! For the F and V cycles, recursively call the AMG solver again.
+            ! For the F and W cycles, recursively call the AMG solver again.
             select case(cycle_type)
             case(AMG_F)
-                    ! Recursively call the linear solver
-                call linear_sweeps(num_eq,nnz_restrict,coarse_level,restricted_res,AMG_V,level + 1, & ! input
+                ! Recursively call the linear solver
+                call linear_sweeps(num_eq,coarse_level,restricted_res,AMG_V,level + 1, & ! input
                                     restricted_correction, & ! inout
                                     linear_res_norm,stat) ! Output
             case(AMG_W)
-                    ! Recursively call the linear solver
-                call linear_sweeps(num_eq,nnz_restrict,coarse_level,restricted_res,cycle_type,level + 1,&!input
+                ! Recursively call the linear solver
+                call linear_sweeps(num_eq,coarse_level,restricted_res,cycle_type,level + 1,&!input
                                 restricted_correction,& ! inout
                                 linear_res_norm,stat) ! Output
             end select
@@ -283,22 +272,15 @@ module linear_solver
 
         end do post_sweep_loop
         
-
         ! Make sure all of the allocated arrays are deallocated
-        ! if (associated(RAP_V))                  deallocate(RAP_V)
-        ! if (associated(RAP_C))                  deallocate(RAP_C)
-        ! if (associated(RAP_R))                  deallocate(RAP_R)
-        ! if (associated(RAP_Dinv))               deallocate(RAP_Dinv)
         if (associated(restricted_correction))  deallocate(restricted_correction)
         if (associated(restricted_res))         deallocate(restricted_res)
 
         l1_res_norm = linear_res_norm
 
-        ! write(*,*) "level: ", level
-        ! write(*,*)
     end subroutine linear_sweeps
 
-    subroutine build_Dinv_array(ncells,nq,jac,D_inv)
+    subroutine build_Dinv_array(ncells,jac,D_inv)
         ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
         ! so the other two indices do not need to be stored.
         use common      , only : p2, zero
@@ -306,11 +288,10 @@ module linear_solver
         use solution    , only : jacobian_type
 
         implicit none
-        integer, intent(in) :: ncells
-        integer, intent(in) :: nq
-        type(jacobian_type), dimension(ncells), intent(in) :: jac
+        integer,                            intent(in) :: ncells
+        type(jacobian_type), dimension(:),  intent(in) :: jac
         
-        real(p2), dimension(nq,nq,ncells), INTENT(OUT) :: D_inv
+        real(p2), dimension(:,:,:),         INTENT(OUT) :: D_inv
         
 
         integer :: i
@@ -335,14 +316,14 @@ module linear_solver
 
         implicit none 
 
-        integer, intent(in) :: ncells
-        type(cc_data_type), dimension(ncells), intent(in) :: cell
-        type(jacobian_type), dimension(ncells), intent(in) :: jac
+        integer,                             intent(in) :: ncells
+        type(cc_data_type),  dimension(:),   intent(in) :: cell
+        type(jacobian_type), dimension(:),   intent(in) :: jac
 
-        real(p2), dimension(:,:,:), pointer, intent(out)  :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer, dimension(:),  pointer, intent(out)       :: C   ! Column index of each value
-        integer,dimension(ncells+1), intent(out) :: R   ! Start index of each new row
-        integer, INTENT(OUT), optional :: nnz
+        real(p2), dimension(:,:,:), pointer, intent(out) :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer,  dimension(:),     pointer, intent(out) :: C   ! Column index of each value
+        integer,  dimension(:),              intent(out) :: R   ! Start index of each new row
+        integer, optional,                   INTENT(OUT) :: nnz
 
         integer :: i, j, length
 
@@ -369,6 +350,7 @@ module linear_solver
                 end if
             end do
         end do
+
     end subroutine build_A_BCSM
 
 end module linear_solver
