@@ -146,6 +146,8 @@ module config
         
     subroutine read_nml_config(namelist_file)
 
+        use iso_fortran_env
+
         implicit none
 
         character(len=*), intent(in) :: namelist_file
@@ -186,12 +188,55 @@ module config
           endif
           read(unit=10,nml=project)
         endif
-        read(unit=10,nml=inputoutput)
-        read(unit=10,nml=freestream)
-        read(unit=10,nml=solver)
-        read(unit=10,nml=amg)
-        read(unit=10,nml=gradient)
-        read(unit=10,nml=turbulence)
+        
+        read(unit=10,nml=inputoutput,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO I/O SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING I/O SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=freestream,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO FREESTREAM SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING FREESTREAM SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=solver,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO SOLVER SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING SOLVER SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=amg,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO AMG SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING AMG SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=gradient,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO GRADIENT SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING GRADIENT SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=turbulence,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO TURBULENCE SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING TURBULENCE SETTINGS!!"
+        endif
+        rewind(10)
+
         
     
         write(*,*)
