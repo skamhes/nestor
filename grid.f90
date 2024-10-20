@@ -164,6 +164,7 @@ module grid
         !*
         !********************************************************************************
         use files , only : filename_grid, filename_bc
+        use config, only : io_path
         implicit none
 
         integer :: os
@@ -171,7 +172,7 @@ module grid
         !integer , dimension(100,8) ::   dummy_debug ! use to debug public variables
         write(*,*)
         write(*,*) "-------------------------------------------------------"
-        write(*,*) " Reading : ", trim(filename_grid)
+        write(*,*) " Reading : ", trim(io_path)//trim(filename_grid)
         write(*,*)
 
         !--------------------------------------------------------------------------------
@@ -179,7 +180,7 @@ module grid
         ! 1. Read the grid file.
 
         ! Open the input file.
-        open(unit=1, file=filename_grid, status="old", iostat=os)
+        open(unit=1, file=trim(io_path)//trim(filename_grid), status="old", iostat=os)
 
         if (os .NE. 0) then
             write(*,*)  "FILE ERROR: STOP!"
@@ -346,10 +347,10 @@ module grid
         write(*,*)
         write(*,*) "-------------------------------------------------------"
         write(*,*) " Reading the boundary condition file: ", &
-            trim(filename_bc)
+                    trim(io_path)//trim(filename_bc)
         write(*,*)
 
-        open(unit=2, file=filename_bc, status="unknown", iostat=os)
+        open(unit=2, file=trim(io_path)//trim(filename_bc), status="unknown", iostat=os)
         read(2,*) nb
         
         allocate(bc_type(nb))
@@ -368,8 +369,8 @@ module grid
         !--------------------------------------------------------------------------------
 
         write(*,*)
-        write(*,*) " Finished Reading : ", trim(filename_grid), " and ",&
-            trim(filename_bc)
+        write(*,*) " Finished Reading : ", trim(io_path)//trim(filename_grid), " and ",&
+                    trim(io_path)//trim(filename_bc)
         write(*,*) "-------------------------------------------------------"
         write(*,*)
     end subroutine read_grid
@@ -379,6 +380,7 @@ module grid
         ! If anyone from the su2 group happens to read this maybe don't.  I wrote this at 2am and spent the minimum effort in order
         ! to get it working.  You have been warned........ :)
         use files, only : filename_grid, filename_bc
+        use config,only : io_path
         implicit none
         
         integer :: os
@@ -404,7 +406,7 @@ module grid
         !integer , dimension(100,8) ::   dummy_debug ! use to debug public variables
         write(*,*)
         write(*,*) "-------------------------------------------------------"
-        write(*,*) " Reading : ", trim(filename_grid)
+        write(*,*) " Reading : ", trim(io_path)//trim(filename_grid)
         write(*,*)
 
         !--------------------------------------------------------------------------------
@@ -412,7 +414,7 @@ module grid
         ! 1. Read the grid file.
 
         ! Open the input file.
-        open(unit=1, file=filename_grid, status="unknown", iostat=os)
+        open(unit=1, file=trim(io_path)//trim(filename_grid), status="unknown", iostat=os)
           
         
         nnodes = 0
@@ -639,10 +641,10 @@ module grid
         write(*,*)
         write(*,*) "-------------------------------------------------------"
         write(*,*) " Reading the boundary condition file: ", &
-            trim(filename_bc)
+            trim(io_path)//trim(filename_bc)
         write(*,*)
 
-        open(unit=2, file=filename_bc, status="unknown", iostat=os)
+        open(unit=2, file=trim(io_path)//trim(filename_bc), status="unknown", iostat=os)
         read(2,*) nb
         
         allocate(bc_type(nb))
@@ -661,8 +663,8 @@ module grid
         !--------------------------------------------------------------------------------
 
         write(*,*)
-        write(*,*) " Finished Reading : ", trim(filename_grid), " and ",&
-            trim(filename_bc)
+        write(*,*) " Finished Reading : ", trim(io_path)//trim(filename_grid), " and ",&
+            trim(io_path)//trim(filename_bc)
         write(*,*) "-------------------------------------------------------"
         write(*,*)
     end subroutine read_su2

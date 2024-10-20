@@ -23,10 +23,14 @@ module bc_states
         select case(trim(bc_state_type))
             case('freestream')
                 call freestream(qcB)
+            case('symmetry')
+                ! Symmetry is treated the same as a slip wall numerically
+                ! We differentiate the two for force calculations
+                call slip_wall(qL,njk,qcB)
             case('slip_wall') ! Adiabatic
                 call slip_wall(qL,njk,qcB)
             case('no_slip_wall') ! Adiabatic
-                call slip_wall(qL,njk,qcB)
+                call no_slip_wall(qL,qcB)
             case('outflow_subsonic')
                 call back_pressure(qL,qcB)
             case default

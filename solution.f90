@@ -34,6 +34,11 @@ module solution
     real(p2)                            :: roc
 
     real(p2), dimension(:,:), pointer   :: solution_update
+
+    real(p2)                            :: force_drag
+    real(p2)                            :: force_lift
+    real(p2), dimension(3)              :: vector_drag
+    real(p2), dimension(3)              :: vector_lift
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.
@@ -88,13 +93,18 @@ module solution
     public :: jac
     type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
     
+    ! Force values
+    real(p2) :: force_normalization
+
     contains
 
     subroutine allocate_solution_vars
 
+        use common , only : p2, pi
+
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type
+        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip, turbulence_type
 
         implicit none
 
@@ -110,7 +120,7 @@ module solution
         dtau = zero
         wsn = zero
 
-        if ( accuracy_order > 1 ) then
+        if ( accuracy_order > 1 .OR. trim(turbulence_type) == 'laminar' ) then
             allocate( ccgradq(ndim,nq,ncells) )
             if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'w_vertex') then
                 allocate(  vgradq(ndim,nq,nnodes) )
@@ -121,6 +131,19 @@ module solution
         res = zero
 
         if ( trim(solver_type) == 'implicit') allocate(solution_update(nq,ncells))
+
+        if ( lift ) then 
+            ! These might even be correct :)
+            vector_lift(1) = -sin(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
+            vector_lift(2) = -sin(aoa*pi/180_p2)*sin(sideslip*pi/180_p2)
+            vector_lift(3) =  cos(aoa*pi/180_p2)
+        endif
+        if ( drag ) then
+            ! ditto:)
+            vector_drag(1) =  cos(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
+            vector_drag(2) =  cos(aoa*pi/180_p2)*sin(sideslip*pi/180_p2)
+            vector_drag(3) =  sin(aoa*pi/180_p2)
+        endif
 
     end subroutine allocate_solution_vars
 
@@ -198,13 +221,16 @@ module initialize
 
     subroutine set_initial_solution
 
-        use common , only : p2, one, pi
+        use common , only : p2, one, pi, two
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference, &
+                            high_ar_correction
 
         use solution
+
+        use grid_statists , only : init_ar_array, compute_aspect_ratio
 
         implicit none
 
@@ -231,6 +257,13 @@ module initialize
         end do cell_loop
         
         if (trim(solver_type) == 'implicit' ) call init_jacobian
+        
+        force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
+
+        if (high_ar_correction) then
+            call init_ar_array
+            call compute_aspect_ratio
+        endif
         
     end subroutine set_initial_solution
 

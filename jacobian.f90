@@ -15,13 +15,15 @@ module jacobian
 
         use common              , only : p2, zero, half, one
 
+        use config              , only : turbulence_type
+
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
                                          bound, nb, bc_type
 
         use solution            , only : q, gamma, gammamo, gmoinv, dtau, jac, &
-                                         kth_nghbr_of_1, kth_nghbr_of_2
+                                         kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq
 
         use interface_jacobian  , only : interface_jac
 
@@ -29,12 +31,14 @@ module jacobian
 
         use direct_solve        , only : gewp_solve
 
+        use ad_viscous_flux     , only : visc_flux_boundary_ddt, visc_flux_internal_ddt
+
         implicit none
         ! Local Vars
-        integer                     :: c1, c2, i, k, ib, idestat, j, os, ii,jj
+        integer                     :: c1, c2, i, k, ib, idestat, j, os, ii,jj, nk
         real(p2), dimension(3)      :: unit_face_nrml, bface_centroid, ds, d_Cb, ejk
         real(p2), dimension(5)      :: u1, u2, ub, wb, qb, q1
-        real(p2), dimension(3,5)    :: gradw1, gradw2, gradwb
+        real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
         real(p2)                    :: face_mag, mag_ds, mag_ejk
         real(p2)                    :: xc1,xc2,yc1,yc2,zc1,zc2
@@ -45,6 +49,8 @@ module jacobian
         real(p2)                    :: rho_p, rho_T, rho
         real(p2)                    :: H, alpha, beta, lambda, absu, UR2inv
 
+        integer                     :: face_sides
+
         ! Initialize jacobian terms
         do i = 1,ncells
             jac(i)%diag = zero
@@ -53,7 +59,7 @@ module jacobian
         end do
 
         ! Loop Faces
-        do i = 1,nfaces
+        loop_faces : do i = 1,nfaces
             c1 = face(1,i)
             c2 = face(2,i)
 
@@ -75,7 +81,28 @@ module jacobian
             k = kth_nghbr_of_2(i)
             jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
 
-        end do
+            if ( trim(turbulence_type) == 'inviscid' ) cycle loop_faces
+
+            gradq1 = ccgradq(1:3,1:5,c1)
+            gradq2 = ccgradq(1:3,1:5,c2)
+
+            call visc_flux_internal_ddt(q(:,c1),q(:,c2),gradq1,gradq2,unit_face_nrml, &
+                                               cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                               cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                                                                        dFnduL, dFnduR)
+            
+            jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
+            ! get neighbor index k for cell c1
+            k = kth_nghbr_of_1(i)
+            ! add to off diagonal neighbor k for cell c1
+            jac(c1)%off_diag(:,:,k) = jac(c1)%off_diag(:,:,k) + dFnduR * face_mag
+
+            ! Subtract terms from c2
+            jac(c2)%diag            = jac(c2)%diag            - dFnduR * face_mag
+            k = kth_nghbr_of_2(i)
+            jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
+
+        end do loop_faces
 
         bound_loop : do ib = 1,nb
             bfaces_loop : do i = 1,bound(ib)%nbfaces
@@ -94,6 +121,25 @@ module jacobian
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 
+                if ( trim(turbulence_type) == 'inviscid' ) cycle bfaces_loop
+
+                face_sides = bound(ib)%bfaces(1,i)
+
+                gradqb = zero
+                do k = 1,face_sides
+                    nk = bound(ib)%bfaces(k + 1,i)
+                    gradqb = gradqb + vgradq(:,:,nk)
+                end do
+                gradqb = gradqb / real(face_sides, p2)
+
+                call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
+                                  cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                  bface_centroid(1),bface_centroid(2),bface_centroid(3), &
+                                                           dFnduL, dFnduR)
+
+                ! We only have a diagonal term to add
+                jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
+                
             end do bfaces_loop
         
         end do bound_loop
@@ -115,11 +161,7 @@ module jacobian
             preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
             preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
 
-            do ii = 1,5
-                do jj = 1,5
-                    jac(i)%diag(ii,jj) = jac(i)%diag(ii,jj) + (cell(i)%vol/dtau(i))*preconditioner(ii,jj)
-                end do
-            end do
+            jac(i)%diag(:,:) = jac(i)%diag(:,:) + (cell(i)%vol/dtau(i))*preconditioner(:,:)
 
             ! Invert the diagonal
             idestat = 0

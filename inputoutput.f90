@@ -24,7 +24,7 @@ module inout
 
         use solution        , only : q, nq, gamma
 
-        use config          , only : project_name
+        use config          , only : project_name, io_path
 
         use lowlevel        , only : my_alloc_int_ptr
 
@@ -73,8 +73,6 @@ module inout
         do j = 1,nnodes
             qn(:,j) = qn(:,j) / nc(j) ! copmute an average
             Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2)  ! mach number (wrt free stream a)
-            an    = sqrt(gamma*qn(5,j)/qn(1,j))                 ! local speed of sound
-            Mn(j) = Mn(j) / an                                  ! local mach number
             ! rho    = p      * gamma / T
             rhon(j) = qn(1,j) * gamma / qn(5,j)
         end do
@@ -117,11 +115,11 @@ module inout
 
         write(*,*)
         write(*,*) "-------------------------------------------------------"
-        write(*,*) ' Writing Tecplot file = ', trim(filename_tecplot_b)
+        write(*,*) ' Writing Tecplot file = ', trim(io_path)//trim(filename_tecplot_b)
         write(*,*)
     
         !Open the output file.
-        open(unit=8, file=filename_tecplot_b, status="unknown", iostat=os)   
+        open(unit=8, file=trim(io_path)//trim(filename_tecplot_b), status="unknown", iostat=os)   
 
         !---------------------------------------------------------------------------
 
@@ -156,4 +154,65 @@ module inout
         write(*,*) "-------------------------------------------------------"
         write(*,*)
     end subroutine write_tecplot_file_b
+
+    subroutine residual_status_header
+
+        use config , only : lift, drag, solver_type
+
+        write(*,"(A)",advance="no") " Iteration   continuity   x-momemtum   y-momentum   z-momentum       energy      max-res"
+
+        !Forces
+        if (lift) write(*,"(A)",advance="no") "         lift"
+        if (drag) write(*,"(A)",advance="no") "         drag"
+
+        ! Split
+        write(*,"(A)",advance="no") "   |"
+
+        if (trim(solver_type) == "implicit") then
+            write(*,*) " sweeps     reduction       time          CFL"
+        else
+            write(*,*) "   time     CFL"
+        end if
+    end subroutine residual_status_header
+
+    subroutine print_residual_status(i_iteration, minutes, seconds)
+
+
+        use config   , only : CFL, solver_type, lift, drag
+
+        use solution , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift
+
+        implicit none
+
+        integer, intent(in) :: i_iteration
+        integer, intent(in) :: minutes, seconds
+
+        ! Formatting strings
+        character(13) :: residual_format = '(i10,6es13.3)'
+        character(9)  :: force_format    = '(6es13.3)'
+        character(45) :: implicit_format = '(i7,es14.1,i8.2,a,i2.2,es13.3)'
+        character(35) :: explicit_format = '(i10.2,a,i2.2,es13.3)'
+
+
+        ! Residuals
+        write(*,residual_format,advance="no") i_iteration, res_norm(:), maxval(res_norm(:)/res_norm_initial(:))
+
+        ! Forces
+        if (lift) write(*,force_format,advance="no") force_lift
+        if (drag) write(*,force_format,advance="no") force_drag
+
+        write(*,"(A)",advance="no") "   | "
+
+
+
+        ! Print out residual
+        if ( trim(solver_type) == 'implicit' ) then
+            write(*,implicit_format) lrelax_sweeps_actual, lrelax_roc, &
+                                     minutes, ":", seconds, CFL
+        else ! RK Explicit
+            write(*,explicit_format) minutes, ":", seconds, CFL
+        endif
+
+    end subroutine print_residual_status
+    
 end module inout
