@@ -60,7 +60,7 @@ module gcr
 
         use common      , only : p2, zero, my_eps
 
-        use config      , only : gcr_max_projections, gcr_reduction_target
+        use config      , only : gcr_max_projections, gcr_reduction_target, amg_cycle
 
         use grid        , only : ncells, cell
 
@@ -69,9 +69,10 @@ module gcr
 
         use residual    , only : compute_residual
 
-        use linear_solver, only: build_A_BCSM, build_Dinv_array, linear_sweeps, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE
+        use linear_solver, only: build_A_BCSM, build_Dinv_array, linear_sweeps, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE, & 
+                                 multilevel_cycle
 
-        use algebraic_multigird, only : UP
+        use algebraic_multigird, only : convert_amg_c_to_i
 
         implicit none
 
@@ -90,14 +91,15 @@ module gcr
         logical                                            :: stall_cond
 
         ! Variables for preconditioning matrix M
-        real(p2), dimension(:,:,:), allocatable :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     allocatable :: C   ! Column index of each value
-        integer , dimension(ncells+1)           :: R   ! Start index of each new row
+        real(p2), dimension(:,:,:), pointer     :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer , dimension(:),     pointer     :: C   ! Column index of each value
+        integer , dimension(:),     pointer     :: R   ! Start index of each new row
         integer                                 :: nnz
-        real(p2), dimension(5,5,ncells)         :: Dinv
+        real(p2), dimension(:,:,:), pointer     :: Dinv
         integer                                 :: direction, level
 
         integer :: idir, jdir
+        integer :: cycle_type
         integer :: os
 
         gcr_final_update = zero
@@ -109,15 +111,19 @@ module gcr
         jdir = 1
 
         ! Build M (A Approx) for precondition solve
+        allocate(R(ncells+1))
+        allocate(Dinv(5,5,ncells))
         call build_A_BCSM(ncells,cell,jac,V,C,R,nnz=nnz)
 
-        call build_Dinv_array(ncells,nq,jac,Dinv)
+        call build_Dinv_array(ncells,jac,Dinv)
 
-        direction = UP 
         level = 1
 
         ! Compute the initial search direction
-        call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
+        cycle_type = convert_amg_c_to_i(amg_cycle)
+        ! keep_A = .true. so that V,C,R, and Dinv do not have to be rebuilt
+        call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir),os)
+        ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
         if (os == RELAX_FAIL_DIVERGE) then
             iostat = GCR_PRECOND_DIVERGE
             return
@@ -168,7 +174,8 @@ module gcr
 
 
             ! Generate new search direction
-            call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
+            call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir),os)
+            ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
                 return

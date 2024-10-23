@@ -53,8 +53,6 @@ module linear_solver
         integer                             :: nnz
         real(p2), dimension(:,:,:), pointer :: Dinv
 
-        integer                     :: os
-        integer                     :: level
         integer                     :: cycle_type
 
         allocate(R(ncells+1))
@@ -66,13 +64,11 @@ module linear_solver
 
         cycle_type = convert_amg_c_to_i(amg_cycle)
 
-        level = 1
-
-        call multilevel_cycle(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,level,correction,os)
+        call multilevel_cycle(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
 
     end subroutine linear_relaxation_block
 
-    subroutine multilevel_cycle(ncells,num_eq,V,C,R,res,Dinv,cycle_type,keep_A,level,correction,stat)
+    subroutine multilevel_cycle(ncells,num_eq,V,C,R,res,Dinv,cycle_type,keep_A,correction,stat)
 
         use common          , only : p2, zero
 
@@ -91,7 +87,6 @@ module linear_solver
         integer , dimension(:),     target, intent(in)      :: R    ! Start index of A
         real(p2), dimension(:,:),           intent(in)      :: res  ! RHS (= -b)
         real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
-        integer,                            intent(inout)   :: level
         integer,                            intent(in)      :: cycle_type
         logical,                            intent(in)      :: keep_A
         
@@ -119,7 +114,7 @@ module linear_solver
 
         amg_cycles : do icycle = 1,max_amg_cycles
 
-            call linear_sweeps(num_eq,base_level,res,cycle_type,level,correction,linear_res_norm,stat)
+            call linear_sweeps(num_eq,base_level,res,cycle_type,1,correction,linear_res_norm,stat)
             
             ! Check for convergence
             roc = maxval(linear_res_norm(1:5)/linear_res_norm_init(1:5))
@@ -146,8 +141,8 @@ module linear_solver
         ! Destroy the amg levels
         if (keep_A) then
             if ( associated(base_level%V) )     nullify(base_level%V)
-            if ( associated(base_level%R) )     nullify(base_level%R)
             if ( associated(base_level%C) )     nullify(base_level%C)
+            if ( associated(base_level%R) )     nullify(base_level%R)
             if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
         endif
         call amg_destroy(base_level)
