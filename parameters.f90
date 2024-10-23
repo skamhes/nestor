@@ -159,7 +159,6 @@ module config
         
     subroutine read_nml_config(namelist_file)
 
-        use iso_fortran_env
 
         implicit none
 
@@ -203,54 +202,32 @@ module config
         endif
         
         read(unit=10,nml=inputoutput,iostat=os)
-        if (os == iostat_end .or. os == iostat_eor) then
-          write(*,*) " NO I/O SETTINGS LOADED!!"
-        elseif(os /= 0) then
-          write(*,*) " ERROR LOADING I/O SETTINGS!!"
-        endif
+        call nml_read_error_check(os,'I/O')
         rewind(10)
 
         read(unit=10,nml=freestream,iostat=os)
-        if (os == iostat_end .or. os == iostat_eor) then
-          write(*,*) " NO FREESTREAM SETTINGS LOADED!!"
-        elseif(os /= 0) then
-          write(*,*) " ERROR LOADING FREESTREAM SETTINGS!!"
-        endif
+        call nml_read_error_check(os,'FREESTREAM')
         rewind(10)
 
         read(unit=10,nml=solver,iostat=os)
-        if (os == iostat_end .or. os == iostat_eor) then
-          write(*,*) " NO SOLVER SETTINGS LOADED!!"
-        elseif(os /= 0) then
-          write(*,*) " ERROR LOADING SOLVER SETTINGS!!"
-        endif
+        call nml_read_error_check(os,'SOLVER')
         rewind(10)
 
         read(unit=10,nml=amg,iostat=os)
-        if (os == iostat_end .or. os == iostat_eor) then
-          write(*,*) " NO AMG SETTINGS LOADED!!"
-        elseif(os /= 0) then
-          write(*,*) " ERROR LOADING AMG SETTINGS!!"
-        endif
+        call nml_read_error_check(os,'AMG')
         rewind(10)
 
         read(unit=10,nml=gradient,iostat=os)
-        if (os == iostat_end .or. os == iostat_eor) then
-          write(*,*) " NO GRADIENT SETTINGS LOADED!!"
-        elseif(os /= 0) then
-          write(*,*) " ERROR LOADING GRADIENT SETTINGS!!"
-        endif
+        call nml_read_error_check(os,'GRADIENT')
         rewind(10)
 
         read(unit=10,nml=turbulence,iostat=os)
-        if (os == iostat_end .or. os == iostat_eor) then
-          write(*,*) " NO TURBULENCE SETTINGS LOADED!!"
-        elseif(os /= 0) then
-          write(*,*) " ERROR LOADING TURBULENCE SETTINGS!!"
-        endif
+        call nml_read_error_check(os,'TURBULENCE')
         rewind(10)
 
-        read(unit=10,nml=debug)
+        read(unit=10,nml=debug,iostat=os)
+        call nml_read_error_check(-1,'DEBUG')
+        rewind(10)
         
     
         write(*,*)
@@ -295,5 +272,19 @@ module config
 
         close(10)
     end subroutine read_nml_config
+
+    subroutine nml_read_error_check(status,nml_name)
+
+      use iso_fortran_env, only : iostat_end, iostat_eor
+      
+      integer, intent(in)       :: status
+      character(*), intent(in)  :: nml_name
+
+      if (status == iostat_end .or. status == iostat_eor) then
+        write(*,*) " NO ",nml_name," SETTINGS LOADED!!  USING DEFAULT SETTINGS."
+      elseif(status /= 0) then
+        write(*,*) " ERROR LOADING DEBUG SETTINGS!!"
+      endif
+    end subroutine nml_read_error_check
 
 end module config
