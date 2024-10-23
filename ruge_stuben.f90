@@ -109,8 +109,8 @@ module ruge_stuben
         integer                             :: cj,ck
         integer                             :: wmax
         
-        integer, dimension(:), pointer      :: si, sj, sintr
-        integer                             :: nintr
+        ! integer, dimension(:), pointer      :: si, sj, sintr
+        ! integer                             :: nintr
 
         
         integer, dimension(ncells)          :: w_to_sorted  ! vector of sorted index that corresponds to ith
@@ -190,24 +190,24 @@ module ruge_stuben
         ! where (CF == 0) CF = 2
         ! This is not needed as we visit every cell
 
-        ! 2nd Pass
-        sp_rs : do i = 1,ncells
-            if (CF(i) == RS_C) cycle sp_rs
-            si => C(R(i):R(i+1)-1)
-            si_loop : do j = 1,(R(i+1)-R(i))
-                cj = si(j)
-                if ( CF(cj) == RS_C ) cycle si_loop
-                sj => C(R(cj):R(cj+1)-1)
-                call set_intersect(si,sj,sintr,nintr)
-                if (nintr == 0) cycle si_loop
-                do k = 1,nintr
-                    if (CF(sintr(k)) == RS_C) cycle si_loop
-                end do
-                CF(cj) = RS_C
-                nC = nC + 1
-                if (associated(sintr)) deallocate(sintr)
-            end do si_loop
-        end do sp_rs
+        ! ! 2nd Pass
+        ! sp_rs : do i = 1,ncells
+        !     if (CF(i) == RS_C) cycle sp_rs
+        !     si => C(R(i):R(i+1)-1)
+        !     si_loop : do j = 1,(R(i+1)-R(i))
+        !         cj = si(j)
+        !         if ( CF(cj) == RS_C ) cycle si_loop
+        !         sj => C(R(cj):R(cj+1)-1)
+        !         call set_intersect(si,sj,sintr,nintr)
+        !         if (nintr == 0) cycle si_loop
+        !         do k = 1,nintr
+        !             if (CF(sintr(k)) == RS_C) cycle si_loop
+        !         end do
+        !         CF(cj) = RS_C
+        !         nC = nC + 1
+        !         if (associated(sintr)) deallocate(sintr)
+        !     end do si_loop
+        ! end do sp_rs
 
 
     end subroutine rs_build_CF
