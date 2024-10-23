@@ -113,9 +113,13 @@ module config
     logical                 :: use_amg              = .true.  
     character(80)           :: smoother             = "gs"    ! relaxation scheme type
     integer                 :: lrelax_sweeps        = 500     ! number of sweeps
+    integer                 :: pre_sweeps           = 0       ! number of sweeps before AMG restriction
+    integer                 :: post_sweeps          = 2       ! number of sweeps after AMG prolongation
     real(p2)                :: lrelax_tolerance     = 0.1_p2  ! relaxation tolerance (reduction)
-    integer                 :: max_amg_levels       = 5
-    integer                 :: pre_sweeps           = 2
+    integer                 :: max_amg_levels       = 8
+    integer                 :: min_amg_blcoks       = 1       ! minimum number of blocks before AMG will not further restrict
+    character(1)            :: amg_cycle            = 'f'     ! amg cycle type.
+    integer                 :: max_amg_cycles       = 16      ! Total complete AMG Cycles
     
     namelist / amg / &
     use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels, pre_sweeps
@@ -154,6 +158,8 @@ module config
     contains
         
     subroutine read_nml_config(namelist_file)
+
+        use iso_fortran_env
 
         implicit none
 
@@ -195,12 +201,55 @@ module config
           endif
           read(unit=10,nml=project)
         endif
-        read(unit=10,nml=inputoutput)
-        read(unit=10,nml=freestream)
-        read(unit=10,nml=solver)
-        read(unit=10,nml=amg)
-        read(unit=10,nml=gradient)
-        read(unit=10,nml=turbulence)
+        
+        read(unit=10,nml=inputoutput,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO I/O SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING I/O SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=freestream,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO FREESTREAM SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING FREESTREAM SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=solver,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO SOLVER SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING SOLVER SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=amg,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO AMG SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING AMG SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=gradient,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO GRADIENT SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING GRADIENT SETTINGS!!"
+        endif
+        rewind(10)
+
+        read(unit=10,nml=turbulence,iostat=os)
+        if (os == iostat_end .or. os == iostat_eor) then
+          write(*,*) " NO TURBULENCE SETTINGS LOADED!!"
+        elseif(os /= 0) then
+          write(*,*) " ERROR LOADING TURBULENCE SETTINGS!!"
+        endif
+        rewind(10)
+
         read(unit=10,nml=debug)
         
     
