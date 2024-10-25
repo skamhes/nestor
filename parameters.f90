@@ -226,7 +226,7 @@ module config
         rewind(10)
 
         read(unit=10,nml=debug,iostat=os)
-        call nml_read_error_check(-1,'DEBUG')
+        call nml_read_error_check(os,'DEBUG')
         rewind(10)
         
     

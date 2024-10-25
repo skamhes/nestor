@@ -1,7 +1,7 @@
 &project
-  project_name = "none"
-  second_namelist = "grids/cylinder/final_grids/nestor.nml"
-  io_path = "grids/cylinder/final_grids/"
+  project_name = "quad_3d"
+  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  !io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
@@ -46,5 +46,5 @@ gcr_reduction_target = 0.05
   /
 
 &debug
-  gcr_verbosity = 4
+  !gcr_verbosity = 4
   /

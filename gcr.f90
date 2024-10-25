@@ -65,7 +65,7 @@ module gcr
         use grid        , only : ncells, cell
 
         use solution    , only : nq, inv_ncells, compute_primative_jacobian, jacobian_type, res, jac, &
-                                 nl_reduction, n_projections, q
+                                 nl_reduction, n_projections, q, roc
 
         use residual    , only : compute_residual
 
@@ -89,6 +89,7 @@ module gcr
         real(p2), dimension(gcr_max_projections)           :: length_Ap2
         real(p2)                                           :: alpha, beta
         logical                                            :: stall_cond
+        real(p2)                                           :: gammak_maxApk
 
         ! Variables for preconditioning matrix M
         real(p2), dimension(:,:,:), pointer     :: V   ! Values (5x5 block matrix) plus corresponding index
@@ -160,6 +161,18 @@ module gcr
                 return
             endif
             ! Check for stall
+            ! https://doi.org/10.2514/6.2019-2333 Eq (7)
+            ! gammak = (Ap^{k} , r^{k-1}) = alpha * | Ap^{k} |**2
+            gammak_maxApk = maxval(Ap(:,:,jdir))
+            gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
+            if (jdir > 1) then
+                if (gammak_maxApk < rms_resj) then
+                    iostat = GCR_STALL
+                    n_projections = jdir
+                    return
+                endif
+            endif
+            ! Check for stall
             if (jdir > 1) then
                 if (gcr_verbosity >= 3) then
                     write(*,*) "res * Ap_jdir", inner_product(nq,ncells,gcr_residual(:,:),p(:,:,idir))
@@ -174,7 +187,7 @@ module gcr
 
 
             ! Generate new search direction
-            call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir),os)
+            call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir+1),os)
             ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
