@@ -35,13 +35,13 @@ module gcr
         use solution    , only : nq, jacobian_type, q
 
         implicit none
-
         
         integer ,          intent(out) :: iostat
 
         real(p2), dimension(nq,ncells) :: sol_update
+        real(p2)                       :: gcr_res_rms
 
-        call gcr_solve(sol_update,iostat)
+        call gcr_solve(sol_update,gcr_res_rms,iostat)
 
         if (iostat /= GCR_SUCCESS) return
 
@@ -49,11 +49,11 @@ module gcr
 
         if (iostat /= GCR_SUCCESS) return
 
-        call gcr_nl_control(sol_update,iostat)
+        call gcr_nl_control(sol_update,gcr_res_rms,iostat)
 
     end subroutine gcr_run
 
-    subroutine gcr_solve(gcr_final_update, iostat)
+    subroutine gcr_solve(gcr_final_update, gcr_res_rms, iostat)
 
         ! Right preconditioned version of Algorithm 6.21 from Y. Saad. Iterative Methods for Sparse Linear Systems, 2nd Edition
         ! Right preconditioning is done using the same linear solver and the approximate (1st order jacobian)
@@ -77,6 +77,7 @@ module gcr
         implicit none
 
         real(p2),            dimension(nq,ncells), intent(out) :: gcr_final_update   ! delta_Q_n+1
+        real(p2),                                  intent(out) :: gcr_res_rms        ! Needed for the NL update subroutine
         integer,                                   intent(out) :: iostat                 ! status of gcr solve
 
         !+++++++++++++++++
@@ -105,11 +106,14 @@ module gcr
 
         gcr_final_update = zero
         gcr_residual = -res
+        gcr_res_rms = zero
         RMS_R0 = rms(nq,ncells,res,inv_ncells)
         RMS_Qn = rms(nq,ncells,q  ,inv_ncells)
         stall_cond = .false.
 
         jdir = 1
+
+        if (gcr_verbosity >= 3) write(*,"(a,es12.6)") "RMS_R0 = ", RMS_R0 
 
         ! Build M (A Approx) for precondition solve
         allocate(R(ncells+1))
@@ -145,14 +149,15 @@ module gcr
 
             gcr_final_update = gcr_final_update + alpha * p(:,:,jdir)
 
-            gcr_residual = gcr_residual - alpha * Ap(:,:,jdir)
+            gcr_residual     = gcr_residual     - alpha * Ap(:,:,jdir)
 
             ! Check for sufficient rms reduction
             rms_resj = rms(nq,ncells,gcr_residual,inv_ncells)
             if (rms_resj / RMS_R0 < gcr_reduction_target) then
                 iostat = GCR_SUCCESS
                 n_projections = jdir
-                nl_reduction = rms_resj / RMS_R0
+                nl_reduction  = rms_resj / RMS_R0
+                gcr_res_rms   = rms_resj
                 return
             ! Check for max projections
             elseif (jdir >= gcr_max_projections) then
@@ -163,27 +168,27 @@ module gcr
             ! Check for stall
             ! https://doi.org/10.2514/6.2019-2333 Eq (7)
             ! gammak = (Ap^{k} , r^{k-1}) = alpha * | Ap^{k} |**2
-            gammak_maxApk = maxval(Ap(:,:,jdir))
-            gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
-            if (jdir > 1) then
-                if (gammak_maxApk < rms_resj) then
-                    iostat = GCR_STALL
-                    n_projections = jdir
-                    return
-                endif
-            endif
-            ! Check for stall
-            if (jdir > 1) then
-                if (gcr_verbosity >= 3) then
-                    write(*,*) "res * Ap_jdir", inner_product(nq,ncells,gcr_residual(:,:),p(:,:,idir))
-                endif
-                stall_cond = maxval(alpha * Ap(:,:,jdir)) > rms_resj
-            endif
-            if (stall_cond) then
-                iostat = GCR_STALL
-                n_projections = jdir
-                return
-            endif
+            ! gammak_maxApk = maxval(Ap(:,:,jdir))
+            ! gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
+            ! if (jdir > 1) then
+            !     if (gammak_maxApk < rms_resj) then
+            !         iostat = GCR_STALL
+            !         n_projections = jdir
+            !         return
+            !     endif
+            ! endif
+            ! ! Check for stall
+            ! if (jdir > 1) then
+            !     if (gcr_verbosity >= 3) then
+            !         write(*,*) "res * Ap_jdir", inner_product(nq,ncells,gcr_residual(:,:),p(:,:,idir))
+            !     endif
+            !     stall_cond = alpha * maxval(Ap(:,:,jdir)) > rms_resj
+            ! endif
+            ! if (stall_cond) then
+            !     iostat = GCR_STALL
+            !     n_projections = jdir
+            !     return
+            ! endif
 
 
             ! Generate new search direction
@@ -211,6 +216,7 @@ module gcr
                     ! Note: the P vectors are A^{T}A-orthogonal. meaning Ap_i * Ap_j = 0.  However, the vectors P_i * P_j need not be 
                     ! orthogonal themselves.  In fact, they won't be unless A^{T}A = c*I (I think, I haven't done an exhaustive 
                     ! proof)
+                    if (idir == 1) write(*,"(a,i2,a,es12.6)") " Res(", jdir,") = ", rms_resj
                     write(*,*) "j=",jdir+1,"i=",idir,"inner_product (p) = ", inner_product(nq,ncells,p(:,:,jdir + 1),p(:,:,idir))
                     write(*,*) "j=",jdir+1,"i=",idir,"inner_product (Ap) = ", inner_product(nq,ncells,Ap(:,:,jdir + 1),Ap(:,:,idir))
                 endif
@@ -473,23 +479,24 @@ module gcr
         real(p2), dimension(nq), intent(in) :: sol_update
         logical                             :: is_real
 
-        if ( (sol_current(1) + sol_update(1) <= zero ) .OR. (sol_current(5) <= sol_update(5)) ) then
-            is_real = .false.
-        else
-            is_real = .true.
-        end if
+        ! if ( (sol_current(1) + sol_update(1) <= zero ) .OR. (sol_current(5) <= sol_update(5)) ) then
+        !     is_real = .false.
+        ! else
+        !     is_real = .true.
+        ! end if
         
+        is_real = ( (sol_current(1) + sol_update(1) > zero ) .AND. (sol_current(5) + sol_update(5) > zero) )
     end function check_non_real_update
 
-    subroutine gcr_nl_control(sol_update, iostat)
+    subroutine gcr_nl_control(sol_update, gcr_res_rms, iostat)
 
         ! Determine the optimum underrelaxation factor for the nonlinear solution update.
 
-        use common , only : p2, half, one, two
+        use common , only : p2, half, one, two, zero
 
         use config , only : gcr_reduction_target
 
-        use solution , only : nq, q, res, compute_primative_jacobian, dtau, inv_ncells
+        use solution , only : nq, q, res, compute_primative_jacobian, dtau, inv_ncells, compute_primative_jacobian
 
         use grid , only : ncells, cell
 
@@ -498,6 +505,7 @@ module gcr
         implicit none
 
         real(p2), dimension(nq,ncells), intent(in) :: sol_update
+        real(p2),                       intent(in) :: gcr_res_rms
         integer,                        intent(out):: iostat
 
         real(p2), dimension(:,:), pointer   :: q_n
@@ -525,7 +533,8 @@ module gcr
         call compute_residual
 
         do icell = 1,ncells
-            res(:,icell) = res(:,icell) + sol_update(:,icell) * cell(icell)%vol/dtau(icell)
+            res(:,icell) = res(:,icell) + cell(icell)%vol/dtau(icell) *  &
+                            matmul( compute_primative_jacobian(q(:,icell)) , sol_update(:,icell) )
         end do  
 
         residual_reduct_target = half * (one + gcr_reduction_target)
@@ -567,16 +576,24 @@ module gcr
         res => r_0
         nullify(q_n,r_0)
 
-        delQ_norm = l2norm(nq,ncells,sol_update)
-        call compute_frechet(sol_update,delQ_norm,Qn_rms,frechet_deriv)
+        ! delQ_norm = l2norm(nq,ncells,sol_update)
+        ! call compute_frechet(sol_update,delQ_norm,Qn_rms,frechet_deriv)
         
-        ! We will temporarily reuse the res vector to save memory space
-        do icell = 1,ncells
-            ! EQ 21 from FUN 3D paper where omega = 1
-            res(:,icell) = res(:,icell) + sol_update(:,icell) * cell(icell)%vol/dtau(icell) + frechet_deriv(:,icell)
-        end do
-        g_1 = rms(nq,ncells,res,inv_ncells)
+        ! ! We will temporarily reuse the res vector to save memory space
+        ! do icell = 1,ncells
+        !     ! EQ 21 from FUN 3D paper where omega = 1
+        !     res(:,icell) = res(:,icell) + sol_update(:,icell) * cell(icell)%vol/dtau(icell) + frechet_deriv(:,icell)
+        ! end do
+        ! g_1 = rms(nq,ncells,res,inv_ncells)
+        
+        ! We already have the g_1 term from our last projection
+        g_1 = gcr_res_rms
+
+        ! Minimize the quadratic function a*ur**2 + b*ur + c
+        ! where c = f_0, b = g_1-c, and a = f_1-b-c.
         ur_opt = ( g_1 - f_0 ) / (two * (f_1 - g_1) )
+        ! Adding a bound to the ur factor 0 <= ur <= 1
+        ur_opt = min(max(ur_opt,zero) , one)
 
         q = q + ur_opt * sol_update
 
@@ -585,8 +602,8 @@ module gcr
 
         ! Compute R_tau
         do icell = 1,ncells
-            res(:,icell) = res(:,icell) + &
-                        matmul( compute_primative_jacobian(q(:,icell)) * cell(icell)%vol/dtau(icell), sol_update(:,icell) )
+            res(:,icell) = res(:,icell) + cell(icell)%vol/dtau(icell) * &
+                        matmul( compute_primative_jacobian(q(:,icell)) , sol_update(:,icell) )
         end do  
 
         Rtau_rms = rms(nq,ncells,res,inv_ncells)
