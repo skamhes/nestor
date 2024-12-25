@@ -178,7 +178,6 @@ module gcr
                 if (gammak_maxApk < rms_resj) then
                     ! Potential stall
                     if (rms_resj/rms_resj_m1 > single_reduct) then
-                        write(*,*) rms_resj/rms_resj_m1 
                         iostat = GCR_STALL
                         n_projections = jdir
                         return
