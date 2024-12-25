@@ -58,7 +58,7 @@ module gcr
         ! Right preconditioned version of Algorithm 6.21 from Y. Saad. Iterative Methods for Sparse Linear Systems, 2nd Edition
         ! Right preconditioning is done using the same linear solver and the approximate (1st order jacobian)
 
-        use common      , only : p2, zero, my_eps
+        use common      , only : p2, zero, my_eps, one
 
         use config      , only : gcr_max_projections, gcr_reduction_target, amg_cycle
 
@@ -83,7 +83,7 @@ module gcr
         !+++++++++++++++++
         real(p2), dimension(nq,ncells)                     :: gcr_residual 
         real(p2)                                           :: RMS_R0, RMS_Qn ! RMS of outer residual and solution vectors
-        real(p2)                                           :: rms_resj
+        real(p2)                                           :: rms_resj, rms_resj_m1
         real(p2), dimension(nq,ncells,gcr_max_projections) :: p ! Preconditioned vector p_i = M^{-1}*r_i
         real(p2), dimension(nq,ncells,gcr_max_projections) :: Ap ! Exact jacobian (A computed w Frechet Deriv) times p 
         real(p2)                                           :: length_p
@@ -91,6 +91,7 @@ module gcr
         real(p2)                                           :: alpha, beta
         logical                                            :: stall_cond
         real(p2)                                           :: gammak_maxApk
+        real(p2)                                           :: single_reduct
 
         ! Variables for preconditioning matrix M
         real(p2), dimension(:,:,:), pointer     :: V   ! Values (5x5 block matrix) plus corresponding index
@@ -110,6 +111,8 @@ module gcr
         RMS_R0 = rms(nq,ncells,res,inv_ncells)
         RMS_Qn = rms(nq,ncells,q  ,inv_ncells)
         stall_cond = .false.
+        rms_resj = zero
+        single_reduct = gcr_reduction_target ** (one/real(gcr_max_projections,p2))
 
         jdir = 1
 
@@ -152,6 +155,7 @@ module gcr
             gcr_residual     = gcr_residual     - alpha * Ap(:,:,jdir)
 
             ! Check for sufficient rms reduction
+            rms_resj_m1 = rms_resj
             rms_resj = rms(nq,ncells,gcr_residual,inv_ncells)
             if (rms_resj / RMS_R0 < gcr_reduction_target) then
                 iostat = GCR_SUCCESS
@@ -168,15 +172,18 @@ module gcr
             ! Check for stall
             ! https://doi.org/10.2514/6.2019-2333 Eq (7)
             ! gammak = (Ap^{k} , r^{k-1}) = alpha * | Ap^{k} |**2
-            ! gammak_maxApk = maxval(Ap(:,:,jdir))
-            ! gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
-            ! if (jdir > 1) then
-            !     if (gammak_maxApk < rms_resj) then
-            !         iostat = GCR_STALL
-            !         n_projections = jdir
-            !         return
-            !     endif
-            ! endif
+            gammak_maxApk = maxval(Ap(:,:,jdir))
+            gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
+            if (jdir > 1) then
+                if (gammak_maxApk < rms_resj) then
+                    ! Potential stall
+                    if (rms_resj/rms_resj_m1 < single_reduct) then
+                        iostat = GCR_STALL
+                        n_projections = jdir
+                        return
+                    endif
+                endif
+            endif
             ! ! Check for stall
             ! if (jdir > 1) then
             !     if (gcr_verbosity >= 3) then
@@ -555,6 +562,7 @@ module gcr
         delQ_rms = rms(nq,ncells,sol_update,inv_ncells)
         Qn_rms   = rms(nq,ncells,q_n       ,inv_ncells)
 
+        write(*,"(a,es12.6)") "delQ_rms/Qn_rms = ", delQ_rms / Qn_rms 
         if ( delQ_rms / Qn_rms < 1.0e-12_p2) then
             if ( Rtau_rms / R0_rms < one) then
                 ! Any reduction will be considered a success at this point, but we don't want to make the CFL any bigger
