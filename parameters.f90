@@ -59,11 +59,12 @@ module config
     logical       :: lift                = .false.
     logical       :: drag                = .false.
     real(p2)      :: area_reference      = 1.0_p2
+    character(80) :: time_method         = "remaining"
 
     namelist / inputoutput / &
       generate_tec_file_b, generate_tec_file_v, &
       write_data         , import_data,         &
-      lift, drag, area_reference
+      lift, drag, area_reference, time_method
 
     !-------------------------------------------------------------------------
     ! FREESTREAM CONDITIONS (&freestream)

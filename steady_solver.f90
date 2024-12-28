@@ -29,7 +29,7 @@ module steady_solver
 
         use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag, turbulence_type
+                                lift, drag, turbulence_type, time_method
                                 
         use initialize, only : set_initial_solution
 
@@ -54,6 +54,7 @@ module steady_solver
         real                          :: time, totalTime
         real, dimension(2)            :: values
         integer                       :: minutes, seconds
+        integer                       :: dt_vals, solver_epoch
 
         ! Stop file
         logical                       :: stop_me
@@ -121,6 +122,10 @@ module steady_solver
             allocate(phi(ncells))
         end if
 
+        if (trim(time_method) == 'elapsed') then
+            call system_clock(COUNT = solver_epoch)
+        endif
+
         solver_loop : do while (i_iteration <= solver_max_itr)
             
             ! First compute the residual
@@ -132,11 +137,17 @@ module steady_solver
             ! Compute forces
             if ( lift .OR. drag ) call compute_forces
 
-            ! Iteration timer
-            call dtime(values,time)
-            
+            if (trim(time_method) == 'elapsed') then
+                call system_clock(COUNT = dt_vals)
+                totalTime = (dt_vals - solver_epoch) / 1000 ! it's acceptable in this case to round down to the second
+
+            else
+                ! Iteration timer
+                call dtime(values,time)
+                totalTime = time * real(solver_max_itr-i_iteration) ! total time remaining in seconds
+                
+            endif
             ! Compute time remaining
-            totalTime = time * real(solver_max_itr-i_iteration) ! total time remaining in seconds
             minutes = floor(totalTime/60.0)
             seconds = mod(int(totalTime),60)
             
