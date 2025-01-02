@@ -41,7 +41,8 @@ module gcr
         real(p2), dimension(nq,ncells) :: sol_update
         real(p2)                       :: gcr_res_rms
 
-        call gcr_solve(sol_update,gcr_res_rms,iostat)
+        ! call gcr_solve(sol_update,gcr_res_rms,iostat)
+        call gcr_solve_scratch(sol_update,gcr_res_rms,iostat)
 
         if (iostat /= GCR_SUCCESS) return
 
@@ -105,6 +106,10 @@ module gcr
         integer :: cycle_type
         integer :: os
 
+
+        ! Nullify pointers to avoid undefined behavior
+        nullify(V,C,R,Dinv)
+
         gcr_final_update = zero
         gcr_residual = -res
         gcr_res_rms = zero
@@ -134,12 +139,23 @@ module gcr
         ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
         if (os == RELAX_FAIL_DIVERGE) then
             iostat = GCR_PRECOND_DIVERGE
-            return
+            ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
+                return
         elseif (os == RELAX_FAIL_STALL) then
             iostat = GCR_PRECOND_STALL
-            return
+            ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
+                return
         endif
         length_p = l2norm(nq,ncells,p(:,:,jdir))
+        ! write(*,*) "|A{approx} * delta_Q|: ", length_p
         
         call compute_frechet(p(:,:,jdir),length_p,RMS_Qn,Ap(:,:,jdir))
 
@@ -162,11 +178,21 @@ module gcr
                 n_projections = jdir
                 nl_reduction  = rms_resj / RMS_R0
                 gcr_res_rms   = rms_resj
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             ! Check for max projections
             elseif (jdir >= gcr_max_projections) then
                 iostat = GCR_STALL
                 n_projections = jdir
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             endif
             ! Check for stall
@@ -180,6 +206,11 @@ module gcr
                     if (rms_resj/rms_resj_m1 > single_reduct) then
                         iostat = GCR_STALL
                         n_projections = jdir
+                        ! Clear Jacobian arrays
+                        if (associated(V)) deallocate(V)
+                        if (associated(C)) deallocate(C)
+                        if (associated(R)) deallocate(R)
+                        if (associated(Dinv)) deallocate(Dinv)
                         return
                     endif
                 endif
@@ -194,7 +225,13 @@ module gcr
             ! if (stall_cond) then
             !     iostat = GCR_STALL
             !     n_projections = jdir
-            !     return
+            !     
+            ! Clear Jacobian arrays
+            ! if (associated(V)) deallocate(V)
+            ! if (associated(C)) deallocate(C)
+            ! if (associated(R)) deallocate(R)
+            ! if (associated(Dinv)) deallocate(Dinv)
+            ! return
             ! endif
 
 
@@ -203,12 +240,22 @@ module gcr
             ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             elseif (os == RELAX_FAIL_STALL) then
                 iostat = GCR_PRECOND_STALL
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             endif
-            
+            ! write(*,*) "|A{approx} * delta_Q|: ", length_p
             call compute_frechet(p(:,:,jdir+1),length_p,RMS_Qn,Ap(:,:,jdir+1))
 
             ! Modified Gram-Schmidt Orthogonalization
@@ -234,13 +281,18 @@ module gcr
                 
         end do proj_loop
 
+        ! Clear Jacobian arrays (just in case we get this far...)
+        if (associated(V)) deallocate(V)
+        if (associated(C)) deallocate(C)
+        if (associated(R)) deallocate(R)
+        if (associated(Dinv)) deallocate(Dinv)
     end subroutine gcr_solve
 
-    subroutine gcr_solve_scratch(gcr_final_update, iostat)
+    subroutine gcr_solve_scratch(gcr_final_update, gcr_res_rms, iostat)
 
-        use common      , only : p2, zero
+        use common      , only : p2, zero, one
 
-        use config      , only : gcr_max_projections, gcr_reduction_target
+        use config      , only : gcr_max_projections, gcr_reduction_target, amg_cycle
 
         use grid        , only : ncells, cell
 
@@ -249,134 +301,154 @@ module gcr
 
         use residual    , only : compute_residual
 
-        use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE
+        use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE, build_A_BCSM, multilevel_cycle, &
+                                 build_Dinv_array
+
+        use algebraic_multigird, only : convert_amg_c_to_i
 
         implicit none
 
-        real(p2),            dimension(nq,ncells), intent(out) :: gcr_final_update   ! delta_Q_n+1
-        integer,                                   intent(out) :: iostat                 ! status of gcr solve
+        real(p2), dimension(nq,ncells), intent(out) :: gcr_final_update       ! delta_Q_n+1
+        real(p2),                       intent(out) :: gcr_res_rms            ! rms of the residual of converged update
+        integer,                        intent(out) :: iostat                 ! status of gcr solve
 
-        real(p2), dimension(nq,ncells,gcr_max_projections) :: delta_Q_k ! delta_Q_k
-        real(p2), dimension(nq,ncells,gcr_max_projections) :: b_k   ! b_k
-
-        real(p2)                                           :: b_k_mag ! | b_k |
-        real(p2)                                           :: gcr_inner_prod           ! b_k^T * b_j = mu
-        ! real(p2), dimension(nq,ncells)                     :: Q0    ! Initial primative vector at the start of outer iteration
-        ! real(p2), dimension(nq,ncells)                     :: R0    ! Initial residual from the outer NL iteration
-        real(p2)                                           :: RMS_R0
-        real(p2)                                           :: update_rms ! || delta_Q_k ||
-        real(p2)                                           :: update_mag ! l2 norm of preconditioned correction
-        real(p2)                                           :: gamma_k ! gamma_k from EQ. 14
-        real(p2), dimension(nq,ncells)                     :: gcr_residual
-        real(p2)                                           :: gcr_res_rms
-        real(p2)                                           :: max_bk
+        real(p2), dimension(nq,ncells)                     :: r_k                    ! gcr residual
+        real(p2), dimension(nq,ncells,gcr_max_projections) :: b_k
+        real(p2), dimension(nq,ncells,gcr_max_projections) :: dQ_k
+        real(p2)                                           :: norm_b_k_inv
+        real(p2)                                           :: norm_r_k
+        real(p2)                                           :: norm_dQ_k
+        real(p2)                                           :: rms_r_k
+        real(p2)                                           :: rms_r_0
+        real(p2)                                           :: rms_Q_n
+        real(p2)                                           :: mu, gamma_k ! inner products
 
 
+        ! Variables for preconditioning matrix M
+        real(p2), dimension(:,:,:), pointer     :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer , dimension(:),     pointer     :: C   ! Column index of each value
+        integer , dimension(:),     pointer     :: R   ! Start index of each new row
+        integer                                 :: nnz
+        real(p2), dimension(:,:,:), pointer     :: Dinv
+        integer                                 :: direction, level
+
+        integer :: cycle_type
 
         integer :: kdir, jdir ! projection direction indices
         integer :: icell
         integer :: os
 
+        ! Nullify pointers to avoid undefined behavior
+        nullify(V,C,R,Dinv)
 
-        ! Debug:
-        if (gcr_verbosity >= 4) write(*,*) "Q(:,5): ", q(:,5)
-        ! Initialize the final correction
+        ! Initialize some variables
         gcr_final_update = zero
-        gcr_residual = -res
-        RMS_R0 = rms(nq,ncells,res,inv_ncells)
-        
-        project_loop : do kdir = 1,gcr_max_projections
+        r_k              = -res
+        rms_r_0          = rms(nq,ncells,r_k,inv_ncells)
+        rms_Q_n          = rms(nq,ncells,q  ,inv_ncells)
 
-            ! Run Preconditioner sweeps on the approximate jacobian
-            call linear_relaxation(nq, jac, -gcr_residual, delta_Q_k(:,:,kdir),os)
+        ! Build M (A Approx) for precondition solve
+        allocate(R(ncells+1))
+        allocate(Dinv(5,5,ncells))
+        call build_A_BCSM(ncells,cell,jac,V,C,R,nnz=nnz)
+        call build_Dinv_array(ncells,jac,Dinv)
+        level = 1
+        ! Solve the preconditioner
+        cycle_type = convert_amg_c_to_i(amg_cycle)
+
+        proj_loop : do kdir = 1,gcr_max_projections
+            
+
+            ! keep_A = .true. so that V,C,R, and Dinv do not have to be rebuilt
+            call multilevel_cycle(ncells,nq, V, C, R, -r_k, Dinv,cycle_type,.true.,dQ_k(:,:,kdir),os)
+            ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             elseif (os == RELAX_FAIL_STALL) then
                 iostat = GCR_PRECOND_STALL
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             endif
-
-            ! Compute Frechet Derivative
-            update_rms = rms(nq,ncells,delta_Q_k(:,:,kdir),inv_ncells)
-            update_mag = l2norm(nq,ncells,delta_Q_k(:,:,kdir))
             
-            call compute_frechet( delta_Q_k(:,:,kdir),update_mag,update_rms,b_k(:,:,kdir) )
+            ! Generate the new search direction
+            norm_dQ_k = l2norm(nq,ncells,dQ_k(:,:,kdir))
 
-            ! Generate new search direction
+            call compute_frechet(dQ_k(:,:,kdir),norm_dQ_k,rms_Q_n,b_k(:,:,kdir))
 
-            do icell = 1,ncells
-                ! I originally included the primitive jacobian (dW/dQ) in the psuedo-time term but I don't think I'm supposed to 
-                ! include it for two reasons:
-                ! 1) it doesn't converge if I include it
-                ! 2) delta_Q is already the update to Q as opposed to an update to W, so we shouldn't be converting the update
-
-                b_k(:,icell,kdir) = b_k(:,icell,kdir) + delta_Q_k(:,icell,kdir) * cell(icell)%vol/dtau(icell)
-            end do
-
-            b_k_mag = l2norm(nq,ncells,b_k(:,:,kdir))
-
-            ! Normalize the correction and search direction
-            delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) / b_k_mag
-
-            b_k(:,:,kdir)       = b_k(:,:,kdir)       / b_k_mag
-
-            ! Normalize direction k to previous search direactions
-            jdir = 1
-
-            do while (jdir < kdir)
-                ! Pretty sure this is just a modified Gram-Schmidt... suppose I could check...
-                gcr_inner_prod = inner_product(nq,ncells, b_k(:,:,kdir), b_k(:,:,jdir)) ! mu
-
-                b_k(:,:,kdir)       = b_k(:,:,kdir)       - gcr_inner_prod * b_k(:,:,jdir)
-                delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) - gcr_inner_prod * delta_Q_k(:,:,jdir)
-
-                ! Renormalize
-                b_k_mag = l2norm(nq,ncells,b_k(:,:,kdir)) 
-
-                delta_Q_k(:,:,kdir) = delta_Q_k(:,:,kdir) / b_k_mag
-                b_k(:,:,kdir)       = b_k(:,:,kdir)       / b_k_mag
-
-                jdir = jdir + 1
-            end do
-
-            ! Compute projection of the current search direction and the previous residual
-            gamma_k = inner_product(nq,ncells, b_k(:,:,kdir), gcr_residual(:,:))
-
-            ! if they are (nearly) orthogonal the solution has stalled and we should quit
-            gcr_res_rms = rms(nq,ncells,gcr_residual,inv_ncells)
-            max_bk = maxval(b_k(:,:,kdir))
-            ! if (gcr_verbosity >= 3 ) write(*,*) "max_bk: ", max_bk
-            max_bk = gamma_k * max_bk
-            ! if (gcr_verbosity >= 3 ) then
-            !     write(*,*) "gamma_k * max_bk: ", max_bk
-            !     write(*,*) "gcr_res_rms: ", gcr_res_rms
-            ! endif
+            ! Orthonormalize
+            norm_b_k_inv = one / l2norm(nq,ncells,b_k(:,:,kdir))
             
-            ! if ( max_bk < gcr_res_rms ) exit project_loop
+            b_k( :,:,kdir) = b_k( :,:,kdir) * norm_b_k_inv
+            dQ_k(:,:,kdir) = dQ_k(:,:,kdir) * norm_b_k_inv
 
-            ! Update the final correction with the projection of delta_q_k
-            gcr_final_update = gcr_final_update + gamma_k * delta_Q_k(:,:,kdir)
+            do jdir = 1,kdir - 1
+                mu = inner_product(nq,ncells,b_k(:,:,kdir),b_k(:,:,jdir))
 
-            ! Update the residual of the GCR system
-            gcr_residual = gcr_residual - gamma_k * b_k(:,:,kdir)
+                b_k( :,:,kdir) = b_k( :,:,kdir) - mu * b_k( :,:,jdir)
+                dQ_k(:,:,kdir) = dQ_k(:,:,kdir) - mu * dQ_k(:,:,jdir)
 
-            gcr_res_rms = rms(nq,ncells,gcr_residual,inv_ncells)
+                norm_b_k_inv = one / l2norm(nq,ncells,b_k(:,:,kdir))
+                
+                b_k( :,:,kdir) = b_k( :,:,kdir) * norm_b_k_inv
+                dQ_k(:,:,kdir) = dQ_k(:,:,kdir) * norm_b_k_inv
+            enddo
 
-            nl_reduction = gcr_res_rms / RMS_R0
+            ! Update correction and residual
+            gamma_k = inner_product(nq,ncells,b_k(:,:,kdir),r_k) ! r_k is still r_(k-1) at this point
+            
+            gcr_final_update = gcr_final_update + gamma_k * dQ_k(:,:,kdir)
 
-            if (nl_reduction < gcr_reduction_target) then
+            r_k = r_k - gamma_k * b_k(:,:,kdir) ! r_k is now up to date
+
+            ! Check for convergence
+            rms_r_k = rms(nq,ncells,r_k,inv_ncells)
+            if ( ( rms_r_k / rms_r_0 ) < gcr_reduction_target ) then
                 iostat = GCR_SUCCESS
                 n_projections = kdir
+                nl_reduction  = rms_r_k / rms_r_0
+                gcr_res_rms   = rms_r_k
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
+                return
+            end if
+
+            ! Check for stall
+            ! Original method
+            norm_r_k = l2norm(nq,ncells,r_k)
+            if (gamma_k < norm_r_k * 0.001_p2) then
+                iostat = GCR_STALL
+                n_projections = jdir
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
                 return
             endif
-        enddo project_loop
+        end do proj_loop
 
-        ! We shouldn't be able to get here unless we ran out of projection directions
+        ! if we make it this far we've stalled
         iostat = GCR_STALL
-        n_projections = gcr_max_projections
-        if (gcr_verbosity >= 3) write(*,*) "STALL: Reduction: ", nl_reduction
-
+        n_projections = jdir
+        ! Clear Jacobian arrays
+        if (associated(V)) deallocate(V)
+        if (associated(C)) deallocate(C)
+        if (associated(R)) deallocate(R)
+        if (associated(Dinv)) deallocate(Dinv)
+        return
     end subroutine gcr_solve_scratch
 
     subroutine compute_frechet(sol_update,update_length,sol_rms,frechet_deriv)
@@ -385,16 +457,18 @@ module gcr
 
         use solution , only : nq, q, res, dtau, compute_primative_jacobian
 
+        use config , only : gcr_verbosity
+
         use grid , only : ncells, cell
 
         use residual , only : compute_residual
 
         implicit none
 
-        real(p2), dimension(nq,ncells), intent(in) :: sol_update
+        real(p2), dimension(:,:),       intent(in) :: sol_update
         real(p2),                       intent(in) :: update_length
         real(p2),                       intent(in) :: sol_rms
-        real(p2), dimension(nq,ncells), intent(out):: frechet_deriv
+        real(p2), dimension(:,:),       intent(out):: frechet_deriv
 
         real(p2), dimension(:,:), pointer :: q_n
         real(p2), dimension(:,:), pointer :: r_0
@@ -425,11 +499,13 @@ module gcr
 
         frechet_deriv = update_length * ( res - r_0 ) / eps_frechet
 
+        ! write(*,*) "  Pre psuedo time:", l2norm(nq,ncells,frechet_deriv(:,:))
         do icell = 1,ncells
-            prim_jac = compute_primative_jacobian(q_n(:,icell))
+            prim_jac = compute_primative_jacobian(q(:,icell))
             frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * matmul(prim_jac,sol_update(:,icell))
             ! frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * sol_update(:,icell)
         end do
+        ! write(*,*) " Post psuedo time:", l2norm(nq,ncells,frechet_deriv(:,:))
 
         deallocate(  q)
         deallocate(res)
@@ -522,8 +598,8 @@ module gcr
         real(p2)                            :: delQ_rms, Qn_rms
         real(p2)                            :: delQ_norm
         real(p2)                            :: f_0, f_1, g_1     ! terms in the optimization equation 22
-        real(p2), dimension(nq,ncells)      :: frechet_deriv
-        real(p2)                            :: ur_opt
+        !real(p2), dimension(nq,ncells)      :: frechet_deriv
+        real(p2)                            :: ur_opt, ur_min
 
         integer :: icell
 
@@ -562,7 +638,7 @@ module gcr
         delQ_rms = rms(nq,ncells,sol_update,inv_ncells)
         Qn_rms   = rms(nq,ncells,q_n       ,inv_ncells)
 
-        write(*,"(a,es12.6)") "delQ_rms/Qn_rms = ", delQ_rms / Qn_rms 
+        ! write(*,"(a,es12.6)") "delQ_rms/Qn_rms = ", delQ_rms / Qn_rms 
         if ( delQ_rms / Qn_rms < 1.0e-12_p2) then
             if ( Rtau_rms / R0_rms < one) then
                 ! Any reduction will be considered a success at this point, but we don't want to make the CFL any bigger
@@ -601,7 +677,8 @@ module gcr
         ! where c = f_0, b = g_1-c, and a = f_1-b-c.
         ur_opt = ( g_1 - f_0 ) / (two * (f_1 - g_1) )
         ! Adding a bound to the ur factor 0 <= ur <= 1
-        ur_opt = min(max(ur_opt,zero) , one)
+        ur_min = ( one-residual_reduct_target ) / ( one - (gcr_res_rms/R0_rms) )
+        ur_opt = min(max(ur_opt,ur_min) , one)
 
         q = q + ur_opt * sol_update
 
@@ -643,7 +720,7 @@ module gcr
 
         implicit none
 
-        integer, intent(in) :: gcr_status ! not actually used for now...
+        integer, intent(inout) :: gcr_status ! not actually used for now...
 
         real(p2), dimension(nq,nq) :: preconditioner
 
@@ -662,7 +739,8 @@ module gcr
                 write(*,*) "CFL update: ", CFL
             endif
         elseif (gcr_status == GCR_CFL_FREEZE) then
-            ! Nothing to actually do here
+            ! Nothing to actually do here other than report a successful update
+            gcr_status = GCR_SUCCESS
         else ! fail
             do icell = 1,ncells
                 preconditioner = compute_primative_jacobian(q(:,icell))
