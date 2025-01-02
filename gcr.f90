@@ -21,6 +21,7 @@ module gcr
     integer, parameter :: GCR_PRECOND_DIVERGE = 3
     integer, parameter :: GCR_PRECOND_STALL = 4
     integer, parameter :: GCR_REAL_FAIL = 5
+    integer, parameter :: GCR_PREAL_FAIL = 6
 
 
 
@@ -54,239 +55,239 @@ module gcr
 
     end subroutine gcr_run
 
-    subroutine gcr_solve(gcr_final_update, gcr_res_rms, iostat)
+    ! subroutine gcr_solve(gcr_final_update, gcr_res_rms, iostat)
 
-        ! Right preconditioned version of Algorithm 6.21 from Y. Saad. Iterative Methods for Sparse Linear Systems, 2nd Edition
-        ! Right preconditioning is done using the same linear solver and the approximate (1st order jacobian)
+    !     ! Right preconditioned version of Algorithm 6.21 from Y. Saad. Iterative Methods for Sparse Linear Systems, 2nd Edition
+    !     ! Right preconditioning is done using the same linear solver and the approximate (1st order jacobian)
 
-        use common      , only : p2, zero, my_eps, one
+    !     use common      , only : p2, zero, my_eps, one
 
-        use config      , only : gcr_max_projections, gcr_reduction_target, amg_cycle
+    !     use config      , only : gcr_max_projections, gcr_reduction_target, amg_cycle
 
-        use grid        , only : ncells, cell
+    !     use grid        , only : ncells, cell
 
-        use solution    , only : nq, inv_ncells, compute_primative_jacobian, jacobian_type, res, jac, &
-                                 nl_reduction, n_projections, q, roc
+    !     use solution    , only : nq, inv_ncells, compute_primative_jacobian, jacobian_type, res, jac, &
+    !                              nl_reduction, n_projections, q, roc
 
-        use residual    , only : compute_residual
+    !     use residual    , only : compute_residual
 
-        use linear_solver, only: build_A_BCSM, build_Dinv_array, linear_sweeps, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE, & 
-                                 multilevel_cycle
+    !     use linear_solver, only: build_A_BCSM, build_Dinv_array, linear_sweeps, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE, & 
+    !                              multilevel_cycle
 
-        use algebraic_multigird, only : convert_amg_c_to_i
+    !     use algebraic_multigird, only : convert_amg_c_to_i
 
-        implicit none
+    !     implicit none
 
-        real(p2),            dimension(nq,ncells), intent(out) :: gcr_final_update   ! delta_Q_n+1
-        real(p2),                                  intent(out) :: gcr_res_rms        ! Needed for the NL update subroutine
-        integer,                                   intent(out) :: iostat                 ! status of gcr solve
+    !     real(p2),            dimension(nq,ncells), intent(out) :: gcr_final_update   ! delta_Q_n+1
+    !     real(p2),                                  intent(out) :: gcr_res_rms        ! Needed for the NL update subroutine
+    !     integer,                                   intent(out) :: iostat                 ! status of gcr solve
 
-        !+++++++++++++++++
-        real(p2), dimension(nq,ncells)                     :: gcr_residual 
-        real(p2)                                           :: RMS_R0, RMS_Qn ! RMS of outer residual and solution vectors
-        real(p2)                                           :: rms_resj, rms_resj_m1
-        real(p2), dimension(nq,ncells,gcr_max_projections) :: p ! Preconditioned vector p_i = M^{-1}*r_i
-        real(p2), dimension(nq,ncells,gcr_max_projections) :: Ap ! Exact jacobian (A computed w Frechet Deriv) times p 
-        real(p2)                                           :: length_p
-        real(p2), dimension(gcr_max_projections)           :: length_Ap2
-        real(p2)                                           :: alpha, beta
-        logical                                            :: stall_cond
-        real(p2)                                           :: gammak_maxApk
-        real(p2)                                           :: single_reduct
+    !     !+++++++++++++++++
+    !     real(p2), dimension(nq,ncells)                     :: gcr_residual 
+    !     real(p2)                                           :: RMS_R0, RMS_Qn ! RMS of outer residual and solution vectors
+    !     real(p2)                                           :: rms_resj, rms_resj_m1
+    !     real(p2), dimension(nq,ncells,gcr_max_projections) :: p ! Preconditioned vector p_i = M^{-1}*r_i
+    !     real(p2), dimension(nq,ncells,gcr_max_projections) :: Ap ! Exact jacobian (A computed w Frechet Deriv) times p 
+    !     real(p2)                                           :: length_p
+    !     real(p2), dimension(gcr_max_projections)           :: length_Ap2
+    !     real(p2)                                           :: alpha, beta
+    !     logical                                            :: stall_cond
+    !     real(p2)                                           :: gammak_maxApk
+    !     real(p2)                                           :: single_reduct
 
-        ! Variables for preconditioning matrix M
-        real(p2), dimension(:,:,:), pointer     :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     pointer     :: C   ! Column index of each value
-        integer , dimension(:),     pointer     :: R   ! Start index of each new row
-        integer                                 :: nnz
-        real(p2), dimension(:,:,:), pointer     :: Dinv
-        integer                                 :: direction, level
+    !     ! Variables for preconditioning matrix M
+    !     real(p2), dimension(:,:,:), pointer     :: V   ! Values (5x5 block matrix) plus corresponding index
+    !     integer , dimension(:),     pointer     :: C   ! Column index of each value
+    !     integer , dimension(:),     pointer     :: R   ! Start index of each new row
+    !     integer                                 :: nnz
+    !     real(p2), dimension(:,:,:), pointer     :: Dinv
+    !     integer                                 :: direction, level
 
-        integer :: idir, jdir
-        integer :: cycle_type
-        integer :: os
+    !     integer :: idir, jdir
+    !     integer :: cycle_type
+    !     integer :: os
 
 
-        ! Nullify pointers to avoid undefined behavior
-        nullify(V,C,R,Dinv)
+    !     ! Nullify pointers to avoid undefined behavior
+    !     nullify(V,C,R,Dinv)
 
-        gcr_final_update = zero
-        gcr_residual = -res
-        gcr_res_rms = zero
-        RMS_R0 = rms(nq,ncells,res,inv_ncells)
-        RMS_Qn = rms(nq,ncells,q  ,inv_ncells)
-        stall_cond = .false.
-        rms_resj = zero
-        single_reduct = gcr_reduction_target ** (one/real(gcr_max_projections,p2))
+    !     gcr_final_update = zero
+    !     gcr_residual = -res
+    !     gcr_res_rms = zero
+    !     RMS_R0 = rms(nq,ncells,res,inv_ncells)
+    !     RMS_Qn = rms(nq,ncells,q  ,inv_ncells)
+    !     stall_cond = .false.
+    !     rms_resj = zero
+    !     single_reduct = gcr_reduction_target ** (one/real(gcr_max_projections,p2))
 
-        jdir = 1
+    !     jdir = 1
 
-        if (gcr_verbosity >= 3) write(*,"(a,es12.6)") "RMS_R0 = ", RMS_R0 
+    !     if (gcr_verbosity >= 3) write(*,"(a,es12.6)") "RMS_R0 = ", RMS_R0 
 
-        ! Build M (A Approx) for precondition solve
-        allocate(R(ncells+1))
-        allocate(Dinv(5,5,ncells))
-        call build_A_BCSM(ncells,cell,jac,V,C,R,nnz=nnz)
+    !     ! Build M (A Approx) for precondition solve
+    !     allocate(R(ncells+1))
+    !     allocate(Dinv(5,5,ncells))
+    !     call build_A_BCSM(ncells,cell,jac,V,C,R,nnz=nnz)
 
-        call build_Dinv_array(ncells,jac,Dinv)
+    !     call build_Dinv_array(ncells,jac,Dinv)
 
-        level = 1
+    !     level = 1
 
-        ! Compute the initial search direction
-        cycle_type = convert_amg_c_to_i(amg_cycle)
-        ! keep_A = .true. so that V,C,R, and Dinv do not have to be rebuilt
-        call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir),os)
-        ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
-        if (os == RELAX_FAIL_DIVERGE) then
-            iostat = GCR_PRECOND_DIVERGE
-            ! Clear Jacobian arrays
-                if (associated(V)) deallocate(V)
-                if (associated(C)) deallocate(C)
-                if (associated(R)) deallocate(R)
-                if (associated(Dinv)) deallocate(Dinv)
-                return
-        elseif (os == RELAX_FAIL_STALL) then
-            iostat = GCR_PRECOND_STALL
-            ! Clear Jacobian arrays
-                if (associated(V)) deallocate(V)
-                if (associated(C)) deallocate(C)
-                if (associated(R)) deallocate(R)
-                if (associated(Dinv)) deallocate(Dinv)
-                return
-        endif
-        length_p = l2norm(nq,ncells,p(:,:,jdir))
-        ! write(*,*) "|A{approx} * delta_Q|: ", length_p
+    !     ! Compute the initial search direction
+    !     cycle_type = convert_amg_c_to_i(amg_cycle)
+    !     ! keep_A = .true. so that V,C,R, and Dinv do not have to be rebuilt
+    !     call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir),os)
+    !     ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir),os)
+    !     if (os == RELAX_FAIL_DIVERGE) then
+    !         iostat = GCR_PRECOND_DIVERGE
+    !         ! Clear Jacobian arrays
+    !             if (associated(V)) deallocate(V)
+    !             if (associated(C)) deallocate(C)
+    !             if (associated(R)) deallocate(R)
+    !             if (associated(Dinv)) deallocate(Dinv)
+    !             return
+    !     elseif (os == RELAX_FAIL_STALL) then
+    !         iostat = GCR_PRECOND_STALL
+    !         ! Clear Jacobian arrays
+    !             if (associated(V)) deallocate(V)
+    !             if (associated(C)) deallocate(C)
+    !             if (associated(R)) deallocate(R)
+    !             if (associated(Dinv)) deallocate(Dinv)
+    !             return
+    !     endif
+    !     length_p = l2norm(nq,ncells,p(:,:,jdir))
+    !     ! write(*,*) "|A{approx} * delta_Q|: ", length_p
         
-        call compute_frechet(p(:,:,jdir),length_p,RMS_Qn,Ap(:,:,jdir))
+    !     call compute_frechet(p(:,:,jdir),length_p,RMS_Qn,Ap(:,:,jdir))
 
 
-        proj_loop : do
+    !     proj_loop : do
 
-            length_Ap2(jdir) = max(l2norm(nq,ncells,Ap(:,:,jdir))**2,my_eps)
+    !         length_Ap2(jdir) = max(l2norm(nq,ncells,Ap(:,:,jdir))**2,my_eps)
 
-            alpha = inner_product(nq,ncells,gcr_residual(:,:),Ap(:,:,jdir)) / (length_Ap2(jdir))
+    !         alpha = inner_product(nq,ncells,gcr_residual(:,:),Ap(:,:,jdir)) / (length_Ap2(jdir))
 
-            gcr_final_update = gcr_final_update + alpha * p(:,:,jdir)
+    !         gcr_final_update = gcr_final_update + alpha * p(:,:,jdir)
 
-            gcr_residual     = gcr_residual     - alpha * Ap(:,:,jdir)
+    !         gcr_residual     = gcr_residual     - alpha * Ap(:,:,jdir)
 
-            ! Check for sufficient rms reduction
-            rms_resj_m1 = rms_resj
-            rms_resj = rms(nq,ncells,gcr_residual,inv_ncells)
-            if (rms_resj / RMS_R0 < gcr_reduction_target) then
-                iostat = GCR_SUCCESS
-                n_projections = jdir
-                nl_reduction  = rms_resj / RMS_R0
-                gcr_res_rms   = rms_resj
-                ! Clear Jacobian arrays
-                if (associated(V)) deallocate(V)
-                if (associated(C)) deallocate(C)
-                if (associated(R)) deallocate(R)
-                if (associated(Dinv)) deallocate(Dinv)
-                return
-            ! Check for max projections
-            elseif (jdir >= gcr_max_projections) then
-                iostat = GCR_STALL
-                n_projections = jdir
-                ! Clear Jacobian arrays
-                if (associated(V)) deallocate(V)
-                if (associated(C)) deallocate(C)
-                if (associated(R)) deallocate(R)
-                if (associated(Dinv)) deallocate(Dinv)
-                return
-            endif
-            ! Check for stall
-            ! https://doi.org/10.2514/6.2019-2333 Eq (7)
-            ! gammak = (Ap^{k} , r^{k-1}) = alpha * | Ap^{k} |**2
-            gammak_maxApk = maxval(Ap(:,:,jdir))
-            gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
-            if (jdir > 1) then
-                if (gammak_maxApk < rms_resj) then
-                    ! Potential stall
-                    if (rms_resj/rms_resj_m1 > single_reduct) then
-                        iostat = GCR_STALL
-                        n_projections = jdir
-                        ! Clear Jacobian arrays
-                        if (associated(V)) deallocate(V)
-                        if (associated(C)) deallocate(C)
-                        if (associated(R)) deallocate(R)
-                        if (associated(Dinv)) deallocate(Dinv)
-                        return
-                    endif
-                endif
-            endif
-            ! ! Check for stall
-            ! if (jdir > 1) then
-            !     if (gcr_verbosity >= 3) then
-            !         write(*,*) "res * Ap_jdir", inner_product(nq,ncells,gcr_residual(:,:),p(:,:,idir))
-            !     endif
-            !     stall_cond = alpha * maxval(Ap(:,:,jdir)) > rms_resj
-            ! endif
-            ! if (stall_cond) then
-            !     iostat = GCR_STALL
-            !     n_projections = jdir
-            !     
-            ! Clear Jacobian arrays
-            ! if (associated(V)) deallocate(V)
-            ! if (associated(C)) deallocate(C)
-            ! if (associated(R)) deallocate(R)
-            ! if (associated(Dinv)) deallocate(Dinv)
-            ! return
-            ! endif
+    !         ! Check for sufficient rms reduction
+    !         rms_resj_m1 = rms_resj
+    !         rms_resj = rms(nq,ncells,gcr_residual,inv_ncells)
+    !         if (rms_resj / RMS_R0 < gcr_reduction_target) then
+    !             iostat = GCR_SUCCESS
+    !             n_projections = jdir
+    !             nl_reduction  = rms_resj / RMS_R0
+    !             gcr_res_rms   = rms_resj
+    !             ! Clear Jacobian arrays
+    !             if (associated(V)) deallocate(V)
+    !             if (associated(C)) deallocate(C)
+    !             if (associated(R)) deallocate(R)
+    !             if (associated(Dinv)) deallocate(Dinv)
+    !             return
+    !         ! Check for max projections
+    !         elseif (jdir >= gcr_max_projections) then
+    !             iostat = GCR_STALL
+    !             n_projections = jdir
+    !             ! Clear Jacobian arrays
+    !             if (associated(V)) deallocate(V)
+    !             if (associated(C)) deallocate(C)
+    !             if (associated(R)) deallocate(R)
+    !             if (associated(Dinv)) deallocate(Dinv)
+    !             return
+    !         endif
+    !         ! Check for stall
+    !         ! https://doi.org/10.2514/6.2019-2333 Eq (7)
+    !         ! gammak = (Ap^{k} , r^{k-1}) = alpha * | Ap^{k} |**2
+    !         gammak_maxApk = maxval(Ap(:,:,jdir))
+    !         gammak_maxApk = gammak_maxApk * alpha * length_Ap2(jdir)
+    !         if (jdir > 1) then
+    !             if (gammak_maxApk < rms_resj) then
+    !                 ! Potential stall
+    !                 if (rms_resj/rms_resj_m1 > single_reduct) then
+    !                     iostat = GCR_STALL
+    !                     n_projections = jdir
+    !                     ! Clear Jacobian arrays
+    !                     if (associated(V)) deallocate(V)
+    !                     if (associated(C)) deallocate(C)
+    !                     if (associated(R)) deallocate(R)
+    !                     if (associated(Dinv)) deallocate(Dinv)
+    !                     return
+    !                 endif
+    !             endif
+    !         endif
+    !         ! ! Check for stall
+    !         ! if (jdir > 1) then
+    !         !     if (gcr_verbosity >= 3) then
+    !         !         write(*,*) "res * Ap_jdir", inner_product(nq,ncells,gcr_residual(:,:),p(:,:,idir))
+    !         !     endif
+    !         !     stall_cond = alpha * maxval(Ap(:,:,jdir)) > rms_resj
+    !         ! endif
+    !         ! if (stall_cond) then
+    !         !     iostat = GCR_STALL
+    !         !     n_projections = jdir
+    !         !     
+    !         ! Clear Jacobian arrays
+    !         ! if (associated(V)) deallocate(V)
+    !         ! if (associated(C)) deallocate(C)
+    !         ! if (associated(R)) deallocate(R)
+    !         ! if (associated(Dinv)) deallocate(Dinv)
+    !         ! return
+    !         ! endif
 
 
-            ! Generate new search direction
-            call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir+1),os)
-            ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
-            if (os == RELAX_FAIL_DIVERGE) then
-                iostat = GCR_PRECOND_DIVERGE
-                ! Clear Jacobian arrays
-                if (associated(V)) deallocate(V)
-                if (associated(C)) deallocate(C)
-                if (associated(R)) deallocate(R)
-                if (associated(Dinv)) deallocate(Dinv)
-                return
-            elseif (os == RELAX_FAIL_STALL) then
-                iostat = GCR_PRECOND_STALL
-                ! Clear Jacobian arrays
-                if (associated(V)) deallocate(V)
-                if (associated(C)) deallocate(C)
-                if (associated(R)) deallocate(R)
-                if (associated(Dinv)) deallocate(Dinv)
-                return
-            endif
-            ! write(*,*) "|A{approx} * delta_Q|: ", length_p
-            call compute_frechet(p(:,:,jdir+1),length_p,RMS_Qn,Ap(:,:,jdir+1))
+    !         ! Generate new search direction
+    !         call multilevel_cycle(ncells,nq, V, C, R, -gcr_residual, Dinv,cycle_type,.true.,p(:,:,jdir+1),os)
+    !         ! call linear_sweeps(ncells,nq,nnz,V,C,R,-gcr_residual,Dinv,level,direction,p(:,:,jdir+1),os)
+    !         if (os == RELAX_FAIL_DIVERGE) then
+    !             iostat = GCR_PRECOND_DIVERGE
+    !             ! Clear Jacobian arrays
+    !             if (associated(V)) deallocate(V)
+    !             if (associated(C)) deallocate(C)
+    !             if (associated(R)) deallocate(R)
+    !             if (associated(Dinv)) deallocate(Dinv)
+    !             return
+    !         elseif (os == RELAX_FAIL_STALL) then
+    !             iostat = GCR_PRECOND_STALL
+    !             ! Clear Jacobian arrays
+    !             if (associated(V)) deallocate(V)
+    !             if (associated(C)) deallocate(C)
+    !             if (associated(R)) deallocate(R)
+    !             if (associated(Dinv)) deallocate(Dinv)
+    !             return
+    !         endif
+    !         ! write(*,*) "|A{approx} * delta_Q|: ", length_p
+    !         call compute_frechet(p(:,:,jdir+1),length_p,RMS_Qn,Ap(:,:,jdir+1))
 
-            ! Modified Gram-Schmidt Orthogonalization
-            do idir = 1,jdir
-                beta = - inner_product(nq,ncells,Ap(:,:,jdir+1),Ap(:,:,idir)) / length_Ap2(idir)
+    !         ! Modified Gram-Schmidt Orthogonalization
+    !         do idir = 1,jdir
+    !             beta = - inner_product(nq,ncells,Ap(:,:,jdir+1),Ap(:,:,idir)) / length_Ap2(idir)
                 
-                p(:,:,jdir+1) = p(:,:,jdir+1) + beta * p(:,:,idir)
-                Ap(:,:,jdir+1)=Ap(:,:,jdir+1) + beta *Ap(:,:,idir)
+    !             p(:,:,jdir+1) = p(:,:,jdir+1) + beta * p(:,:,idir)
+    !             Ap(:,:,jdir+1)=Ap(:,:,jdir+1) + beta *Ap(:,:,idir)
 
-                ! Sanity check orthogonality
-                if (gcr_verbosity >= 3) then
-                    ! Note: the P vectors are A^{T}A-orthogonal. meaning Ap_i * Ap_j = 0.  However, the vectors P_i * P_j need not be 
-                    ! orthogonal themselves.  In fact, they won't be unless A^{T}A = c*I (I think, I haven't done an exhaustive 
-                    ! proof)
-                    if (idir == 1) write(*,"(a,i2,a,es12.6)") " Res(", jdir,") = ", rms_resj
-                    write(*,*) "j=",jdir+1,"i=",idir,"inner_product (p) = ", inner_product(nq,ncells,p(:,:,jdir + 1),p(:,:,idir))
-                    write(*,*) "j=",jdir+1,"i=",idir,"inner_product (Ap) = ", inner_product(nq,ncells,Ap(:,:,jdir + 1),Ap(:,:,idir))
-                endif
-                continue
-            end do
+    !             ! Sanity check orthogonality
+    !             if (gcr_verbosity >= 3) then
+    !                 ! Note: the P vectors are A^{T}A-orthogonal. meaning Ap_i * Ap_j = 0.  However, the vectors P_i * P_j need not be 
+    !                 ! orthogonal themselves.  In fact, they won't be unless A^{T}A = c*I (I think, I haven't done an exhaustive 
+    !                 ! proof)
+    !                 if (idir == 1) write(*,"(a,i2,a,es12.6)") " Res(", jdir,") = ", rms_resj
+    !                 write(*,*) "j=",jdir+1,"i=",idir,"inner_product (p) = ", inner_product(nq,ncells,p(:,:,jdir + 1),p(:,:,idir))
+    !                 write(*,*) "j=",jdir+1,"i=",idir,"inner_product (Ap) = ", inner_product(nq,ncells,Ap(:,:,jdir + 1),Ap(:,:,idir))
+    !             endif
+    !             continue
+    !         end do
 
-            jdir = jdir + 1
+    !         jdir = jdir + 1
                 
-        end do proj_loop
+    !     end do proj_loop
 
-        ! Clear Jacobian arrays (just in case we get this far...)
-        if (associated(V)) deallocate(V)
-        if (associated(C)) deallocate(C)
-        if (associated(R)) deallocate(R)
-        if (associated(Dinv)) deallocate(Dinv)
-    end subroutine gcr_solve
+    !     ! Clear Jacobian arrays (just in case we get this far...)
+    !     if (associated(V)) deallocate(V)
+    !     if (associated(C)) deallocate(C)
+    !     if (associated(R)) deallocate(R)
+    !     if (associated(Dinv)) deallocate(Dinv)
+    ! end subroutine gcr_solve
 
     subroutine gcr_solve_scratch(gcr_final_update, gcr_res_rms, iostat)
 
@@ -296,7 +297,7 @@ module gcr
 
         use grid        , only : ncells, cell
 
-        use solution    , only : nq, inv_ncells, dtau, compute_primative_jacobian, jacobian_type, res, jac, &
+        use solution    , only : nq, inv_ncells, compute_primative_jacobian, jacobian_type, res, jac, &
                                  nl_reduction, n_projections, q
 
         use residual    , only : compute_residual
@@ -330,12 +331,11 @@ module gcr
         integer , dimension(:),     pointer     :: R   ! Start index of each new row
         integer                                 :: nnz
         real(p2), dimension(:,:,:), pointer     :: Dinv
-        integer                                 :: direction, level
+        integer                                 :: level
 
         integer :: cycle_type
 
         integer :: kdir, jdir ! projection direction indices
-        integer :: icell
         integer :: os
 
         ! Nullify pointers to avoid undefined behavior
@@ -383,7 +383,17 @@ module gcr
             ! Generate the new search direction
             norm_dQ_k = l2norm(nq,ncells,dQ_k(:,:,kdir))
 
-            call compute_frechet(dQ_k(:,:,kdir),norm_dQ_k,rms_Q_n,b_k(:,:,kdir))
+            call compute_frechet(dQ_k(:,:,kdir),norm_dQ_k,rms_Q_n,b_k(:,:,kdir),os)
+
+            if (os == GCR_PREAL_FAIL) then
+                iostat = GCR_PREAL_FAIL
+                ! Clear Jacobian arrays
+                if (associated(V)) deallocate(V)
+                if (associated(C)) deallocate(C)
+                if (associated(R)) deallocate(R)
+                if (associated(Dinv)) deallocate(Dinv)
+                return
+            endif
 
             ! Orthonormalize
             norm_b_k_inv = one / l2norm(nq,ncells,b_k(:,:,kdir))
@@ -451,7 +461,7 @@ module gcr
         return
     end subroutine gcr_solve_scratch
 
-    subroutine compute_frechet(sol_update,update_length,sol_rms,frechet_deriv)
+    subroutine compute_frechet(sol_update,update_length,sol_rms,frechet_deriv,os)
 
         use common , only : p2, one
 
@@ -469,6 +479,7 @@ module gcr
         real(p2),                       intent(in) :: update_length
         real(p2),                       intent(in) :: sol_rms
         real(p2), dimension(:,:),       intent(out):: frechet_deriv
+        integer,                        intent(out):: os
 
         real(p2), dimension(:,:), pointer :: q_n
         real(p2), dimension(:,:), pointer :: r_0
@@ -477,6 +488,8 @@ module gcr
         real(p2)                          :: frech_min_bound = 1.0e-07_p2
 
         integer :: icell
+
+        os = 0
 
         ! compute eps to be used in the frechet derivative
         eps_frechet = max(sol_rms,one)*frech_min_bound
@@ -493,7 +506,21 @@ module gcr
         allocate(  q(nq,ncells))
         allocate(res(nq,ncells))
 
-        q = q_n + eps_frechet * sol_update / update_length
+        do icell = 1,ncells
+            q(:,icell) = q_n(:,icell) + eps_frechet * sol_update(:,icell) / update_length
+            if ( (q(1,icell) <= 0) .or. ( q(5,icell) <= 0 ) ) then
+                ! solution does not pass realizeability check
+                deallocate(  q)
+                deallocate(res)
+
+                q   => q_n
+                res => r_0
+
+                nullify(q_n,r_0)
+
+                os = GCR_PREAL_FAIL
+            endif
+        end do
 
         call compute_residual
 
@@ -596,7 +623,6 @@ module gcr
         real(p2)                            :: residual_reduct_target
         real(p2)                            :: Rtau_rms, R0_rms
         real(p2)                            :: delQ_rms, Qn_rms
-        real(p2)                            :: delQ_norm
         real(p2)                            :: f_0, f_1, g_1     ! terms in the optimization equation 22
         !real(p2), dimension(nq,ncells)      :: frechet_deriv
         real(p2)                            :: ur_opt, ur_min
