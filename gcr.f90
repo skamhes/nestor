@@ -637,6 +637,7 @@ module gcr
         allocate(  q(nq,ncells))
         allocate(res(nq,ncells))
 
+        ! We don't need to perform a realizability check here because we did it in gcr_real_check
         q = q_n + sol_update
 
         call compute_residual
@@ -706,6 +707,8 @@ module gcr
         ur_min = ( one-residual_reduct_target ) / ( one - (gcr_res_rms/R0_rms) )
         ur_opt = min(max(ur_opt,ur_min) , one)
 
+        ! Because this passed the realizability check with ur = 1, we know -Q(j,i) < sol_update for j = 1,5 and any i.
+        ! Therefore if abs(ur_opt) < 1, we now the updated solution w/ under-relaxation will also be realizable.
         q = q + ur_opt * sol_update
 
         ! Check convergence of the updated solution
