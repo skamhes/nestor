@@ -15,12 +15,12 @@ module jacobian
 
         use common              , only : p2, zero, half, one
 
-        use config              , only : turbulence_type
+        use utils               , only : iturb_type, TURB_INVISCID, ibc_type
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
-                                         bound, nb, bc_type
+                                         bound, nb
 
         use solution            , only : q, gamma, gammamo, gmoinv, dtau, jac, &
                                          kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, compute_primative_jacobian
@@ -35,20 +35,15 @@ module jacobian
 
         implicit none
         ! Local Vars
-        integer                     :: c1, c2, i, k, ib, idestat, j, os, ii,jj, nk
-        real(p2), dimension(3)      :: unit_face_nrml, bface_centroid, ds, d_Cb, ejk
-        real(p2), dimension(5)      :: u1, u2, ub, wb, qb, q1
+        integer                     :: c1, c2, i, k, ib, idestat, j, nk
+        real(p2), dimension(3)      :: unit_face_nrml, bface_centroid
+        real(p2), dimension(5)      :: qb, q1
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
-        real(p2)                    :: face_mag, mag_ds, mag_ejk
-        real(p2)                    :: xc1,xc2,yc1,yc2,zc1,zc2
+        real(p2)                    :: face_mag
 
-        real(p2), dimension(5,5)    :: preconditioner, pre_inv
-        real(p2), dimension(5,5)    :: duLdqL, duRdqR
-        real(p2)                    :: theta
-        real(p2)                    :: rho_p, rho_T, rho
-        real(p2)                    :: H, alpha, beta, lambda, absu, UR2inv
-
+        real(p2), dimension(5,5)    :: preconditioner
+        
         integer                     :: face_sides
 
         ! Initialize jacobian terms
@@ -81,7 +76,7 @@ module jacobian
             k = kth_nghbr_of_2(i)
             jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
 
-            if ( trim(turbulence_type) == 'inviscid' ) cycle loop_faces
+            if ( iturb_type > TURB_INVISCID ) cycle loop_faces
 
             gradq1 = ccgradq(1:3,1:5,c1)
             gradq2 = ccgradq(1:3,1:5,c2)
@@ -114,14 +109,14 @@ module jacobian
 
                 q1 = q(:,c1)
                 
-                call get_right_state(q1, unit_face_nrml, bc_type(ib), qb)
+                call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
 
                 call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
                 
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 
-                if ( trim(turbulence_type) == 'inviscid' ) cycle bfaces_loop
+                if ( iturb_type > TURB_INVISCID ) cycle bfaces_loop
 
                 face_sides = bound(ib)%bfaces(1,i)
 

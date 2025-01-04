@@ -27,9 +27,12 @@ module steady_solver
 
         ! use linear_solver , only :  lrelax_sweeps_actual, lrelax_roc
 
-        use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
+        use config    , only : accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag, turbulence_type, time_method
+                                lift, drag, solver_type
+
+        use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
+                               itime_method, TM_REMAINING, TM_ELAPSED
                                 
         use initialize, only : set_initial_solution
 
@@ -103,7 +106,7 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2 .OR. trim(turbulence_type) == 'laminar' ) then
+        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID ) then
             call init_gradients
         endif    
 
@@ -122,7 +125,7 @@ module steady_solver
             allocate(phi(ncells))
         end if
 
-        if (trim(time_method) == 'elapsed') then
+        if (itime_method == TM_ELAPSED) then
             call system_clock(COUNT = solver_epoch)
         endif
 
@@ -137,7 +140,7 @@ module steady_solver
             ! Compute forces
             if ( lift .OR. drag ) call compute_forces
 
-            if (trim(time_method) == 'elapsed') then
+            if (itime_method == TM_ELAPSED) then
                 call system_clock(COUNT = dt_vals)
                 totalTime = (dt_vals - solver_epoch) / 1000 ! it's acceptable in this case to round down to the second
 
@@ -184,17 +187,18 @@ module steady_solver
             call compute_local_time_step_dtau
 
             ! March in pseudo-time to update u: u = u + du
-            if (trim(solver_type) == "rk") then
+            select case(isolver_type)
+            case(SOLVER_RK)
                 call explicit_pseudo_time_rk
-            elseif (trim(solver_type) == 'explicit') then
+            case(SOLVER_EXPLICIT)
                 call explicit_pseudo_time_forward_euler
-            elseif (trim(solver_type) == "implicit") then
+            case(SOLVER_IMPLICIT)
                 call implicit
-            elseif (trim(solver_type) == 'gcr') then
+            case(SOLVER_GCR)
                 call gcr
-            else
-                write(*,*) " Unsopported iteration method: Solver = ", solver_type
-            end if
+            case default
+                write(*,*) " Unsopported iteration method: Solver = ", trim(solver_type)
+            end select
 
             ! If using CFL ramp increase CFL
             if (CFL_ramp .and. (i_iteration < CFL_ramp_steps + CFL_start_iter) .and. i_iteration > CFL_start_iter) then

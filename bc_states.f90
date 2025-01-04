@@ -10,32 +10,30 @@ module bc_states
 
         use common     , only : p2
 
+        use utils , only : BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
+
         implicit none
 
         !Input
         real(p2), dimension(5),     intent(in) :: qL
         real(p2), dimension(3),     intent(in) :: njk
-        character(len=*),           intent(in) :: bc_state_type
+        integer ,           intent(in)         :: bc_state_type
         
         !output
         real(p2), dimension(5),    intent(out) :: qcB
 
-        select case(trim(bc_state_type))
-            case('freestream')
+        select case(bc_state_type)
+            case(BC_FARFIELD)
                 call freestream(qcB)
-            case('symmetry')
-                ! Symmetry is treated the same as a slip wall numerically
-                ! We differentiate the two for force calculations
+            case(BC_TANGENT)
                 call slip_wall(qL,njk,qcB)
-            case('slip_wall') ! Adiabatic
-                call slip_wall(qL,njk,qcB)
-            case('no_slip_wall') ! Adiabatic
+            case(BC_VISC_STRONG) ! Adiabatic
                 call no_slip_wall(qL,qcB)
-            case('outflow_subsonic')
+            case(BC_BACK_PRESSURE)
                 call back_pressure(qL,qcB)
             case default
-                write(*,*) "Boundary condition=",trim(bc_state_type),"  not implemented."
-                write(*,*) " --- Stop at get_right_state() in kcfd_module_bc_states.f90..."
+                write(*,*) "Boundary condition=", bc_state_type ,"  not implemented."
+                write(*,*) " --- Stop at get_right_state() in bc_states.f90..."
                 stop
         end select
 

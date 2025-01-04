@@ -50,17 +50,18 @@ module least_squares
 
         ! use common , only : p2
 
-        use config , only : lsq_stencil
+        use utils , only : ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         implicit none
 
-        if (trim(lsq_stencil) == "w_vertex") then
+        select case(ilsq_stencil)
+        case(LSQ_STENCIL_WVERTEX)
             call construct_wvertex_stencil
             call compute_vertex_coefficients
-        else
+        case default
             write(*,*) "Unsupported LSQ Stencil"
             stop
-        endif
+        end select
 
 
 

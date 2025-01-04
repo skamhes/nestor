@@ -153,9 +153,10 @@ module linear_solver
 
         use common          , only : p2, zero, one, half, two, my_eps
 
-        use config          , only : lrelax_sweeps, solver_type, lrelax_tolerance, smoother, &
+        use config          , only : lrelax_sweeps, solver_type, lrelax_tolerance, &
                                      use_amg, max_amg_levels, pre_sweeps, post_sweeps, min_amg_blcoks
 
+        use utils           , only : ismoother, SMOOTH_GS
         use sparse_matrix   , only : sparseblock_times_vectorblock
 
         use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
@@ -207,14 +208,15 @@ module linear_solver
         ! Pre-sweeps
         pre_sweep_loop : do isweep = 1,pre_sweeps
             ! Perform sweeps
-            if ( trim(smoother) =='gs' ) then
+            select case(ismoother)
+            case(SMOOTH_GS)
                 call gauss_seidel_sweep(num_eq,solve_level%ncells,res,solve_level%V,solve_level%C,solve_level%R,solve_level%Dinv, &
                                         omega_lrelax,correction, linear_res_norm)
-            else
+            case default
                 write(*,*) " Sorry, only 'gs' is available at the moment..."
-                write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop."
+                write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop. linear_solver.f90"
                 stop
-            endif
+            end select
 
         end do pre_sweep_loop
 
@@ -257,14 +259,15 @@ module linear_solver
         ! Post-sweeps
         post_sweep_loop : do isweep = 1,post_sweeps
             ! Perform sweeps
-            if ( trim(smoother) =='gs' ) then
+            select case(ismoother)
+            case(SMOOTH_GS)
                 call gauss_seidel_sweep(num_eq,solve_level%ncells,res,solve_level%V,solve_level%C,solve_level%R,solve_level%Dinv, &
                                         omega_lrelax,correction, linear_res_norm)
-            else
-                write(*,*) " Sorry, only 'gs' is available at the moment..."
-                write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop."
-                stop
-            endif
+                case default
+                    write(*,*) " Sorry, only 'gs' is available at the moment..."
+                    write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop. linear_solver.f90"
+                    stop
+                end select
 
         end do post_sweep_loop
         

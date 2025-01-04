@@ -2031,5 +2031,40 @@ module grid
         normal = normal / area
         ! area = half * mag        
     end subroutine triNormal
+
+    subroutine bc_convert_c_to_i
+
+        use utils , only : ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
+
+        implicit none
+
+        integer :: ib
+
+        allocate(ibc_type(nb))
+
+        do ib = 1,nb
+            select case(trim(bc_type(ib)))
+            case('freestream')
+                ibc_type(ib) = BC_FARFIELD
+            case('symmetry')
+                ! Symmetry is treated the same as a slip wall numerically
+                ! We differentiate the two for force calculations
+                ibc_type(ib) = BC_TANGENT
+            case('slip_wall') ! Adiabatic
+                ibc_type(ib) = BC_TANGENT
+            case('no_slip_wall') ! Adiabatic
+                ibc_type(ib) = BC_VISC_STRONG
+            case('outflow_subsonic')
+                ibc_type(ib) = BC_BACK_PRESSURE
+            case default
+                write(*,*) "Boundary condition=",trim(bc_type(ib)),"  not implemented."
+                write(*,*) " --- Stop at bc_convert_c_to_i in grid.f90..."
+                stop
+        end select
+        end do
+
+
+    end subroutine bc_convert_c_to_i
+
     
 end module grid

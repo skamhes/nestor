@@ -12,6 +12,8 @@ module forces
 
         use config      , only : drag, lift, accuracy_order, turbulence_type, M_inf, Re_inf, sutherland_constant, reference_temp
 
+        use utils       , only : ibc_type, BC_VISC_STRONG, iturb_type, TURB_INVISCID
+
         use grid        , only : bound, nb, bc_type, cell
 
         use solution    , only : q, force_drag, force_lift, ndim, ccgradq, force_normalization, &
@@ -48,7 +50,8 @@ module forces
 
         boundary_loop : do ib = 1,nb
             ! Only walls:
-            if ( .NOT. (trim(bc_type(ib)) == 'no_slip_wall' .OR. trim(bc_type(ib)) == 'slip_wall' ) ) then
+            if ( .NOT. (ibc_type(ib) == BC_VISC_STRONG .OR. trim(bc_type(ib)) == 'slip_wall' ) ) then
+                ! Only one of these is integers for now.  We don't have a unique int for slip walls...
                 cycle boundary_loop
             endif
 
@@ -68,7 +71,7 @@ module forces
                 bface_normal = bound(ib)%bface_nrml(:,i)
                 bface_mag    = bound(ib)%bface_nrml_mag(i)
 
-                if ( trim(turbulence_type) /= 'inviscid' ) then
+                if ( iturb_type > TURB_INVISCID ) then
                     face_sides = bound(ib)%bfaces(1,i)
 
                     bface_grad = zero
@@ -85,13 +88,13 @@ module forces
 
                 if ( lift ) then
                     pforce_lift = pforce_lift + face_pressure * bface_mag * dot_product(bface_normal,vector_lift)
-                    if ( trim(turbulence_type) /= 'inviscid' ) then 
+                    if ( iturb_type > TURB_INVISCID ) then 
                         vforce_lift = vforce_lift - bface_mag * dot_product(bface_shear, vector_lift)
                     end if
                 endif
                 if ( drag ) then
                     pforce_drag = pforce_drag + face_pressure * bface_mag * dot_product(bface_normal,vector_drag)
-                    if ( trim(turbulence_type) /= 'inviscid' ) then 
+                    if ( iturb_type > TURB_INVISCID ) then 
                         vforce_drag = vforce_drag - bface_mag * dot_product(bface_shear, vector_drag)
                     end if
                 endif

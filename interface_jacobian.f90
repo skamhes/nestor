@@ -12,7 +12,7 @@ module interface_jacobian
 
         use ad_operators        ! all
 
-        use config              , only : method_inv_jac
+        use utils               , only : imethod_inv_jac, IJAC_ROE, IJAC_HLL, IJAC_RHLL, IJAC_RUSANOV
         
         use ad_inviscid_flux    , only :      roe_ddt, &
                                             rusanov_ddt, &
@@ -50,39 +50,41 @@ module interface_jacobian
                 uL_ddt = q2u_ddt(qL_ddt)
                 uR_ddt = q2u_ddt(qR_ddt)
             end if
+            select case(imethod_inv_jac)
             !------------------------------------------------------------
             !  (1) Roe flux
             !------------------------------------------------------------
-            if(trim(method_inv_jac)=="roe") then
+            case(IJAC_ROE)
                     
                 call roe_ddt(uL_ddt,uR_ddt,njk, dummy5,dfndu,wsn)
 
             !------------------------------------------------------------
             !  (2) Rusanov flux
             !------------------------------------------------------------
-            elseif(trim(method_inv_jac)=="rusanov") then
+            case(IJAC_RUSANOV)
                 call rusanov_ddt(uL_ddt,uR_ddt,njk, dummy5,dfndu,wsn)
             !------------------------------------------------------------
             !  (3) HLL flux
             !------------------------------------------------------------
-            elseif(trim(method_inv_jac)=="hll") then
+            case(IJAC_HLL)
                 call hll_ddt(uL_ddt,uR_ddt,njk, dummy5,dfndu,wsn)
             !------------------------------------------------------------
             !  (4) RHLL flux: the last argumant -> exact_jac = .false.
             !                  so that the jac = a1*HLL_jac+a2*Roe_jac
             !                   with a1 and a2 not differentiated.
             !------------------------------------------------------------
-            elseif(trim(method_inv_jac)=="rhll") then
+            case(IJAC_RHLL)
                 call rhll_ddt(uL_ddt,uR_ddt,njk, dummy5,dfndu,wsn,.false.)
             !------------------------------------------------------------
             !  Others...
             !------------------------------------------------------------
-            else
-                write(*,*) " Invalid input for inviscid_jac = ", trim(method_inv_jac)
-                write(*,*) " Choose roe or rhll, and try again."
+            case default
+                write(*,*) " Invalid input for inviscid_jac = ", imethod_inv_jac
+                write(*,*) " Choose roe or rhll, and try again. interface_jacobian.f90"
                 write(*,*) " ... Stop."
                 stop
-            endif
+            end select
+
             if (i==1) then
                 dFnduL = dfndu
             else

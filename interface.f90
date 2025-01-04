@@ -10,9 +10,10 @@ module interface
 
         use common                 , only : p2
 
-        use config                 , only : method_inv_flux !name of flux pecified as input
         use config                 , only : accuracy_order
-        
+
+        use utils                  , only : imethod_inv_flux, IFLUX_ROE
+
         use solution               , only : q2u
 
         use inviscid_flux          , only : roe
@@ -49,19 +50,20 @@ module interface
         !------------------------------------------------------------
         !  (1) Roe flux
         !------------------------------------------------------------
-        if(trim(method_inv_flux)=="roe") then
+        select case(imethod_inv_flux)
+        case(IFLUX_ROE)
             call roe(uL,uR,n12, num_flux,wsn)
         ! !------------------------------------------------------------
         ! Other fluxes not yet implemneted.
         !------------------------------------------------------------
-        else
+        case default
 
-            write(*,*) " Invalid input for inviscid_flux = ", trim(method_inv_flux)
+            write(*,*) " Invalid input for inviscid_flux = ", imethod_inv_flux
             write(*,*) " Choose roe or rhll, and try again."
             write(*,*) " ... Stop."
             stop
 
-        endif
+        end select
 
     end subroutine interface_flux
 

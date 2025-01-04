@@ -10,15 +10,18 @@ module residual
 
         use common          , only : p2, zero, half, one, two
 
-        use config          , only : method_inv_flux, accuracy_order, use_limiter, turbulence_type
+        use config          , only : method_inv_flux, accuracy_order, use_limiter
+
+        use utils           , only : iturb_type, TURB_INVISCID
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
                                      nb,     bound, &
-                                     bc_type,       &
                                      face_nrml,     &
                                      face_nrml_mag, &
                                      face_centroid
+
+        use utils           , only : ibc_type
         
         use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi
 
@@ -35,13 +38,11 @@ module residual
         implicit none
 
         ! Grid Vars
-        real(p2)                    :: xm, ym, zm
-        integer                     :: c1, c2,  v1, v2, v3
+        integer                     :: c1, c2
         real(p2), dimension(3)      :: unit_face_normal, bface_centroid
-        real(p2)                    :: xc1,xc2,yc1,yc2,zc1,zc2
 
         ! Flow variables
-        real(p2), dimension(5)      :: u1, u2, q1, q2
+        real(p2), dimension(5)      :: q1, q2
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5)      :: num_flux
         real(p2), dimension(5)      :: qb
@@ -49,8 +50,8 @@ module residual
         real(p2)                    :: phi1, phi2
 
         ! Misc int/counters
-        integer                     :: i, os
-        integer                     :: j, ib, ix, iu, ii
+        integer                     :: i
+        integer                     :: j, ib
         integer                     :: face_sides
         integer                     :: k, nk
 
@@ -68,7 +69,7 @@ module residual
         !--------------------------------------------------------------------------------
         ! Compute gradients at cells.
         !
-        if (accuracy_order == 2 .OR. trim(turbulence_type) == 'laminar') then
+        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID) then
             call compute_gradient(0) ! For now we are just using unweighted gradients
         endif
 
@@ -141,7 +142,7 @@ module residual
             res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed*face_nrml_mag(i)
 
-            if ( trim(turbulence_type) == 'inviscid' ) cycle loop_faces
+            if ( iturb_type == TURB_INVISCID) cycle loop_faces
 
             ! Viscous flux
             call visc_flux_internal(q1,q2,gradq1,gradq2,unit_face_normal,  &
@@ -175,7 +176,7 @@ module residual
                 q1 = q(:,c1)
                 
                 ! Get the right hand state (weak BC!)
-                call get_right_state(q1, unit_face_normal, bc_type(ib), qb)
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
                 else
@@ -199,7 +200,7 @@ module residual
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
-                if ( trim(turbulence_type) == 'inviscid' ) cycle bface_loop
+                if ( iturb_type == TURB_INVISCID ) cycle bface_loop
                 
                 face_sides = bound(ib)%bfaces(1,j)
 

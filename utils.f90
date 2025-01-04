@@ -12,6 +12,7 @@ module utils
     public itime_method, TM_REMAINING, TM_ELAPSED
     public imethod_inv_flux, imethod_inv_jac, isolver_type, ijacobian_method
     public IFLUX_ROE, IJAC_ROE, SOLVER_RK, SOLVER_EXPLICIT, SOLVER_IMPLICIT, SOLVER_GCR, JAC_ANALYTIC
+    public IJAC_RHLL, IJAC_HLL, IJAC_RUSANOV
     public ismoother, SMOOTH_GS
     public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
     public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS
@@ -30,7 +31,10 @@ module utils
 
     integer, parameter :: IFLUX_ROE = 0
     
-    integer, parameter :: IJAC_ROE = 0
+    integer, parameter :: IJAC_ROE     = 0
+    integer, parameter :: IJAC_RUSANOV = 1
+    integer, parameter :: IJAC_HLL     = 2
+    integer, parameter :: IJAC_RHLL    = 3
 
     integer, parameter :: SOLVER_RK       = 0
     integer, parameter :: SOLVER_EXPLICIT = 1
@@ -64,7 +68,7 @@ module utils
     integer, parameter :: TURB_LES      = 4
 
     ! Boundary Conditions
-    integer, dimension(:), allocatable :: ibc_type
+    integer, dimension(:), allocatable :: ibc_type !boundary conditions stored as integers (using the same numbering as FUN3D)
 
     integer, parameter :: BC_VISC_STRONG   = 4000
     integer, parameter :: BC_FARFIELD      = 5000
@@ -86,7 +90,7 @@ module utils
         igrad_method     = 0
         ilsq_stencil     = 0
         iturb_type       = 0
-        
+
     end subroutine initialize_isettings
 
 

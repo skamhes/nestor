@@ -309,6 +309,8 @@ module config
         itime_method = TM_ELAPSED
       case default
         write(*,*) ' time_method input "', trim(time_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
 
       select case(trim(method_inv_flux))
@@ -316,6 +318,8 @@ module config
         imethod_inv_flux = IFLUX_ROE
       case default
         write(*,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
       
       select case(trim(method_inv_jac))
@@ -323,6 +327,8 @@ module config
         imethod_inv_jac = IJAC_ROE
       case default
         write(*,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
       
       select case(trim(solver_type))
@@ -336,6 +342,8 @@ module config
         isolver_type = SOLVER_GCR
       case default
         write(*,*) ' solver_type input "', trim(solver_type),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
       
       select case(trim(jacobian_method))
@@ -343,6 +351,8 @@ module config
         ijacobian_method = JAC_ANALYTIC
       case default
         write(*,*) ' jacobian_method input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
       
       select case(trim(smoother))
@@ -350,6 +360,8 @@ module config
         ismoother = SMOOTH_GS
       case default
         write(*,*) ' smoother input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
 
       select case(trim(grad_method))
@@ -357,6 +369,8 @@ module config
         igrad_method = GRAD_LSQ
       case default
         write(*,*) ' grad_method input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
 
       select case(trim(lsq_stencil))
@@ -364,6 +378,8 @@ module config
         ilsq_stencil = LSQ_STENCIL_WVERTEX
       case default
         write(*,*) ' lsq_stencil input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
 
       select case(trim(turbulence_type))
@@ -375,6 +391,8 @@ module config
         iturb_type = TURB_RANS
       case default
         write(*,*) ' turbulence_type input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
       end select
       
     end subroutine update_isettings

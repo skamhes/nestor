@@ -20,21 +20,24 @@ module gradient
 
         use common        , only : p2, zero
 
+        use utils         , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
+
         !use grid          , only : nnodes, ncells
 
 
         implicit none
         
-        if (trim(grad_method) == 'lsq') then
+        select case(igrad_method)
+        case(GRAD_LSQ)
             ! Build LSQ Stencil and coefficients
             call construct_lsq_stencil
-            if (trim(lsq_stencil) == 'w_vertex') then
+            if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 ! Gradient arrays are allocated in solution subroutine
                 write(*,*)
                 write(*,*) 'Initializing gradient vertex arrays.'
                 vgradq = zero
             endif
-        endif
+        end select
 
         ! Initialize the cell centered array always
         write(*,*)
@@ -52,6 +55,8 @@ module gradient
         use common          , only : p2, zero
 
         use config          , only : grad_method, lsq_stencil
+        
+        use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
 
         use solution        , only : ccgradq, vgradq
 
@@ -65,15 +70,18 @@ module gradient
         
         ccgradq = zero
 
-        if (trim(grad_method) == 'lsq') then
-            if (trim(lsq_stencil) == 'w_vertex') then
+        select case(igrad_method)
+        case(GRAD_LSQ)
+            if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 vgradq = zero
 
                 call compute_vgradient
             end if
-        else
+        case default
             write(*,*) 'Unsupported gradient method.'
-        endif
+            write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
+            stop
+        end select
 
         
 
@@ -83,13 +91,15 @@ module gradient
         
         use common          , only : p2, zero
 
-        use grid            , only : ncells, nnodes, bc_type, bound, cell
+        use grid            , only : ncells, nnodes, bound, cell
 
         use least_squares   , only : lsq, INTERNAL
 
         use solution        , only : ccgradq, vgradq, nq, q
 
         use bc_states       , only : get_right_state
+
+        use utils           , only : ibc_type
 
         implicit none
 
@@ -120,7 +130,7 @@ module gradient
                         qL = q(:,attached_cell)
                         bface_nrml = bound(ib)%bface_nrml(:,attached_bface)
                         ! This is somewhat redundant.  At some point I should improve it...
-                        call get_right_state(qL,bface_nrml, bc_type(ib), qcB)
+                        call get_right_state(qL,bface_nrml, ibc_type(ib), qcB)
                         qk = qcB(ivar)
                     endif
                     if ( unknowns == 3) then
@@ -156,8 +166,6 @@ module gradient
         use common          , only : p2, zero
 
         use solution        , only : p_inf, u_inf, v_inf, w_inf, T_inf
-
-        use grid            , only : bc_type
 
         use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET
 

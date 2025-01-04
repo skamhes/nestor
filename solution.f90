@@ -116,8 +116,11 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, lift, drag, aoa, sideslip, turbulence_type,&
+        use config , only : accuracy_order, grad_method, lsq_stencil, lift, drag, aoa, sideslip, &
                             gcr_max_projections, CFL
+
+        use utils  , only : iturb_type, TURB_INVISCID, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
+                            igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         implicit none
 
@@ -133,9 +136,9 @@ module solution
         dtau = zero
         wsn = zero
 
-        if ( accuracy_order > 1 .OR. trim(turbulence_type) == 'laminar' ) then
+        if ( accuracy_order > 1 .OR. iturb_type > TURB_INVISCID) then
             allocate( ccgradq(ndim,nq,ncells) )
-            if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'w_vertex') then
+            if (igrad_method == GRAD_LSQ .and. ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 allocate(  vgradq(ndim,nq,nnodes) )
             endif
         endif
@@ -143,12 +146,8 @@ module solution
         allocate( res(nq,ncells) )
         res = zero
 
-        if ( trim(solver_type) == 'implicit' .OR. trim(solver_type) == 'gcr') then 
+        if ( isolver_type == SOLVER_IMPLICIT .or. isolver_type == SOLVER_GCR) then 
             allocate(solution_update(nq,ncells))
-        ! else if ( trim(solver_type) == 'gcr') then
-        !     allocate(gcr_final_correction(nq,ncells))
-        !     allocate(gcr_precond_correction(nq,ncells,gcr_max_projections))
-        !     allocate(gcr_search_direction(  nq,ncells,gcr_max_projections))
         endif
 
         if ( lift ) then 
@@ -299,8 +298,10 @@ module initialize
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference, &
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
                             high_ar_correction
+
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
 
         use solution
 
@@ -330,7 +331,7 @@ module initialize
             endif
         end do cell_loop
         
-        if (trim(solver_type) == 'implicit' .OR. trim(solver_type) == 'gcr' ) call init_jacobian
+        if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
         
         force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
 

@@ -154,7 +154,9 @@ module inout
 
     subroutine residual_status_header
 
-        use config , only : lift, drag, solver_type
+        use config , only : lift, drag
+
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
 
         write(*,"(A)",advance="no") " Iteration   continuity   x-momemtum   y-momentum   z-momentum       energy      max-res"
 
@@ -165,13 +167,14 @@ module inout
         ! Split
         write(*,"(A)",advance="no") "   |"
 
-        if (trim(solver_type) == "implicit") then
+        select case(isolver_type)
+        case(SOLVER_IMPLICIT)
             write(*,*) " sweeps     reduction       time          CFL"
-        elseif (trim(solver_type) == "gcr") then
+        case(SOLVER_GCR)
             write(*,*) " projs.     reduction       time          CFL"
-        else
+        case default
             write(*,*) "   time     CFL"
-        end if
+        end select
     end subroutine residual_status_header
 
     subroutine print_residual_status(i_iteration, minutes, seconds)
