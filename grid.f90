@@ -365,6 +365,9 @@ module grid
         write(*,*)
 
         close(2)
+
+        ! set up the integer bc_type array
+        call bc_convert_c_to_i
         ! End of Read the boundary condition data file
         !--------------------------------------------------------------------------------
 
