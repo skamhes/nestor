@@ -272,6 +272,10 @@ module config
         write(*,*)
 
         close(10)
+
+        ! translate the char variables into integers
+        call update_isettings
+
     end subroutine read_nml_config
 
     subroutine nml_read_error_check(status,nml_name)
@@ -287,5 +291,92 @@ module config
         write(*,*) " ERROR LOADING DEBUG SETTINGS!!"
       endif
     end subroutine nml_read_error_check
+
+    subroutine update_isettings
+
+      use utils
+
+      implicit none
+
+      call initialize_isettings
+
+      ! update settings with imported namelist values
+
+      select case(trim(time_method))
+      case('remaining')
+        itime_method = TM_REMAINING
+      case('elapsed')
+        itime_method = TM_ELAPSED
+      case default
+        write(*,*) ' time_method input "', trim(time_method),'" is invalid'
+      end select
+
+      select case(trim(method_inv_flux))
+      case('roe')
+        imethod_inv_flux = IFLUX_ROE
+      case default
+        write(*,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
+      end select
+      
+      select case(trim(method_inv_jac))
+      case('roe')
+        imethod_inv_jac = IJAC_ROE
+      case default
+        write(*,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
+      end select
+      
+      select case(trim(solver_type))
+      case('rk')
+        isolver_type = SOLVER_RK
+      case('explicit') 
+        isolver_type = SOLVER_EXPLICIT
+      case('implicit')
+        isolver_type = SOLVER_IMPLICIT 
+      case('gcr')
+        isolver_type = SOLVER_GCR
+      case default
+        write(*,*) ' solver_type input "', trim(solver_type),'" is invalid'
+      end select
+      
+      select case(trim(jacobian_method))
+      case('analytical')
+        ijacobian_method = JAC_ANALYTIC
+      case default
+        write(*,*) ' jacobian_method input "', trim(jacobian_method),'" is invalid'
+      end select
+      
+      select case(trim(smoother))
+      case('gs')
+        ismoother = SMOOTH_GS
+      case default
+        write(*,*) ' smoother input "', trim(jacobian_method),'" is invalid'
+      end select
+
+      select case(trim(grad_method))
+      case('lsq')
+        igrad_method = GRAD_LSQ
+      case default
+        write(*,*) ' grad_method input "', trim(jacobian_method),'" is invalid'
+      end select
+
+      select case(trim(lsq_stencil))
+      case('w_vertex')
+        ilsq_stencil = LSQ_STENCIL_WVERTEX
+      case default
+        write(*,*) ' lsq_stencil input "', trim(jacobian_method),'" is invalid'
+      end select
+
+      select case(trim(turbulence_type))
+      case('inviscid')
+        iturb_type = TURB_INVISCID
+      case('laminar')
+        iturb_type = TURB_LAMINAR
+      case('rans')
+        iturb_type = TURB_RANS
+      case default
+        write(*,*) ' turbulence_type input "', trim(jacobian_method),'" is invalid'
+      end select
+      
+    end subroutine update_isettings
 
 end module config

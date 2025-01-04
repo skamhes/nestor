@@ -40,6 +40,7 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 SDIR = .
 
 OBCTS = $(SDIR)/lowlevel.o\
+		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
