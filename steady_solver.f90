@@ -32,7 +32,7 @@ module steady_solver
                                 lift, drag, solver_type
 
         use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
-                               itime_method, TM_REMAINING, TM_ELAPSED
+                               itime_method, TM_REMAINING, TM_ELAPSED, TURB_RANS
                                 
         use initialize, only : set_initial_solution
 
@@ -48,6 +48,8 @@ module steady_solver
         use inout     , only : residual_status_header, print_residual_status
 
         use forces    , only : compute_forces, output_forces, report_lift
+
+        use wall_distance , only : compute_wall_distance
 
         implicit none
 
@@ -109,6 +111,8 @@ module steady_solver
         if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID ) then
             call init_gradients
         endif    
+
+        if (iturb_type >= TURB_RANS) call compute_wall_distance
 
         ! Skipping importing data for now
         

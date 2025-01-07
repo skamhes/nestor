@@ -42,9 +42,11 @@ SDIR = .
 OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
+		$(SDIR)/sorting.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/grid_statistics.o\
+		$(SDIR)/wall_distance.o\
 		$(SDIR)/solution.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/sparse_common.o\
