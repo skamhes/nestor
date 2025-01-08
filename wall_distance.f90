@@ -22,7 +22,10 @@ module wall_distance
     integer :: nleafs
     integer, dimension(:), allocatable :: wall_nodes
     integer :: ninterior_nodes ! this includes nodes on non-wall boundaries
-    integer, dimension(:,:), allocatable :: interior_nodes 
+    integer, dimension(:,:), allocatable :: interior_cells 
+    real(p2),dimension(:,:), allocatable :: icell_box_dist
+    integer, dimension(:),   allocatable :: tmpinterior_cells
+    real(p2),dimension(:),   allocatable :: tmpicell_box_dist
 
     type bounding_box
         integer                                 :: nwnodes
@@ -39,7 +42,7 @@ module wall_distance
 
     subroutine compute_wall_distance
 
-        use grid , only : nnodes, x, y, z, bound, nb, bc_type
+        use grid , only : nnodes, x, y, z, bound, nb, bc_type, ncells, cell
 
         use sorting , only : heap_sort_index
         
@@ -52,9 +55,10 @@ module wall_distance
         integer,  dimension(:), allocatable :: wns
 
         type(bounding_box), pointer :: root_box
+        ! type(bounding_box)          :: testbox
         type(bounding_box), dimension(:), allocatable :: bbox_leafs
 
-        integer :: ib, inode, iface
+        integer :: ib, inode, iface, ibox, icell
         integer :: ni
 
         integer :: longest_dir
@@ -123,7 +127,40 @@ module wall_distance
 
         allocate(bbox_leafs(nleafs))
 
+        nleafs = 0
+        call extract_leafs(nleafs, root_box, bbox_leafs)
+
         deallocate(root_box)
+
+        ! now we compute the distance to each box
+        allocate(interior_cells(nleafs, ncells))
+        allocate(icell_box_dist(nleafs, ncells))
+        allocate(tmpinterior_cells(nleafs))
+        allocate(tmpicell_box_dist(nleafs))
+
+        nloop : do icell = 1,ncells
+            if (is_wall(icell)) then
+                interior_cells(:,icell) = 0
+                cycle nloop
+            endif
+            do ibox = 1,nleafs
+                tmpinterior_cells(ibox) = ibox
+                tmpicell_box_dist(ibox) = distance_to_block(bbox_leafs(ibox)%xmin, bbox_leafs(ibox)%xmax, &
+                                                               bbox_leafs(ibox)%ymin, bbox_leafs(ibox)%ymax, & 
+                                                               bbox_leafs(ibox)%zmin, bbox_leafs(ibox)%zmax, &
+                                                               cell(icell)%xc, cell(icell)%yc, cell(icell)%zc )
+            end do
+            ! fortran doesn't like it when you alias variables in subroutines.  I suppose I could rewrite the heap sort algorithm
+            ! with an inout var but I don't want to right now...
+            call heap_sort_index(tmpicell_box_dist,tmpinterior_cells,nleafs,interior_cells(:,icell)) 
+            do ibox = 1,nleafs
+                ib = interior_cells(ibox,icell)
+                icell_box_dist(ibox,icell) = tmpicell_box_dist(ib)
+            end do
+
+        end do nloop
+
+        deallocate(interior_cells, icell_box_dist)
     end subroutine compute_wall_distance
 
     recursive subroutine construct_bounding_box(nnodes,nodes,bbox)
@@ -141,7 +178,7 @@ module wall_distance
         ! integer,  dimension(:),         intent(in) :: wn_sortx,wn_sorty,wn_sortz
 
         type(bounding_box), pointer, intent(inout) :: bbox
-        ! type(bounding_box) :: tempbox
+        type(bounding_box) :: tempbox
 
         integer :: longest_dir
         integer :: split, nnms
@@ -162,6 +199,7 @@ module wall_distance
 
         if (bbox%isleaf) then
             nleafs = nleafs + 1
+            tempbox = bbox
             ! we don't actually need to do anything else
             return
         end if
@@ -208,6 +246,31 @@ module wall_distance
         
     end subroutine construct_bounding_box
 
+    recursive subroutine extract_leafs(nlf, root_box, leaf_array)
+
+        implicit none
+
+        type(bounding_box),               intent(inout) :: root_box
+        integer,                          intent(inout) :: nlf
+        type(bounding_box), dimension(:), intent(inout) :: leaf_array
+
+        if (root_box%isleaf) then
+            nlf = nlf + 1
+            leaf_array(nlf) = root_box
+            if (associated(leaf_array(nlf)%root)) nullify(leaf_array(nlf)%root)
+        else
+            call extract_leafs(nlf, root_box%branch1, leaf_array)
+            call extract_leafs(nlf, root_box%branch2, leaf_array)
+        end if
+
+        if (associated(root_box%root)) nullify(root_box%root)
+        if (associated(root_box%branch1)) nullify(root_box%branch1)
+        if (associated(root_box%branch2)) nullify(root_box%branch2)
+        if (associated(root_box%wnodes))  nullify(root_box%wnodes)
+
+    end subroutine extract_leafs
+
+
     subroutine sort_longest(n, wnx, wny, wnz, wn, box, wns)
 
         use sorting , only : heap_sort_index
@@ -234,6 +297,8 @@ module wall_distance
         if (n <= sqrt_nwall_nodes) then
             ! no more splitting needed.
             box%isleaf = .true.
+            ! we don't need to sort them in this case so instead we just send them back as is.
+            wns = wn
             return
         end if
 
