@@ -261,9 +261,7 @@ module solution
         real(p2), dimension(5),  intent(in) :: qi
         real(p2), dimension(5,5)            :: preconditioner
         
-        real(p2), dimension(5,5) :: dwdq, pre_inv
         real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
-
 
         H = ((qi(iT))**2)*gmoinv + half * ( qi(iu)**2 + qi(iv)**2 + qi(iw)**2 )
         rho_p = gamma/qi(5)
@@ -277,7 +275,7 @@ module solution
         preconditioner(2,:) = (/ theta*qi(iu),  rho,        zero,       zero,       rho_T*qi(iu)            /)
         preconditioner(3,:) = (/ theta*qi(iv),  zero,       rho,        zero,       rho_T*qi(iv)            /)
         preconditioner(4,:) = (/ theta*qi(iw),  zero,       zero,       rho,        rho_T*qi(iw)            /)
-        preconditioner(5,:) = (/ theta*H-one,  rho*qi(iu), rho*qi(iv), rho*qi(iw), rho_T*H + rho/(gamma-one)/)
+        preconditioner(5,:) = (/ theta*H-one ,  rho*qi(iu), rho*qi(iv), rho*qi(iw), rho_T*H + rho/(gamma-one)/)
 
     end function compute_primative_jacobian
 

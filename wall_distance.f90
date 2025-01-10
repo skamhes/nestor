@@ -10,18 +10,19 @@ module wall_distance
 
     public compute_wall_distance
 
-    real, dimension(:), allocatable :: cell_wall_distance
+    real(p2), dimension(:), allocatable :: cell_wall_distance
 
     integer, parameter :: ix = 1
     integer, parameter :: iy = 2
     integer, parameter :: iz = 3
+
+    real(p2), parameter :: EXACT_DISTANCE_THRESHOLD = 10.0_p2
 
 
     ! Private variables
     integer :: nwall_nodes, sqrt_nwall_nodes
     integer :: nleafs
     integer, dimension(:), allocatable :: wall_nodes
-    integer :: ninterior_nodes ! this includes nodes on non-wall boundaries
     integer, dimension(:,:), allocatable :: interior_cells 
     real(p2),dimension(:,:), allocatable :: icell_box_dist
     integer, dimension(:),   allocatable :: tmpinterior_cells
@@ -38,6 +39,13 @@ module wall_distance
         real(p2)                                :: xmin, xmax, ymin, ymax, zmin, zmax
     end type bounding_box
 
+    type wnfaces ! boundary faces attached to wall nodes
+        integer, dimension(:), allocatable :: bface
+        integer, dimension(:), allocatable :: bound
+        integer                            :: nfaces
+    end type wnfaces
+
+
     contains
 
     subroutine compute_wall_distance
@@ -51,27 +59,37 @@ module wall_distance
         logical, dimension(nnodes) :: is_wall
 
         
-        real(p2), dimension(:), allocatable :: wnx, wny, wnz, wnx_sortx, wny_sorty, wnz_sortz ! coordinates of wall nodes
+        real(p2), dimension(:), allocatable :: wnx, wny, wnz ! coordinates of wall nodes
         integer,  dimension(:), allocatable :: wns
+        integer,  dimension(:), allocatable :: gnode_to_wnode ! pointer for translating between global nodes and wall nodes 
+        integer,  dimension(:), allocatable :: nf ! number of attached wall faces
 
         type(bounding_box), pointer :: root_box
         ! type(bounding_box)          :: testbox
         type(bounding_box), dimension(:), allocatable :: bbox_leafs
 
-        integer :: ib, inode, iface, ibox, icell
-        integer :: ni
+        type(wnfaces), dimension(:), allocatable :: wn_to_wf
 
-        integer :: longest_dir
-        integer :: split_number
-        real(p2) :: xmin, xmax, ymin, ymax, zmin, zmax
-        real(p2) :: dx, dy, dz
+        integer :: ib, inode, iface, ibox, icell
+        integer :: ni, bxi, fi
+        integer :: closest_node
+
         real(p2) :: dummy ! needed for doing some float math with integers...
+        real(p2) :: ndist ! distance from wall node to cell center
+        real(p2) :: xc, yc, zc, xn, yn, zn
+        integer  :: n1,n2,n3,n4
+        
+        real(p2), dimension(3) :: fpoint
         
         continue
 
         ! Define the pointer root_box
         allocate(root_box)
-
+        allocate(gnode_to_wnode(nnodes))
+        allocate(nf(nnodes))
+        gnode_to_wnode = 0
+        nf = 0  
+        
         ! Build the array of interior nodes.
         is_wall = .false.
         bloop1 : do ib = 1,nb
@@ -81,6 +99,7 @@ module wall_distance
                 do iface = 2,bound(ib)%bfaces(1,inode) + 1
                     ni = bound(ib)%bfaces(iface,inode)
                     is_wall(ni) = .true.
+                    nf(ni) = nf(ni) + 1
                 end do
             end do
         end do bloop1
@@ -98,6 +117,7 @@ module wall_distance
         allocate(wny(nwall_nodes))
         allocate(wnz(nwall_nodes))
         allocate(wns(nwall_nodes))
+        allocate(wn_to_wf(nwall_nodes))
         ! allocate(wn_sorty(nwall_nodes))
         ! allocate(wn_sortz(nwall_nodes))
 
@@ -109,16 +129,28 @@ module wall_distance
             do inode = 1,bound(ib)%nbfaces
                 add_node_loop : do iface = 2,bound(ib)%bfaces(1,inode) + 1
                     ni = bound(ib)%bfaces(iface,inode)
-                    if (is_wall(ni)) cycle add_node_loop
-                    is_wall(ni) = .true.
-                    nwall_nodes = nwall_nodes + 1
-                    wall_nodes(nwall_nodes) = ni
-                    wnx(nwall_nodes)        = x(ni)
-                    wny(nwall_nodes)        = y(ni)
-                    wnz(nwall_nodes)        = z(ni)
+                    if (.not.is_wall(ni)) then
+                        is_wall(ni) = .true.
+                        nwall_nodes = nwall_nodes + 1
+                        wall_nodes(nwall_nodes) = ni
+                        gnode_to_wnode(ni) = nwall_nodes
+                        wnx(nwall_nodes)        = x(ni)
+                        wny(nwall_nodes)        = y(ni)
+                        wnz(nwall_nodes)        = z(ni)
+                        
+                        wn_to_wf(ni)%nfaces = nf(ni)
+                        allocate(wn_to_wf(ni)%bface(nf(ni)))
+                        allocate(wn_to_wf(ni)%bound(nf(ni)))
+                        nf(ni) = 0
+                    endif
+                    nf(ni) = nf(ni) + 1
+                    wn_to_wf(ni)%bound = ib
+                    wn_to_wf(ni)%bface(nf(ni)) = iface
                 end do add_node_loop
             end do
         end do bloop2
+
+        deallocate(nf)
 
         ! Set the split direction for the first bounding box
         call sort_longest(nwall_nodes,wnx,wny,wnz,wall_nodes,root_box,wns)
@@ -138,11 +170,7 @@ module wall_distance
         allocate(tmpinterior_cells(nleafs))
         allocate(tmpicell_box_dist(nleafs))
 
-        nloop : do icell = 1,ncells
-            if (is_wall(icell)) then
-                interior_cells(:,icell) = 0
-                cycle nloop
-            endif
+        cloop : do icell = 1,ncells
             do ibox = 1,nleafs
                 tmpinterior_cells(ibox) = ibox
                 tmpicell_box_dist(ibox) = distance_to_block(bbox_leafs(ibox)%xmin, bbox_leafs(ibox)%xmax, &
@@ -158,10 +186,166 @@ module wall_distance
                 icell_box_dist(ibox,icell) = tmpicell_box_dist(ib)
             end do
 
-        end do nloop
+            ! Now that we have presorted the boxes by distance we compute the wall distance to the nodes in the closest box.  If the
+            ! distance is within a threshold we compute the closest point on each surrounding face.  Since this is expensive we only
+            ! do it for smaller wall distances.  Inverse wall distance is the only therm that shows up in any turbulence model which
+            ! means past a certain point, "good enough" is fine.  Then we move to the next bounding box.  If the closest point is 
+            ! greater than the wall distance we know we have the closest wall point.  If not we repeat
+            cell_wall_distance(icell) = huge(1.0_p2)
+            bloop3 : do ibox = 1,nleafs
+                bxi = interior_cells(ibox,icell)
+                do inode = 1,bbox_leafs(bxi)%nwnodes
+                    ni = bbox_leafs(bxi)%wnodes(inode)
+                    xc = cell(icell)%xc
+                    yc = cell(icell)%yc
+                    zc = cell(icell)%zc
+                    xn = x(ni)
+                    yn = y(ni)
+                    zn = z(ni)
+                    ndist = sqrt( (xc-xn)**2 + (yc-yn)**2 + (zc-zn)**2)
+                    if ( ndist < cell_wall_distance(icell) ) then
+                        cell_wall_distance(icell) = ndist
+                        closest_node = ni
+                    endif
+                end do
+                if (icell_box_dist(ibox + 1,icell) > cell_wall_distance(icell)) exit bloop3
+            end do bloop3
+
+            if (cell_wall_distance(icell) < EXACT_DISTANCE_THRESHOLD) then
+                ! compute a more exact wall distance
+                do iface = 1,wn_to_wf(closest_node)%nfaces
+                    fi = wn_to_wf(closest_node)%bface(iface)
+                    ib = wn_to_wf(closest_node)%bound(iface)
+                    select case(bound(ib)%bfaces(1,fi))
+                    case(3) ! triangle
+                        xc = cell(icell)%xc
+                        yc = cell(icell)%yc
+                        zc = cell(icell)%zc
+                        n1 = bound(ib)%bfaces(2,fi)
+                        n2 = bound(ib)%bfaces(3,fi)
+                        n3 = bound(ib)%bfaces(4,fi)
+                        fpoint = closestPointTriangle((/xc,yc,zc/),(/x(n1),y(n1),z(n1)/), &
+                                                                   (/x(n2),y(n2),z(n2)/), &
+                                                                   (/x(n3),y(n3),z(n3)/))
+                    case(4) ! quad
+                        n1 = bound(ib)%bfaces(2,fi)
+                        n2 = bound(ib)%bfaces(3,fi)
+                        n3 = bound(ib)%bfaces(4,fi)
+                        n4 = bound(ib)%bfaces(5,fi)
+                        fpoint = closestPointQuad((/xc,yc,zc/),(/x(n1),y(n1),z(n1)/), &
+                                                               (/x(n2),y(n2),z(n2)/), &
+                                                               (/x(n3),y(n3),z(n3)/), &
+                                                               (/x(n4),y(n4),z(n4)/) )
+                    case default 
+                        write(*,*) "Error in the number of face sides"
+                        write(*,*) "Stop. compute_wall_distance() wall_distance.f90"
+                        stop
+                    end select
+                    ndist = sqrt( (xc-fpoint(1))**2 + (yc-fpoint(2))**2 + (zc-fpoint(3))**2)
+                    cell_wall_distance(icell) = min(cell_wall_distance(icell),ndist)
+                    
+                end do
+            end if
+
+        end do cloop
+
+
 
         deallocate(interior_cells, icell_box_dist)
+        deallocate(gnode_to_wnode)
     end subroutine compute_wall_distance
+
+    pure function closestPointQuad(p,a,b,c,d) result(dist)
+
+        implicit none
+            
+        real(p2), dimension(3), intent(in) :: p, a, b, c, d
+
+        real(p2), dimension(3)             :: dist
+
+        real(p2), dimension(3)  :: c1, c2
+        real(p2)                :: d1, d2
+
+        c1 = closestPointTriangle(p,a,b,c)
+        d1 = sqrt( (p(1)-c1(1))**2 + (p(2)-c1(2))**2 + (p(3)-c1(3))**2 )
+
+        c2 = closestPointTriangle(p,a,c,d)
+        d2 = sqrt( (p(1)-c2(1))**2 + (p(2)-c2(2))**2 + (p(3)-c2(3))**2 )
+        
+        dist = min(d1,d2)
+
+    end function closestPointQuad
+
+    pure function closestPointTriangle(p,a,b,c) result(dist)
+        ! This function is "borrowed" (stolen) from Intel's open source embree graphics library.
+        ! why do the work again when someone already did it for me?
+        ! what's the saying? Good musicians borrow, great musicians steal...
+        ! https://github.com/RenderKit/embree/blob/master/tutorials/common/math/closest_point.h
+
+        implicit none
+        
+        real(p2), dimension(3), intent(in) :: p, a, b, c
+
+        real(p2), dimension(3)             :: dist
+
+        real(p2), dimension(3) :: ab, ac, ap, bp, cp
+        real(p2)               :: d1,d2,d3,d4,d5,d6
+        real(p2)               :: vc, v, vb, va, w
+        real(p2)               :: denom
+
+        ab = b - a
+        ac = c - a
+        ap = p - a
+
+        d1 = dot_product(ab,ap)
+        d2 = dot_product(ac,ap)
+        if (d1 <= 0.0_p2 .and. d2 <= 0.0_p2) then
+            dist = a
+            return
+        end if
+
+        bp = p - b
+        d3 = dot_product(ab,bp)
+        d4 = dot_product(ac,bp)
+        if (d3 >= 0.0_p2 .and. d4 <= d3) then
+            dist = b
+            return
+        end if
+
+        cp = p - c
+        d5 = dot_product(ab,cp)
+        d6 = dot_product(ac,cp)
+        if (d6 >= 0.0_p2 .and. d5 <= d6) then
+            dist = c
+            return
+        end if
+
+        vc = d1 * d4 - d3 * d2
+        if (vc <= 0.0_p2 .and. d1 >= 0.0_p2 .and. d3 <= 0.0_p2) then
+            v = d1 / (d1 - d3)
+            dist = a + v * ab
+            return
+        end if
+
+        vb = d5 * d2 - d1 * d6
+        if (vb <= 0.0_p2 .and. d2 >= 0.0_p2 .and. d6 <= 0.0_p2) then
+            V = d2 / (d2 - d6)
+            dist = a + v * ac
+            return
+        end if
+
+        va = d3 * d6 - d5 * d4
+        if (va <= 0.0_p2 .and. (d4 - d3) >= 0.0_p2 .and. (d5 - d6) >= 0.0_p2) then
+            v = (d4 - d3) / ((d4 - d3) + (d5 - d6))
+            dist = b + v * (c - b)
+        endif
+
+        denom = 1.0_p2 / (va + vb + vc)
+        v = vb * denom
+        w = vc * denom
+        dist = a + v * ab + w * ac
+        
+    end function closestPointTriangle
 
     recursive subroutine construct_bounding_box(nnodes,nodes,bbox)
     
@@ -180,10 +364,7 @@ module wall_distance
         type(bounding_box), pointer, intent(inout) :: bbox
         type(bounding_box) :: tempbox
 
-        integer :: longest_dir
         integer :: split, nnms
-        real(p2) :: xmin, xmax, ymin, ymax, zmin, zmax
-        real(p2) :: dx, dy, dz
         integer :: inode, jnode
 
         ! Branch arrays
@@ -321,29 +502,6 @@ module wall_distance
         end select
 
     end subroutine sort_longest
-
-    subroutine split_long(n,split, wxs,wns, wxs1,wxs2, wns1,wns2, groupID)
-
-        implicit none
-
-        integer,                intent(in) :: n, split ! Length of node array, split point
-        real(p2), dimension(:), intent(in) :: wxs ! sorted coordinates of wall nodes
-        integer , dimension(:), intent(in) :: wns ! pointer of sorted coordinates => global index
-
-        real(p2), dimension(:), intent(out):: wxs1, wxs2 ! sorted split coordinates
-        integer , dimension(:), intent(out):: wns1, wns2 ! split sorted pointers
-        integer , dimension(:), intent(out):: groupID    ! identifier of which split group each point belongs to
-
-        wxs1 = wxs(1:split)
-        wxs2 = wxs(split + 1:n)
-
-        wns1 = wns(1:split)
-        wns2 = wns(split + 1:n)
-
-        groupID(1:split)   = 1
-        groupID(split+1:n) = 2
-
-    end subroutine split_long
 
     pure function compute_longest_direction(dx,dy,dz) result(dir)
 
