@@ -138,9 +138,9 @@ module wall_distance
                         wny(nwall_nodes)        = y(ni)
                         wnz(nwall_nodes)        = z(ni)
                         
-                        wn_to_wf(ni)%nfaces = nf(ni)
-                        allocate(wn_to_wf(ni)%bface(nf(ni)))
-                        allocate(wn_to_wf(ni)%bound(nf(ni)))
+                        wn_to_wf(nwall_nodes)%nfaces = nf(ni)
+                        allocate(wn_to_wf(nwall_nodes)%bface(nf(ni)))
+                        allocate(wn_to_wf(nwall_nodes)%bound(nf(ni)))
                         nf(ni) = 0
                     endif
                     nf(ni) = nf(ni) + 1
