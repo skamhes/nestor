@@ -71,7 +71,7 @@ module wall_distance
         type(wnfaces), dimension(:), allocatable :: wn_to_wf
 
         integer :: ib, inode, iface, ibox, icell
-        integer :: ni, bxi, fi
+        integer :: ni, bxi, fi, wni
         integer :: closest_node
 
         real(p2) :: dummy ! needed for doing some float math with integers...
@@ -126,9 +126,9 @@ module wall_distance
         bloop2 : do ib = 1,nb
             if (trim(bc_type(ib)) /= 'slip_wall' .and. trim(bc_type(ib)) /= 'no_slip_wall') cycle bloop2
             
-            do inode = 1,bound(ib)%nbfaces
-                add_node_loop : do iface = 2,bound(ib)%bfaces(1,inode) + 1
-                    ni = bound(ib)%bfaces(iface,inode)
+            do iface = 1,bound(ib)%nbfaces
+                add_node_loop : do inode = 2,bound(ib)%bfaces(1,iface) + 1
+                    ni = bound(ib)%bfaces(inode,iface)
                     if (.not.is_wall(ni)) then
                         is_wall(ni) = .true.
                         nwall_nodes = nwall_nodes + 1
@@ -142,10 +142,13 @@ module wall_distance
                         allocate(wn_to_wf(nwall_nodes)%bface(nf(ni)))
                         allocate(wn_to_wf(nwall_nodes)%bound(nf(ni)))
                         nf(ni) = 0
+                        wn_to_wf(nwall_nodes)%bound = 0
+                        wn_to_wf(nwall_nodes)%bface = 0
                     endif
                     nf(ni) = nf(ni) + 1
-                    wn_to_wf(ni)%bound = ib
-                    wn_to_wf(ni)%bface(nf(ni)) = iface
+                    wni = gnode_to_wnode(ni)
+                    wn_to_wf(wni)%bound(nf(ni)) = ib
+                    wn_to_wf(wni)%bface(nf(ni)) = iface
                 end do add_node_loop
             end do
         end do bloop2
