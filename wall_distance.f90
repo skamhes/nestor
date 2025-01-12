@@ -296,7 +296,11 @@ module wall_distance
         c2 = closestPointTriangle(p,a,c,d)
         d2 = sqrt( (p(1)-c2(1))**2 + (p(2)-c2(2))**2 + (p(3)-c2(3))**2 )
         
-        dist = min(d1,d2)
+        if (d1 < d2) then 
+            dist = c1
+        else
+            dist = c2
+        endif
 
     end function closestPointQuad
 
