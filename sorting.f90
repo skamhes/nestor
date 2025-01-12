@@ -104,14 +104,4 @@ module sorting
 
     end subroutine index_swap
 
-    subroutine heapify_index(values,index,count)
-
-        implicit none
-
-        real(p2), dimension(:), intent(inout)  :: values
-        integer,  dimension(:), intent(inout)  :: index
-        integer,                intent(in   )  :: count
-
-
-    end subroutine
 end module sorting

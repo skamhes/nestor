@@ -249,8 +249,24 @@ module wall_distance
 
         end do cloop
 
+        deallocate(wall_nodes)
+        deallocate(wnx)
+        deallocate(wny)
+        deallocate(wnz)
+        deallocate(wns)
+        do inode = 1,nnodes
+            deallocate(wn_to_wf(inode)%bface)
+            deallocate(wn_to_wf(inode)%bound)
+        end do
+        deallocate(wn_to_wf)
 
 
+        allocate(bbox_leafs(nleafs))
+
+        deallocate(interior_cells)
+        deallocate(icell_box_dist)
+        deallocate(tmpinterior_cells)
+        deallocate(tmpicell_box_dist)
         deallocate(interior_cells, icell_box_dist)
         deallocate(gnode_to_wnode)
     end subroutine compute_wall_distance
@@ -445,9 +461,9 @@ module wall_distance
         end if
 
         if (associated(root_box%root)) nullify(root_box%root)
-        if (associated(root_box%branch1)) nullify(root_box%branch1)
-        if (associated(root_box%branch2)) nullify(root_box%branch2)
-        if (associated(root_box%wnodes))  nullify(root_box%wnodes)
+        if (associated(root_box%branch1)) deallocate(root_box%branch1)
+        if (associated(root_box%branch2)) deallocate(root_box%branch2)
+        if (associated(root_box%wnodes))  deallocate(root_box%wnodes)
 
     end subroutine extract_leafs
 
