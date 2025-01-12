@@ -22,15 +22,15 @@ module wall_distance
     ! Private variables
     integer :: nwall_nodes, sqrt_nwall_nodes
     integer :: nleafs
-    integer, dimension(:), allocatable :: wall_nodes
-    integer, dimension(:,:), allocatable :: interior_cells 
-    real(p2),dimension(:,:), allocatable :: icell_box_dist
+    integer, dimension(:),   allocatable :: wall_nodes
+    integer, dimension(:),   allocatable :: interior_cells 
+    real(p2),dimension(:),   allocatable :: icell_box_dist
     integer, dimension(:),   allocatable :: tmpinterior_cells
     real(p2),dimension(:),   allocatable :: tmpicell_box_dist
 
     type bounding_box
         integer                                 :: nwnodes
-        integer, dimension(:), pointer          :: wnodes
+        integer, dimension(:), allocatable      :: wnodes
         integer                                 :: longest_dir
         type(bounding_box), pointer             :: root
         type(bounding_box), pointer             :: branch1
@@ -43,6 +43,7 @@ module wall_distance
         integer, dimension(:), allocatable :: bface
         integer, dimension(:), allocatable :: bound
         integer                            :: nfaces
+        integer                            :: ni ! mainly for debugging purposes
     end type wnfaces
 
 
@@ -82,6 +83,9 @@ module wall_distance
         real(p2), dimension(3) :: fpoint
         
         continue
+
+        ! Initialize the cell wall distance array
+        allocate(cell_wall_distance(ncells))
 
         ! Define the pointer root_box
         allocate(root_box)
@@ -144,6 +148,7 @@ module wall_distance
                         nf(ni) = 0
                         wn_to_wf(nwall_nodes)%bound = 0
                         wn_to_wf(nwall_nodes)%bface = 0
+                        wn_to_wf(nwall_nodes)%ni = ni
                     endif
                     nf(ni) = nf(ni) + 1
                     wni = gnode_to_wnode(ni)
@@ -168,8 +173,8 @@ module wall_distance
         deallocate(root_box)
 
         ! now we compute the distance to each box
-        allocate(interior_cells(nleafs, ncells))
-        allocate(icell_box_dist(nleafs, ncells))
+        allocate(interior_cells(nleafs))
+        allocate(icell_box_dist(nleafs))
         allocate(tmpinterior_cells(nleafs))
         allocate(tmpicell_box_dist(nleafs))
 
@@ -183,10 +188,10 @@ module wall_distance
             end do
             ! fortran doesn't like it when you alias variables in subroutines.  I suppose I could rewrite the heap sort algorithm
             ! with an inout var but I don't want to right now...
-            call heap_sort_index(tmpicell_box_dist,tmpinterior_cells,nleafs,interior_cells(:,icell)) 
+            call heap_sort_index(tmpicell_box_dist,tmpinterior_cells,nleafs,interior_cells(:)) 
             do ibox = 1,nleafs
-                ib = interior_cells(ibox,icell)
-                icell_box_dist(ibox,icell) = tmpicell_box_dist(ib)
+                ib = interior_cells(ibox)
+                icell_box_dist(ibox) = tmpicell_box_dist(ib)
             end do
 
             ! Now that we have presorted the boxes by distance we compute the wall distance to the nodes in the closest box.  If the
@@ -196,7 +201,7 @@ module wall_distance
             ! greater than the wall distance we know we have the closest wall point.  If not we repeat
             cell_wall_distance(icell) = huge(1.0_p2)
             bloop3 : do ibox = 1,nleafs
-                bxi = interior_cells(ibox,icell)
+                bxi = interior_cells(ibox)
                 do inode = 1,bbox_leafs(bxi)%nwnodes
                     ni = bbox_leafs(bxi)%wnodes(inode)
                     xc = cell(icell)%xc
@@ -211,14 +216,15 @@ module wall_distance
                         closest_node = ni
                     endif
                 end do
-                if (icell_box_dist(ibox + 1,icell) > cell_wall_distance(icell)) exit bloop3
+                if (icell_box_dist(ibox + 1) > cell_wall_distance(icell)) exit bloop3
             end do bloop3
 
             if (cell_wall_distance(icell) < EXACT_DISTANCE_THRESHOLD) then
                 ! compute a more exact wall distance
-                do iface = 1,wn_to_wf(closest_node)%nfaces
-                    fi = wn_to_wf(closest_node)%bface(iface)
-                    ib = wn_to_wf(closest_node)%bound(iface)
+                wni = gnode_to_wnode(closest_node)
+                do iface = 1,wn_to_wf(wni)%nfaces
+                    fi = wn_to_wf(wni)%bface(iface)
+                    ib = wn_to_wf(wni)%bound(iface)
                     select case(bound(ib)%bfaces(1,fi))
                     case(3) ! triangle
                         xc = cell(icell)%xc
@@ -257,20 +263,19 @@ module wall_distance
         deallocate(wny)
         deallocate(wnz)
         deallocate(wns)
-        do inode = 1,nnodes
+        do inode = 1,nwall_nodes
             deallocate(wn_to_wf(inode)%bface)
             deallocate(wn_to_wf(inode)%bound)
         end do
         deallocate(wn_to_wf)
 
 
-        allocate(bbox_leafs(nleafs))
+        deallocate(bbox_leafs)
 
         deallocate(interior_cells)
         deallocate(icell_box_dist)
         deallocate(tmpinterior_cells)
         deallocate(tmpicell_box_dist)
-        deallocate(interior_cells, icell_box_dist)
         deallocate(gnode_to_wnode)
     end subroutine compute_wall_distance
 
@@ -438,7 +443,6 @@ module wall_distance
         call sort_longest(nnms ,wnx2,wny2,wnz2,wn2,bbox%branch2,wns2)
 
         ! Create a new bounding box with the new dimensions
-        bbox%branch2%root = bbox
         call construct_bounding_box(nnms, wns2, bbox%branch2)
 
         deallocate(wn1, wnx1, wny1, wnz1)
@@ -458,6 +462,8 @@ module wall_distance
             nlf = nlf + 1
             leaf_array(nlf) = root_box
             if (associated(leaf_array(nlf)%root)) nullify(leaf_array(nlf)%root)
+            if (associated(leaf_array(nlf)%branch1)) deallocate(leaf_array(nlf)%branch1)
+            if (associated(leaf_array(nlf)%branch2)) deallocate(leaf_array(nlf)%branch2)
         else
             call extract_leafs(nlf, root_box%branch1, leaf_array)
             call extract_leafs(nlf, root_box%branch2, leaf_array)
@@ -466,7 +472,7 @@ module wall_distance
         if (associated(root_box%root)) nullify(root_box%root)
         if (associated(root_box%branch1)) deallocate(root_box%branch1)
         if (associated(root_box%branch2)) deallocate(root_box%branch2)
-        if (associated(root_box%wnodes))  deallocate(root_box%wnodes)
+        if (allocated( root_box%wnodes )) deallocate(root_box%wnodes)
 
     end subroutine extract_leafs
 
