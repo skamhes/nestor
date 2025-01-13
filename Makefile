@@ -63,6 +63,8 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/interface.o\
 		$(SDIR)/limiter.o\
 		$(SDIR)/residual.o\
+		$(SDIR)/res_sa.o
+		$(SDIR)/res_turb.o
 		$(SDIR)/gauss_seidel.o\
 		$(SDIR)/ruge_stuben.o\
 		$(SDIR)/algebraic_multigrid.o\

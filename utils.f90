@@ -15,7 +15,7 @@ module utils
     public IJAC_RHLL, IJAC_HLL, IJAC_RUSANOV
     public ismoother, SMOOTH_GS
     public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
-    public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS
+    public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS, iturb_model, TURB_SA
     public ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
 
     public initialize_isettings
@@ -66,6 +66,9 @@ module utils
     integer, parameter :: TURB_RANS     = 2
     integer, parameter :: TURB_DES      = 3
     integer, parameter :: TURB_LES      = 4
+
+    integer :: iturb_model
+    integer, parameter :: TURB_SA       = 0
 
     ! Boundary Conditions
     integer, dimension(:), allocatable :: ibc_type !boundary conditions stored as integers (using the same numbering as FUN3D)

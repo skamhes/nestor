@@ -144,9 +144,12 @@ module config
       real(p2)              :: sutherland_constant   = 110.5_p2   ! (K) Sutherland's constant (C) for air
       real(p2)              :: ideal_gas_constant    = 287.058_p2 ! ideal gas constant for air (R)
       real(p2)              :: reference_temp        = 300        ! (K) T_inf in EQ 4.14.16 of I do Like CFD
+      character(80)         :: rans_model            = 'sa'       ! Spalart-Allmaras Turbulence.
+      integer               :: rans_accuracy         = 2          ! Second order accurate
+
 
     namelist / turbulence / &
-      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant
+      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant, rans_model, rans_accuracy
 
 
     !-------------------------------------------------------------------------
@@ -390,11 +393,19 @@ module config
       case('rans')
         iturb_type = TURB_RANS
       case default
-        write(*,*) ' turbulence_type input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' turbulence_type input "', trim(turbulence_type),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
         stop
       end select
-      
+
+      select case(trim(rans_model))
+      case('sa')
+        iturb_model = TURB_SA
+      case default
+        write(*,*) ' turbulence_type input "', trim(rans_model),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
     end subroutine update_isettings
 
 end module config
