@@ -123,6 +123,7 @@ module gradient
                     if (lsq(i)%ib_lsq(k) == INTERNAL) then
                         attached_cell = lsq(i)%cell_lsq(k)   
                         qk = q(ivar,attached_cell)
+                        unknowns = 4
                     else ! BVERT
                         attached_bface = lsq(i)%cell_lsq(k)
                         ib            = lsq(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
