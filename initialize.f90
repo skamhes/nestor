@@ -63,10 +63,6 @@ module initialize
             mu_inf = compute_viscosity(T_inf)
         end if
 
-        if (iturb_type >= TURB_RANS) then
-            nut_inf = three * mu_inf / rho_inf
-        endif
-
     end subroutine set_initial_solution
 
     

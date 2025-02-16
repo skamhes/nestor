@@ -14,14 +14,25 @@ module turb
     public turb_var
     public turb_jac
     public turb_res
+    public ccgrad_turb_var, vgrad_turb_var
     public nturb
-    public turb_inf
+    public phi_turb
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res
+    real(p2), dimension(:,:,:), allocatable :: ccgrad_turb_var, vgrad_turb_var
     integer                                 :: nturb
+    real(p2), dimension(:)    , allocatable :: phi_turb
 
-    type(jacobian_type), dimension(:,:), allocatable :: turb_jac
+    ! Jacobian type has to be placed here to avoid circular dependencies.
+    type turb_jacobian_type
+        real(p2)                                :: diag     ! diagonal blocks of Jacobian matrix
+        real(p2), dimension(:), allocatable     :: off_diag ! off-diagonal blocks
+        real(p2)                                :: diag_inv ! inverse of diagonal blocks
+        real(p2)                                :: RHS      ! Right hand side (b) of the linear system
+    end type turb_jacobian_type
+
+    type(turb_jacobian_type), dimension(:,:), allocatable :: turb_jac
 
     contains
 
@@ -29,17 +40,15 @@ module turb
         
         use viscosity , only : compute_viscosity
 
-        use solution  , only : T_inf, rho_inf
+        use solution  , only : rho_inf, nut_inf, mu_inf
 
-        use grid      , only : ncells
+        use grid      , only : ncells, nnodes
 
         use config    , only : turb_inf
 
         use common    , only : zero
 
         implicit none
-
-        real(p2) :: mu_inf
 
         if (iturb_type > TURB_RANS) then
             write(*,*) "DES and LES not yet supported"
@@ -48,19 +57,35 @@ module turb
 
         if (iturb_model == TURB_SA) then
             nturb = 1
-            if (turb_inf(nturb) > zero) then
-                mu_inf = compute_viscosity(T_inf)
-                turb_inf(nturb) = mu_inf / rho_inf
-            endif
+            nut_inf = turb_inf(nturb) * mu_inf / rho_inf
         endif
 
         allocate(turb_var(ncells,nturb)) ! we're generally gonna be working through one variable at a time
         allocate(turb_res(ncells,nturb))
         allocate(turb_jac(ncells,nturb))
 
+        allocate(vgrad_turb_var( 3,nnodes,nturb))
+        allocate(ccgrad_turb_var(3,ncells,nturb))
 
-        
+        allocate(phi_turb(ncells))
 
     end subroutine init_rans
+
+    subroutine init_turb_jacobian
+
+        use grid, only : ncells, cell
+
+        implicit none
+
+        integer :: icell, it
+
+        ! allocate jacobian off diagonal arrays
+        do it = 1,nturb
+            do icell = 1,ncells
+                allocate( turb_jac(icell,it)%off_diag(cell(icell)%nnghbrs))
+            end do
+        end do
+
+    end subroutine init_turb_jacobian
 
 end module turb

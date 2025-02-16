@@ -2,11 +2,12 @@ module limiter
 
     implicit none
 
-    public :: compute_limiter
+    public :: compute_limiter_flow
+    public :: compute_limiter_turb
 
     contains
 
-    subroutine compute_limiter
+    subroutine compute_limiter_flow
 
         use common          , only : p2, zero
         
@@ -82,7 +83,85 @@ module limiter
             phi(i) = phi_var_min
         end do cell_loop
                     
-    end subroutine compute_limiter
+    end subroutine compute_limiter_flow
+
+    subroutine compute_limiter_turb
+
+        use common          , only : p2, zero
+        
+        use grid            , only : ncells, cell, x, y, z, cell
+
+        use turb            , only : ccgrad_turb_var, turb_var, phi_turb
+      
+        ! use least_squares   , only : lsq 
+
+        implicit none
+        ! Some local vars
+        integer  :: i, ivar, k, nghbr_cell, iv
+        real(p2) :: tmin, tmax, xc, yc, zc, xp, yp, zp, tf, dtm, dtp
+        real(p2) :: phi_vertex, phi_vertex_min, limiter_beps
+        real(p2) :: phi_var_min
+
+        !allocate(phi(ncells)) ! possible memory leak? Moved allocation to steady solve subroutine (only called once)
+        limiter_beps = 1.0e-14_p2
+        !loop over cells
+        variable_loop : do ivar = 1,5
+            cell_loop : do i = 1,ncells
+                tmin = turb_var(i,ivar)
+                tmax = turb_var(i,ivar)
+                nghbr_loop : do k = 1,cell(i)%nnghbrs
+                    nghbr_cell = cell(i)%nghbr(k)
+                    tmin = min(tmin, turb_var(nghbr_cell,ivar) )
+                    tmax = max(tmax, turb_var(nghbr_cell,ivar) )
+                end do nghbr_loop
+                ! Compute phi to enforce maximum principle at vertices (MLP)
+                xc = cell(i)%xc
+                yc = cell(i)%yc
+                zc = cell(i)%zc
+
+                ! Loop over vertices of the cell
+                vertex_loop : do k = 1,cell(i)%nvtx
+                    iv = cell(i)%vtx(k)
+                    xp = x(iv)
+                    yp = y(iv)
+                    zp = z(iv)
+
+                    ! Linear reconstruction to the vertex k
+                    tf = turb_var(i,ivar) + ccgrad_turb_var(1,i,ivar)*(xp-xc) + &
+                                     ccgrad_turb_var(2,i,ivar)*(yp-yc) + &
+                                     ccgrad_turb_var(3,i,ivar)*(zp-zc)
+
+                    ! compute dt^-
+                    dtm = tf - turb_var(i,ivar)
+
+                    !Compute dt^+.
+                    if ( dtm > zero ) then
+                        dtp = tmax - turb_var(i,ivar)
+                    else
+                        dtp = tmin - turb_var(i,ivar)
+                    endif
+
+                    ! Limiter function: Venkat limiter
+
+                    phi_vertex = vk_limiter(dtp, dtm, cell(i)%vol)
+ 
+                    ! Keep the minimum over the control points (vertices).
+                    if (k==1) then
+                        phi_vertex_min = phi_vertex
+                    else
+                        phi_vertex_min = min(phi_vertex_min, phi_vertex)
+                    endif
+                end do vertex_loop
+                if (ivar == 1) then
+                    phi_var_min = phi_vertex_min
+                else
+                    phi_var_min = min(phi_var_min, phi_vertex_min)
+                endif
+            end do cell_loop
+            phi_turb(i) = phi_var_min
+        end do variable_loop
+                    
+    end subroutine compute_limiter_turb
 
     !********************************************************************************
     !* -- Venkat Limiter Function--

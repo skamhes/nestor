@@ -8,6 +8,18 @@ module residual
 
     subroutine compute_residual
 
+        use utils , only : iturb_type, TURB_RANS
+
+        use res_turb
+
+        call compute_residual_flow
+
+        if (iturb_type == TURB_RANS) call compute_residual_turb
+
+    end subroutine compute_residual
+
+    subroutine compute_residual_flow
+
         use common          , only : p2, zero, half, one, two
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
@@ -27,11 +39,11 @@ module residual
 
         use interface       , only : interface_flux
 
-        use limiter         , only : compute_limiter
+        use limiter         , only : compute_limiter_flow
 
         use bc_states       , only : get_right_state
 
-        use gradient        , only : compute_gradient
+        use gradient        , only : compute_gradient_flow
 
         use viscous_flux    , only : visc_flux_boundary, visc_flux_internal
 
@@ -70,10 +82,10 @@ module residual
         ! Compute gradients at cells.
         !
         if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID) then
-            call compute_gradient(0) ! For now we are just using unweighted gradients
+            call compute_gradient_flow(0) ! For now we are just using unweighted gradients
         endif
 
-        if (use_limiter) call compute_limiter
+        if (use_limiter) call compute_limiter_flow
 
         !--------------------------------------------------------------------------------
         !--------------------------------------------------------------------------------
@@ -222,6 +234,6 @@ module residual
 
         end do boundary_loop
 
-    end subroutine compute_residual
+    end subroutine compute_residual_flow
 
 end module residual

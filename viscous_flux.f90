@@ -99,6 +99,7 @@ module viscous_flux
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
+        use viscosity               , only : compute_viscosity
         implicit none 
 
         real(p2), dimension(nq),      intent(in)    :: q1, q2
@@ -123,8 +124,8 @@ module viscous_flux
         v = half * (q1(3)  + q2(3) ) ! v at the face
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
-        C0= sutherland_constant/reference_temp
-        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+        
+        mu = compute_viscosity(T)
 
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
         if (isnan(mu)) then 

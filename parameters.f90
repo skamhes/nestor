@@ -21,6 +21,7 @@ module common
     real(p2), parameter :: fourth = 1.0_p2/4.0_p2
     real(p2), parameter :: four_third = 4.0_p2/3.0_p2
     real(p2), parameter ::  sixth = 1.0_p2/6.0_p2
+    real(p2), parameter ::  fivesixth = 5.0_p2/6.0_p2
     real(p2), parameter :: my_eps = epsilon(one)  !Machine zero w.r.t. 1.0.
     real(p2), parameter :: pi = 3.141592653589793238_p2
     integer             :: ix = 1, iy = 2, iz = 3
@@ -146,10 +147,13 @@ module config
       real(p2)              :: reference_temp        = 300        ! (K) T_inf in EQ 4.14.16 of I do Like CFD
       character(80)         :: rans_model            = 'sa'       ! Spalart-Allmaras Turbulence.
       integer               :: rans_accuracy         = 2          ! Second order accurate
+      real(p2)              :: pr_t                  = 0.9_p2     ! Turbulent Prandlt number (I think 0.9 is the standard default?)
+      real(p2), dimension(7):: turb_inf              = 1.0_p2     ! Freestream for the different turbulent values. 0 = default
+      
 
 
     namelist / turbulence / &
-      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant, rans_model, rans_accuracy
+      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant, rans_model, rans_accuracy, turb_inf
 
 
     !-------------------------------------------------------------------------

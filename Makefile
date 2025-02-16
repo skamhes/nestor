@@ -48,6 +48,10 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/grid_statistics.o\
 		$(SDIR)/wall_distance.o\
 		$(SDIR)/solution.o\
+		$(SDIR)/viscosity.o\
+		$(SDIR)/initialize.o\
+		$(SDIR)/turb_bc.o\
+		$(SDIR)/turb.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/sparse_common.o\
 		$(SDIR)/sparse_block_matrix.o\
@@ -62,9 +66,9 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/ad_viscous_flux.o\
 		$(SDIR)/interface.o\
 		$(SDIR)/limiter.o\
+		$(SDIR)/res_sa.o\
+		$(SDIR)/res_turb.o\
 		$(SDIR)/residual.o\
-		$(SDIR)/res_sa.o
-		$(SDIR)/res_turb.o
 		$(SDIR)/gauss_seidel.o\
 		$(SDIR)/ruge_stuben.o\
 		$(SDIR)/algebraic_multigrid.o\
