@@ -128,7 +128,7 @@ module res_sa
             turb_res(cell2,1) = turb_res(cell2,1)                  + num_flux * face_nrml_mag(iface)
 
             turb_jac(cell2,1)%diag = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
-            k = kth_nghbr_of_1(iface)
+            k = kth_nghbr_of_2(iface)
             turb_jac(cell2,1)%diag = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
 
             ! Diffusion Flux terms
@@ -151,7 +151,7 @@ module res_sa
             turb_res(cell2,1) = turb_res(cell2,1)                  + num_flux * face_nrml_mag(iface)
 
             turb_jac(cell2,1)%diag = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
-            k = kth_nghbr_of_1(iface)
+            k = kth_nghbr_of_2(iface)
             turb_jac(cell2,1)%diag = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
                       
         end do loop_faces
