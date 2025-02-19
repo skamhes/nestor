@@ -120,15 +120,11 @@ contains
         integer, dimension(nnz_prime), INTENT(OUT) :: prodC     ! Column indices of C
         integer,dimension(A_m+1), INTENT(OUT) :: prodR          ! Row indices of C
 
-        integer :: i,j,b_i,b_j, column, length
-        logical :: queue1_link = .false.
+        integer :: i,j,b_i,b_j, column
         real(p2), dimension(:,:,:), pointer     :: queue1_V
         real(p2), dimension(:,:,:), allocatable :: queue2_V
         integer, dimension(:), pointer          :: queue1_C
         integer, dimension(:), allocatable      :: queue2_C
-
-        integer, dimension(:), allocatable, target      :: tempC
-        real(p2), dimension(:,:,:), allocatable, target :: tempV
         
         prodR(1) = 1
         allocate(queue1_C(1))
@@ -312,10 +308,7 @@ contains
 
         real(p2), dimension(nq,ncells), intent(out)    :: b
 
-        real(p2), dimension(nq,nq)  :: currentV
-        real(p2), dimension(nq)  :: currentX
-
-        integer :: i,j,ii
+        integer :: i,j
 
         b = zero
         do i = 1,ncells
@@ -326,30 +319,7 @@ contains
         
     end subroutine sparseblock_times_vectorblock
 
-    subroutine vector_times_sparse(ncells,V,C,R,x,b)
-        ! ! This subroutine computes x*A = b where A is a sparse block matrix, represented by V, C, and R, and x and b are dense 
-        ! block vectors (a 1 x ncells vector or 1 x nEQ blocks)
-        use common , only : p2
 
-        implicit none
-        
-        integer, intent(in)                    :: ncells
-        real(p2), dimension(:), intent(in) :: V
-        integer, dimension(:), intent(in)      :: C
-        integer, dimension(ncells+1), intent(in)      :: R
-        real(p2), dimension(ncells), intent(in)     :: x
-
-        real(p2), dimension(ncells), intent(out)    :: b
-
-        integer :: i, j
-
-        do i = 1,ncells
-            do j = R(i),(R(i+1)-1)
-                b(C(j)) = b(C(j)) +  x(i) * V(j)
-            end do
-        end do
-
-    end subroutine vector_times_sparse
     
     subroutine queue_sort_block(nq,queue1_V,queue1_C,length1,queue2_V,queue2_C,length2)
         ! This subroutine sorts two pairs of lists, containing a row of values and corresponding column indices, and sorts them 

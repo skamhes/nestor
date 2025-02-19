@@ -14,6 +14,11 @@ module linear_solver
         module procedure linear_sweeps_scalar
     end interface linear_sweeps
 
+    interface multilevel_cycle
+        module procedure multilevel_cycle_block
+        module procedure multilevel_cycle_scalar
+    end interface multilevel_cycle
+
     public :: RELAX_SUCCESS
     public :: RELAX_FAIL_DIVERGE, RELAX_FAIL_STALL
     integer, parameter :: RELAX_SUCCESS      = 0
@@ -31,8 +36,7 @@ module linear_solver
     ! num_eq is the size of the blocks
     subroutine linear_relaxation_block(num_eq,jacobian_block,residual,correction,iostat)
 
-        use common              , only : p2, one, &
-                                         my_eps
+        use common              , only : p2
 
         use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle
 
@@ -42,7 +46,7 @@ module linear_solver
 
         ! use gauss_seidel
 
-        use algebraic_multigird , only : UP, DOWN, convert_amg_c_to_i
+        use algebraic_multigird , only : convert_amg_c_to_i
 
         implicit none
 
@@ -157,17 +161,18 @@ module linear_solver
 
     recursive subroutine linear_sweeps_block(num_eq,solve_level,res,cycle_type,level,correction,l1_res_norm,stat)
 
-        use common          , only : p2, zero, one, half, two, my_eps
+        use common          , only : p2, zero, one
 
         use config          , only : lrelax_sweeps, solver_type, lrelax_tolerance, &
                                      use_amg, max_amg_levels, pre_sweeps, post_sweeps, min_amg_blcoks
 
         use utils           , only : ismoother, SMOOTH_GS
-        use sparse_matrix   , only : sparseblock_times_vectorblock
+        
+        use sparse_block_matrix   , only : sparseblock_times_vectorblock
 
-        use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
+        use gauss_seidel    , only : gauss_seidel_sweep
 
-        use algebraic_multigird , only : algebraic_multigrid_prolong, UP, DOWN, convert_amg_c_to_i, & !,algebraic_multigrid_restrict
+        use algebraic_multigird , only : algebraic_multigrid_prolong, convert_amg_c_to_i, & !,algebraic_multigrid_restrict
                                          AMG_F, AMG_W, AMG_V, amg_restric_rs, amg_level_block_type, build_amg_struct_block
 
         use ruge_stuben , only : rs_agglom
@@ -288,7 +293,7 @@ module linear_solver
     subroutine build_Dinv_array_block(ncells,jac,D_inv)
         ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
         ! so the other two indices do not need to be stored.
-        use common      , only : p2, zero
+        use common      , only : p2
 
         use solution    , only : jacobian_type
 
@@ -360,8 +365,7 @@ module linear_solver
 
     subroutine linear_relaxation_scalar(jacobian_block,residual,correction,iostat)
 
-        use common              , only : p2, one, &
-                                         my_eps
+        use common              , only : p2
 
         use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle
 
@@ -371,7 +375,7 @@ module linear_solver
 
         ! use gauss_seidel
 
-        use algebraic_multigird , only : UP, DOWN, convert_amg_c_to_i
+        use algebraic_multigird , only : convert_amg_c_to_i
 
         implicit none
 
@@ -537,7 +541,7 @@ module linear_solver
     subroutine build_Dinv_array_scalar(ncells,jac,D_inv)
         ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
         ! so the other two indices do not need to be stored.
-        use common      , only : p2, zero
+        use common      , only : p2
 
         use turb        , only : turb_jacobian_type
 
@@ -557,17 +561,18 @@ module linear_solver
 
     recursive subroutine linear_sweeps_scalar(solve_level,res,cycle_type,level,correction,l1_res_norm,stat)
 
-        use common          , only : p2, zero, one, half, two, my_eps
+        use common          , only : p2, zero, one
 
         use config          , only : lrelax_sweeps, solver_type, lrelax_tolerance, &
                                      use_amg, max_amg_levels, pre_sweeps, post_sweeps, min_amg_blcoks
 
         use utils           , only : ismoother, SMOOTH_GS
-        use sparse_matrix   , only : sparseblock_times_vectorblock
+        
+        use sparse_scalar_matrix   , only : sparseMat_times_vector
 
-        use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
+        use gauss_seidel    , only : gauss_seidel_sweep
 
-        use algebraic_multigird , only : algebraic_multigrid_prolong, UP, DOWN, convert_amg_c_to_i, & !,algebraic_multigrid_restrict
+        use algebraic_multigird , only : algebraic_multigrid_prolong, convert_amg_c_to_i, &
                                          AMG_F, AMG_W, AMG_V, amg_restric_rs, amg_level_scalar_type, build_amg_struct_block
 
         use ruge_stuben , only : rs_agglom

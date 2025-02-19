@@ -138,7 +138,7 @@ module algebraic_multigird
 
             ! Create coarse level operetor A^H = RAP
             allocate(coarse_level%R(coarse_level%ncells + 1))
-            call R_A_P(fine_level%ncells,fine_level%ngroup,nq, &
+            call R_A_P_B(fine_level%ncells,fine_level%ngroup,nq, &
                         coarse_level%RestrictC,coarse_level%RestrictR,coarse_level%ProlongC,coarse_level%ProlongR,&
                         fine_level%V,fine_level%C,fine_level%R,&
                         coarse_level%V,coarse_level%C,coarse_level%R,nnz_restrict)
@@ -165,7 +165,7 @@ module algebraic_multigird
         
 
         ! Calculate and restrict the defect d = A*phi + b
-        call compute_defect(fine_level%ncells,nq,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
+        call compute_defect_B(fine_level%ncells,nq,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
         allocate(defect_restricted(5,fine_level%ngroup))
         defect_restricted = zero
         do i = 1,fine_level%ngroup
@@ -207,7 +207,6 @@ module algebraic_multigird
 
         ! Local Vars
         integer                                  :: i, j, gi
-        integer                                  :: idestat
         real(p2), dimension(fine_level%ncells)   :: defect ! defect used in RHS for AMG
 
 
@@ -241,12 +240,6 @@ module algebraic_multigird
                 do j = coarse_level%R(gi),(coarse_level%R(gi+1)-1)
                     if (coarse_level%C(j) == gi) then ! diag
                         coarse_level%Dinv(gi) = safe_invert_scalar(coarse_level%V(j))
-                        if (idestat/=0) then
-                            write(*,*) " amg_restrict_rs: Error in inverting the diagonal block... Stop"
-                            write(*,*) "  Group number = ", gi
-                            write(*,*) "  Level        = ", level
-                            stop
-                        endif
                     end if
                 end do
             end do
@@ -255,7 +248,7 @@ module algebraic_multigird
         
 
         ! Calculate and restrict the defect d = A*phi + b
-        call compute_defect(fine_level%ncells,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
+        call compute_defect_S(fine_level%ncells,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
         allocate(defect_restricted(fine_level%ngroup))
         defect_restricted = zero
         do i = 1,fine_level%ngroup
@@ -312,7 +305,7 @@ module algebraic_multigird
 
     subroutine A_times_P_B(nq,ncells,V,C,R,ProlongC,ProlongR,productV,productC,productR)
 
-        use common, only : p2, zero
+        use common, only : p2
 
         use sparse_block_matrix , only : sparse_real_times_sparse_bool
 
@@ -350,7 +343,7 @@ module algebraic_multigird
 
     subroutine A_times_P_S(ncells,V,C,R,ProlongC,ProlongR,productV,productC,productR)
 
-        use common, only : p2, zero
+        use common, only : p2
 
         use sparse_scalar_matrix , only : sparse_real_times_sparse_bool
 
@@ -381,13 +374,13 @@ module algebraic_multigird
         ! Compute A*Prolong
         allocate(productV(nnz_prime))
         allocate(productC(nnz_prime))
-        call sparse_real_times_sparse_bool(ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
+        call sparse_real_times_sparse_bool(ncells,V,C,R,ProlongC,ProlongR,productV,productC,productR)
 
     end subroutine A_times_P_S
 
     subroutine R_A_P_B(ncells,ngroups,nq,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
         ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
-        use common , only : p2, zero
+        use common , only : p2
 
         use sparse_block_matrix , only : sparse_sparse_pre_alloc, sparse_bool_times_sparse_real
 
@@ -436,7 +429,7 @@ module algebraic_multigird
 
     subroutine R_A_P_S(ncells,ngroups,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
         ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
-        use common , only : p2, zero
+        use common , only : p2
 
         use sparse_scalar_matrix , only : sparse_bool_times_sparse_real
 
@@ -475,7 +468,7 @@ module algebraic_multigird
 
         allocate(RAP_V(nnz_prime))
         allocate(RAP_C(nnz_prime))
-        call sparse_bool_times_sparse_real(ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
+        call sparse_bool_times_sparse_real(ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,RAP_V,RAP_C,RAP_R)
 
         deallocate(AP_V)
         deallocate(AP_C)
