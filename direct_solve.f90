@@ -7,7 +7,9 @@ module direct_solve
     public :: qr_factorization      ! QR factorization using Householder reflections 
     ! https://en.wikipedia.org/wiki/QR_decomposition#Using_Householder_reflections:~:text=Using-,Householder,-reflections%5Bedit 
     public :: gewp_solve            ! Gauss elimination for inverting diagonal blocks
+    public :: safe_invert_scalar
 
+    private
 
     contains
 
@@ -462,4 +464,20 @@ module direct_solve
             end subroutine backsub
       !*********************************************************************
 
+    pure elemental function safe_invert_scalar(scal) result(inv)
+        use common , only : p2, one
+
+        ! This function prevents divide by zero errors by capping very small inputs at a set cutoff from zero (either positive or
+        ! negative).
+        ! note this function assumes the input is not NaN or -NaN
+        
+        implicit none
+        real(p2), intent(in)    :: scal
+        real(p2)                :: inv
+
+        real(p2), parameter :: cutoff = 1.0e-012
+        
+        ! This method avoids any branching.  I don't know if it's actually faster but it looks faster and that's what really counts
+        inv = one / ( sign(scal,one) * max( abs(scal) , cutoff ) )
+    end function safe_invert_scalar
 end module direct_solve

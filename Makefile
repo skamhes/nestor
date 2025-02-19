@@ -55,6 +55,7 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/sparse_common.o\
 		$(SDIR)/sparse_block_matrix.o\
+		$(SDIR)/sparse_scalar_matrix.o\
 		$(SDIR)/ad_operators.o\
 		$(SDIR)/direct_solve.o\
 		$(SDIR)/bc_states.o\

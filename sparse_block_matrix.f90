@@ -1,4 +1,4 @@
-module sparse_matrix
+module sparse_block_matrix
     ! This is a module for building and manipulating compressed sparse matrices specific to the linear solver 
     
     implicit none
@@ -444,4 +444,4 @@ contains
 
     end subroutine queue_sort_block
 
-end module sparse_matrix
+end module sparse_block_matrix

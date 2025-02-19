@@ -17,6 +17,7 @@ module turb
     public ccgrad_turb_var, vgrad_turb_var
     public nturb
     public phi_turb
+    public turb_jacobian_type
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res

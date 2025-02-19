@@ -13,12 +13,43 @@ module algebraic_multigird
     integer, parameter :: AMG_W = 2
     integer, parameter :: AMG_V = 3
 
-    interface build_amg_struct
-        module procedure build_amg_struct_empty
-        module procedure build_amg_struct_VCR
-    end interface build_amg_struct
+    public :: convert_amg_c_to_i
+    public :: amg_level_block_type, amg_level_scalar_type
+    public :: build_amg_struct_block, build_amg_struct_scalar
+    public :: amg_restric_rs, algebraic_multigrid_prolong
+    public :: amg_destroy
 
-    type amg_level_type
+    ! All public facing subroutines/functions are going to be overloaded to allow them to be pseudo "rank agnostic."  In reality
+    ! they are just two copies of the same function for blocks and scalars.  Fortran 2018 allows assumed-rank arrays that would in
+    ! theory allow for a single sut of modules that are, except for certain small exceptions, truly rank agnostic.  But this would
+    ! require a not insignificant amount of refactoring so... that is for another day.
+    interface build_amg_struct_block
+        module procedure build_amg_struct_empty_B
+        module procedure build_amg_struct_VCR_B
+    end interface build_amg_struct_block
+
+    interface build_amg_struct_scalar
+        module procedure build_amg_struct_empty_S
+        module procedure build_amg_struct_VCR_S
+    end interface build_amg_struct_scalar
+
+    interface amg_destroy
+        module procedure amg_destroy_block
+        module procedure amg_destroy_scalar
+    end interface amg_destroy
+
+    interface algebraic_multigrid_prolong
+        module procedure algebraic_multigrid_prolong_B
+        module procedure algebraic_multigrid_prolong_S
+    end interface algebraic_multigrid_prolong
+
+    interface amg_restric_rs
+        module procedure amg_restric_rs_B
+        module procedure amg_restric_rs_S
+    end interface amg_restric_rs
+        
+
+    type amg_level_block_type
         integer                             ::       ngroup
         integer                             ::       ncells
         integer, dimension(:),      pointer ::    restrictR
@@ -29,14 +60,639 @@ module algebraic_multigird
         real(p2), dimension(:,:,:), pointer :: Dinv
         integer, dimension(:), pointer      :: C
         integer, dimension(:), pointer      :: R
-        type(amg_level_type),  pointer      :: fine         ! pointer to the finer level, null for the finest level
-        type(amg_level_type),  pointer      :: coarse       ! pointer to the coarsest level, null for finest level
-    end type amg_level_type
+        type(amg_level_block_type),  pointer      :: fine         ! pointer to the finer level, null for the finest level
+        type(amg_level_block_type),  pointer      :: coarse       ! pointer to the coarsest level, null for finest level
+    end type amg_level_block_type
+
+    type amg_level_scalar_type
+        integer                             ::       ngroup
+        integer                             ::       ncells
+        integer, dimension(:),      pointer ::    restrictR
+        integer, dimension(:),      pointer ::    restrictC
+        integer, dimension(:),      pointer ::     prolongR
+        integer, dimension(:),      pointer ::     prolongC
+        real(p2), dimension(:),     pointer :: V
+        real(p2), dimension(:),     pointer :: Dinv
+        integer, dimension(:),      pointer :: C
+        integer, dimension(:),      pointer :: R
+        type(amg_level_scalar_type),pointer :: fine         ! pointer to the finer level, null for the finest level
+        type(amg_level_scalar_type),pointer :: coarse       ! pointer to the coarsest level, null for finest level
+    end type amg_level_scalar_type
     ! type(amg_level_type), dimension(:), pointer :: cell
+
+    private 
 
     contains
 
-    ! subroutine algebraic_multigrid_restrict_legacy(ncells,nq,phi,V,C,R,nnz,res,level, &
+ 
+    subroutine amg_restric_rs_B(nq,phi,fine_level,res,level, &
+        nnz_restrict,coarse_level,defect_restricted)
+
+        use common                  , only : p2, zero
+        
+        use grid                    , only : cc_data_type
+        
+        use direct_solve            , only : gewp_solve
+
+        use sparse_common           , only : insertion_sort_int, insertion_sort_real
+
+        use ruge_stuben             , only : rs_agglom
+
+
+        !use stdlib_sorting, only : sort
+        
+        implicit none
+
+        ! INPUT
+        integer,                                intent(in)    :: nq     ! number of equations for the flow
+        real(p2), dimension(:,:),               intent(in)    :: phi    ! dependent variables (du for level 1, del for level 2+)
+        real(p2), dimension(:,:),               intent(in)    :: res    ! RHS of the NL equation
+        integer,                                intent(in)    :: level  ! Multigrid level (not sure if we'll need it yet)
+        ! INOUT
+        type(amg_level_block_type), target,           intent(inout) :: fine_level        
+        ! OUTPUT
+        integer,                                intent(out)   :: nnz_restrict
+        type(amg_level_block_type), pointer,          intent(out)   :: coarse_level
+        real(p2), dimension(:,:), pointer,      intent(out)   :: defect_restricted ! R(A*phi + b)
+
+        ! Local Vars
+        integer                                     :: i, j, gi
+        integer                                     :: idestat
+        real(p2), dimension(nq,fine_level%ncells)   :: defect ! defect used in RHS for AMG
+
+
+        ! if this is the first amg_cycle we need to build all of the agglom functions
+        if (associated(fine_level%coarse)) then
+            coarse_level => fine_level%coarse
+        else
+            ! Each level points to the next coarse/fine level
+            allocate(fine_level%coarse)
+            coarse_level => fine_level%coarse
+            coarse_level = build_amg_struct_block()
+            coarse_level%fine  => fine_level
+        
+            call rs_agglom(fine_level%ncells, level, fine_level%C, fine_level%R, fine_level%ngroup, &
+                            coarse_level%RestrictR, coarse_level%RestrictC, coarse_level%ProlongR, coarse_level%prolongC)
+
+            coarse_level%ncells = fine_level%ngroup
+
+            ! Create coarse level operetor A^H = RAP
+            allocate(coarse_level%R(coarse_level%ncells + 1))
+            call R_A_P(fine_level%ncells,fine_level%ngroup,nq, &
+                        coarse_level%RestrictC,coarse_level%RestrictR,coarse_level%ProlongC,coarse_level%ProlongR,&
+                        fine_level%V,fine_level%C,fine_level%R,&
+                        coarse_level%V,coarse_level%C,coarse_level%R,nnz_restrict)
+        
+
+            
+            ! Create inverse block matrix of RAP diagonal terms
+            allocate(coarse_level%Dinv(5,5,coarse_level%ncells))
+            do gi = 1,coarse_level%ncells
+                do j = coarse_level%R(gi),(coarse_level%R(gi+1)-1)
+                    if (coarse_level%C(j) == gi) then ! diag
+                        call gewp_solve(coarse_level%V(:,:,j),5, coarse_level%Dinv(:,:,gi),idestat)
+                        if (idestat/=0) then
+                            write(*,*) " amg_restrict_rs: Error in inverting the diagonal block... Stop"
+                            write(*,*) "  Group number = ", gi
+                            write(*,*) "  Level        = ", level
+                            stop
+                        endif
+                    end if
+                end do
+            end do
+
+        endif   
+        
+
+        ! Calculate and restrict the defect d = A*phi + b
+        call compute_defect(fine_level%ncells,nq,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
+        allocate(defect_restricted(5,fine_level%ngroup))
+        defect_restricted = zero
+        do i = 1,fine_level%ngroup
+            do j = coarse_level%RestrictR(i),(coarse_level%RestrictR(i+1)-1)
+                defect_restricted(:,i) = defect_restricted(:,i) + defect(:,coarse_level%RestrictC(j))
+            end do
+        end do
+
+    end subroutine amg_restric_rs_B
+
+    subroutine amg_restric_rs_S(phi,fine_level,res,level, &
+        nnz_restrict,coarse_level,defect_restricted)
+
+        use common                  , only : p2, zero
+        
+        use grid                    , only : cc_data_type
+        
+        use direct_solve            , only : safe_invert_scalar
+
+        use sparse_common           , only : insertion_sort_int, insertion_sort_real
+
+        use ruge_stuben             , only : rs_agglom
+
+
+        !use stdlib_sorting, only : sort
+        
+        implicit none
+
+        ! INPUT
+        real(p2), dimension(:),               intent(in)    :: phi    ! dependent variables (du for level 1, del for level 2+)
+        real(p2), dimension(:),               intent(in)    :: res    ! RHS of the NL equation
+        integer,                              intent(in)    :: level  ! Multigrid level (not sure if we'll need it yet)
+        ! INOUT
+        type(amg_level_scalar_type), target,   intent(inout) :: fine_level        
+        ! OUTPUT
+        integer,                              intent(out)   :: nnz_restrict
+        type(amg_level_scalar_type), pointer,  intent(out)   :: coarse_level
+        real(p2), dimension(:), pointer,      intent(out)   :: defect_restricted ! R(A*phi + b)
+
+        ! Local Vars
+        integer                                  :: i, j, gi
+        integer                                  :: idestat
+        real(p2), dimension(fine_level%ncells)   :: defect ! defect used in RHS for AMG
+
+
+        ! if this is the first amg_cycle we need to build all of the agglom functions
+        if (associated(fine_level%coarse)) then
+            coarse_level => fine_level%coarse
+        else
+            ! Each level points to the next coarse/fine level
+            allocate(fine_level%coarse)
+            coarse_level => fine_level%coarse
+            coarse_level = build_amg_struct_scalar()
+            coarse_level%fine  => fine_level
+        
+            call rs_agglom(fine_level%ncells, level, fine_level%C, fine_level%R, fine_level%ngroup, &
+                            coarse_level%RestrictR, coarse_level%RestrictC, coarse_level%ProlongR, coarse_level%prolongC)
+
+            coarse_level%ncells = fine_level%ngroup
+
+            ! Create coarse level operetor A^H = RAP
+            allocate(coarse_level%R(coarse_level%ncells + 1))
+            call R_A_P_S(fine_level%ncells,fine_level%ngroup, &
+                        coarse_level%RestrictC,coarse_level%RestrictR,coarse_level%ProlongC,coarse_level%ProlongR,&
+                        fine_level%V,fine_level%C,fine_level%R,&
+                        coarse_level%V,coarse_level%C,coarse_level%R,nnz_restrict)
+        
+
+            
+            ! Create inverse block matrix of RAP diagonal terms
+            allocate(coarse_level%Dinv(coarse_level%ncells))
+            do gi = 1,coarse_level%ncells
+                do j = coarse_level%R(gi),(coarse_level%R(gi+1)-1)
+                    if (coarse_level%C(j) == gi) then ! diag
+                        coarse_level%Dinv(gi) = safe_invert_scalar(coarse_level%V(j))
+                        if (idestat/=0) then
+                            write(*,*) " amg_restrict_rs: Error in inverting the diagonal block... Stop"
+                            write(*,*) "  Group number = ", gi
+                            write(*,*) "  Level        = ", level
+                            stop
+                        endif
+                    end if
+                end do
+            end do
+
+        endif   
+        
+
+        ! Calculate and restrict the defect d = A*phi + b
+        call compute_defect(fine_level%ncells,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
+        allocate(defect_restricted(fine_level%ngroup))
+        defect_restricted = zero
+        do i = 1,fine_level%ngroup
+            do j = coarse_level%RestrictR(i),(coarse_level%RestrictR(i+1)-1)
+                defect_restricted(i) = defect_restricted(i) + defect(coarse_level%RestrictC(j))
+            end do
+        end do
+
+    end subroutine amg_restric_rs_S
+
+    subroutine algebraic_multigrid_prolong_B(ncells,prolongC,restricted_correction,correction)
+    
+        use common , only : p2
+        
+        implicit none
+    
+        ! INPUT
+        integer,                 intent(in) :: ncells
+        integer, dimension(:)  , intent(in) :: prolongC
+        real(p2),dimension(:,:), intent(in) :: restricted_correction
+        ! OUTPUT
+        real(p2),dimension(:,:), intent(inout) :: correction
+
+        integer :: i
+
+        do i = 1,ncells
+            ! Since ProlongC has 1 value per row we can skip the inner j loop.
+            correction(:,i) = correction(:,i) + restricted_correction(:,ProlongC(i))
+        end do
+
+    end subroutine algebraic_multigrid_prolong_B
+
+    subroutine algebraic_multigrid_prolong_S(ncells,prolongC,restricted_correction,correction)
+    
+        use common , only : p2
+        
+        implicit none
+    
+        ! INPUT
+        integer,                 intent(in) :: ncells
+        integer, dimension(:)  , intent(in) :: prolongC
+        real(p2),dimension(:), intent(in) :: restricted_correction
+        ! OUTPUT
+        real(p2),dimension(:), intent(inout) :: correction
+
+        integer :: i
+
+        do i = 1,ncells
+            ! Since ProlongC has 1 value per row we can skip the inner j loop.
+            correction(i) = correction(i) + restricted_correction(ProlongC(i))
+        end do
+
+    end subroutine algebraic_multigrid_prolong_S
+
+    subroutine A_times_P_B(nq,ncells,V,C,R,ProlongC,ProlongR,productV,productC,productR)
+
+        use common, only : p2, zero
+
+        use sparse_block_matrix , only : sparse_real_times_sparse_bool
+
+        use sparse_common , only : sparse_sparse_pre_alloc
+        ! This subroutine performes the first half (AP) of RAP (where P = R^T).  The preallocation and computation are performed
+        ! using the row-wise product.  This takes advantage of the sparse nature of the cells for a very efficient matrix-matrix
+        ! product.  Additionally it allows for multiplication without needing to match indices.
+
+        implicit none
+
+        integer,                    intent(in) :: nq
+        integer,                    intent(in) :: ncells
+        real(p2), dimension(:,:,:), intent(in) :: V
+        integer, dimension(:),      intent(in) :: C
+        integer, dimension(:),      intent(in) :: R
+        integer, dimension(:),      intent(in) :: ProlongC
+        integer, dimension(:),      intent(in) :: ProlongR
+  
+
+        real(p2), dimension(:,:,:), pointer, intent(out) :: productV
+        integer,  dimension(:),     pointer, INTENT(OUT) :: productC
+        integer,  dimension(:),              INTENT(OUT) :: productR
+
+        integer :: nnz_prime
+
+        ! Compute the resultant number of nonzero values.
+        call sparse_sparse_pre_alloc(ncells,C,R,ProlongC,ProlongR,nnz_prime)
+
+        ! Compute A*Prolong
+        allocate(productV(5,5,nnz_prime))
+        allocate(productC(    nnz_prime))
+        call sparse_real_times_sparse_bool(nq,ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
+
+    end subroutine A_times_P_B
+
+    subroutine A_times_P_S(ncells,V,C,R,ProlongC,ProlongR,productV,productC,productR)
+
+        use common, only : p2, zero
+
+        use sparse_scalar_matrix , only : sparse_real_times_sparse_bool
+
+        use sparse_common , only : sparse_sparse_pre_alloc
+        ! This subroutine performes the first half (AP) of RAP (where P = R^T).  The preallocation and computation are performed
+        ! using the row-wise product.  This takes advantage of the sparse nature of the cells for a very efficient matrix-matrix
+        ! product.  Additionally it allows for multiplication without needing to match indices.
+
+        implicit none
+
+        integer,                intent(in) :: ncells
+        real(p2), dimension(:), intent(in) :: V
+        integer, dimension(:),  intent(in) :: C
+        integer, dimension(:),  intent(in) :: R
+        integer, dimension(:),  intent(in) :: ProlongC
+        integer, dimension(:),  intent(in) :: ProlongR
+  
+
+        real(p2), dimension(:), pointer, intent(out) :: productV
+        integer,  dimension(:), pointer, INTENT(OUT) :: productC
+        integer,  dimension(:),          INTENT(OUT) :: productR
+
+        integer :: nnz_prime
+
+        ! Compute the resultant number of nonzero values.
+        call sparse_sparse_pre_alloc(ncells,C,R,ProlongC,ProlongR,nnz_prime)
+
+        ! Compute A*Prolong
+        allocate(productV(nnz_prime))
+        allocate(productC(nnz_prime))
+        call sparse_real_times_sparse_bool(ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
+
+    end subroutine A_times_P_S
+
+    subroutine R_A_P_B(ncells,ngroups,nq,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
+        ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
+        use common , only : p2, zero
+
+        use sparse_block_matrix , only : sparse_sparse_pre_alloc, sparse_bool_times_sparse_real
+
+        implicit none
+
+        ! INPUT
+        integer,                    intent(in)  :: ncells    ! # of cells for the coarse mesh
+        integer,                    intent(in)  :: ngroups   ! # of groups on the restricted level
+        integer,                    intent(in)  :: nq        ! # of equations in block matrix
+        integer, dimension(:),      intent(in)  :: RestrictC ! Restriction matrix Columns
+        integer, dimension(:),      intent(in)  :: RestrictR ! Restriction matrix Columns
+        integer, dimension(:),      intent(in)  :: ProlongC  ! Restriction matrix Columns
+        integer, dimension(:),      intent(in)  :: ProlongR  ! Restriction matrix Columns
+        real(p2), dimension(:,:,:), intent(in)  :: V         ! Block Sparse Compressed Matrix (BSCM) values of A matrix
+        integer, dimension(:),      intent(in)  :: C         ! BCSM Columns of A matrix
+        integer, dimension(:),      intent(in)  :: R         ! BCSM Rows of A matrix
+        !OUTPUT
+        real(p2), dimension(:,:,:), pointer, INTENT(OUT) :: RAP_V           ! BCSM Values of restricted A matrix
+        integer, dimension(:),      pointer, INTENT(OUT) :: RAP_C           ! BCSM Columns of restricted A matrix
+        integer, dimension(:),               INTENT(OUT) :: RAP_R           ! BCSM Rows of restricted A matrix
+        integer, optional,                   intent(out) :: nnz_prime_final ! (Optional) # of nonzero values in restricted A matrix
+
+        ! Local
+        real(p2), dimension(:,:,:), pointer :: AP_V ! BCSM Values of intermediate A*(R^T) matrix
+        integer, dimension(:),      pointer :: AP_C ! BCSM Rows of intermediate A*(R^T) matrix
+        integer, dimension(ncells + 1)      :: AP_R ! BCSM Columns of intermediate A*(R^T) matrix
+
+        integer :: nnz_prime
+
+        nnz_prime = 0
+        
+        call A_times_P_B(nq,ncells,V,C,R,ProlongC,ProlongR,AP_V,AP_C,AP_R)
+
+        call sparse_sparse_pre_alloc(ngroups,RestrictC,RestrictR,AP_C,AP_R,nnz_prime)
+
+        allocate(RAP_V(5,5,nnz_prime))
+        allocate(RAP_C(    nnz_prime))
+        call sparse_bool_times_sparse_real(nq,ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
+
+        deallocate(AP_V)
+        deallocate(AP_C)
+
+        if (present(nnz_prime_final)) nnz_prime_final = nnz_prime
+
+    end subroutine R_A_P_B
+
+    subroutine R_A_P_S(ncells,ngroups,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
+        ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
+        use common , only : p2, zero
+
+        use sparse_scalar_matrix , only : sparse_bool_times_sparse_real
+
+        use sparse_common , only : sparse_sparse_pre_alloc
+
+        implicit none
+
+        ! INPUT
+        integer,                intent(in)  :: ncells    ! # of cells for the coarse mesh
+        integer,                intent(in)  :: ngroups   ! # of groups on the restricted level
+        integer,  dimension(:), intent(in)  :: RestrictC ! Restriction matrix Columns
+        integer,  dimension(:), intent(in)  :: RestrictR ! Restriction matrix Columns
+        integer,  dimension(:), intent(in)  :: ProlongC  ! Restriction matrix Columns
+        integer,  dimension(:), intent(in)  :: ProlongR  ! Restriction matrix Columns
+        real(p2), dimension(:), intent(in)  :: V         ! Block Sparse Compressed Matrix (BSCM) values of A matrix
+        integer,  dimension(:), intent(in)  :: C         ! BCSM Columns of A matrix
+        integer,  dimension(:), intent(in)  :: R         ! BCSM Rows of A matrix
+        !OUTPUT
+        real(p2), dimension(:), pointer, INTENT(OUT) :: RAP_V           ! BCSM Values of restricted A matrix
+        integer,  dimension(:), pointer, INTENT(OUT) :: RAP_C           ! BCSM Columns of restricted A matrix
+        integer,  dimension(:),          INTENT(OUT) :: RAP_R           ! BCSM Rows of restricted A matrix
+        integer,  optional,              intent(out) :: nnz_prime_final ! (Optional) # of nonzero values in restricted A matrix
+
+        ! Local
+        real(p2), dimension(:),      pointer :: AP_V ! BCSM Values of intermediate A*(R^T) matrix
+        integer,  dimension(:),      pointer :: AP_C ! BCSM Rows of intermediate A*(R^T) matrix
+        integer,  dimension(ncells + 1)      :: AP_R ! BCSM Columns of intermediate A*(R^T) matrix
+
+        integer :: nnz_prime
+
+        nnz_prime = 0
+        
+        call A_times_P_S(ncells,V,C,R,ProlongC,ProlongR,AP_V,AP_C,AP_R)
+
+        call sparse_sparse_pre_alloc(ngroups,RestrictC,RestrictR,AP_C,AP_R,nnz_prime)
+
+        allocate(RAP_V(nnz_prime))
+        allocate(RAP_C(nnz_prime))
+        call sparse_bool_times_sparse_real(ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
+
+        deallocate(AP_V)
+        deallocate(AP_C)
+
+        if (present(nnz_prime_final)) nnz_prime_final = nnz_prime
+
+    end subroutine R_A_P_S
+
+    subroutine compute_defect_B(ncells,nq,V,C,R,phi,b,defect)
+        ! Computes the defect d = A*phi + b
+        use common        , only : p2
+        use sparse_block_matrix , only : sparseblock_times_vectorblock
+
+        implicit none
+
+        integer,                    intent(in) :: ncells
+        integer,                    intent(in) :: nq
+        real(p2), dimension(:,:,:), intent(in) :: V
+        integer,  dimension(:),     intent(in) :: C
+        integer,  dimension(:),     intent(in) :: R
+        real(p2), dimension(:,:),   intent(in) :: phi
+        real(p2), dimension(:,:),   intent(in) :: b
+
+        real(p2), dimension(:,:),   intent(out) :: defect
+
+        real(p2), dimension(nq,ncells) :: product
+
+        call sparseblock_times_vectorblock(ncells,nq,V,C,R,phi,product)
+
+        defect = product + b
+
+    end subroutine compute_defect_B
+
+    subroutine compute_defect_S(ncells,V,C,R,phi,b,defect)
+        ! Computes the defect d = A*phi + b
+        use common        , only : p2
+        use sparse_scalar_matrix , only : sparseMat_times_vector
+
+        implicit none
+
+        integer,                intent(in) :: ncells
+        real(p2), dimension(:), intent(in) :: V
+        integer,  dimension(:), intent(in) :: C
+        integer,  dimension(:), intent(in) :: R
+        real(p2), dimension(:), intent(in) :: phi
+        real(p2), dimension(:), intent(in) :: b
+
+        real(p2), dimension(:), intent(out) :: defect
+
+        real(p2), dimension(ncells) :: product
+
+        call sparseMat_times_vector(ncells,V,C,R,phi,product)
+
+        defect = product + b
+
+    end subroutine compute_defect_S
+
+    function convert_amg_c_to_i(amg_char) result(amg_int)
+
+        character(1), intent(in) :: amg_char
+        integer                  :: amg_int
+
+        select case(amg_char)
+        case('f')
+            amg_int = AMG_F
+        case('w')
+            amg_int = AMG_W
+        case('v')
+            amg_int = AMG_V
+        case default
+            write(*,*) "convert_amg_c_to_i: invalid AMG cycle tpye. STOP!"
+            stop
+        end select
+
+    end function convert_amg_c_to_i
+
+    pure function build_amg_struct_empty_B() result (amg_struct)
+
+        type(amg_level_block_type) :: amg_struct
+
+        ! We're just making sure all the pointers are initialized (null)
+        nullify(amg_struct%V)
+        nullify(amg_struct%C)
+        nullify(amg_struct%R)
+        nullify(amg_struct%Dinv)
+        nullify(amg_struct%restrictC)
+        nullify(amg_struct%restrictR)
+        nullify(amg_struct%prolongC)
+        nullify(amg_struct%prolongR)
+        nullify(amg_struct%fine)
+        nullify(amg_struct%coarse)
+
+    end function build_amg_struct_empty_B
+
+    pure function build_amg_struct_empty_S() result (amg_struct)
+
+        type(amg_level_scalar_type) :: amg_struct
+
+        ! We're just making sure all the pointers are initialized (null)
+        nullify(amg_struct%V)
+        nullify(amg_struct%C)
+        nullify(amg_struct%R)
+        nullify(amg_struct%Dinv)
+        nullify(amg_struct%restrictC)
+        nullify(amg_struct%restrictR)
+        nullify(amg_struct%prolongC)
+        nullify(amg_struct%prolongR)
+        nullify(amg_struct%fine)
+        nullify(amg_struct%coarse)
+
+    end function build_amg_struct_empty_S
+
+    function build_amg_struct_VCR_B(V,C,R,Dinv) result (amg_struct)
+
+        implicit none
+
+        real(p2), dimension(:,:,:), target, intent(in) :: V
+        integer , dimension(:),     target, intent(in) :: C
+        integer , dimension(:),     target, intent(in) :: R
+        real(p2), dimension(:,:,:), target, intent(in) :: Dinv
+        
+        type(amg_level_block_type)                           :: amg_struct
+
+        ! We're just making sure all the pointers are initialized (null)
+        amg_struct%V    => V
+        amg_struct%C    => C
+        amg_struct%R    => R
+        amg_struct%Dinv => Dinv
+        nullify(amg_struct%restrictC)
+        nullify(amg_struct%restrictR)
+        nullify(amg_struct%prolongC)
+        nullify(amg_struct%prolongR)
+        nullify(amg_struct%fine)
+        nullify(amg_struct%coarse)
+
+    end function build_amg_struct_VCR_B
+
+    function build_amg_struct_VCR_S(V,C,R,Dinv) result (amg_struct)
+
+        implicit none
+
+        real(p2), dimension(:), target, intent(in) :: V
+        integer , dimension(:), target, intent(in) :: C
+        integer , dimension(:), target, intent(in) :: R
+        real(p2), dimension(:), target, intent(in) :: Dinv
+        
+        type(amg_level_scalar_type)                :: amg_struct
+
+        ! We're just making sure all the pointers are initialized (null)
+        amg_struct%V    => V
+        amg_struct%C    => C
+        amg_struct%R    => R
+        amg_struct%Dinv => Dinv
+        nullify(amg_struct%restrictC)
+        nullify(amg_struct%restrictR)
+        nullify(amg_struct%prolongC)
+        nullify(amg_struct%prolongR)
+        nullify(amg_struct%fine)
+        nullify(amg_struct%coarse)
+
+    end function build_amg_struct_VCR_S
+        
+    recursive subroutine amg_destroy_block(amg_struct)
+
+        implicit none
+
+        type(amg_level_block_type), intent(inout) :: amg_struct
+
+        if ( associated(amg_struct%restrictC) ) deallocate(amg_struct%restrictC)
+        if ( associated(amg_struct%restrictR) ) deallocate(amg_struct%restrictR)
+        if ( associated(amg_struct%prolongC) ) deallocate(amg_struct%prolongC)
+        if ( associated(amg_struct%prolongR) ) deallocate(amg_struct%prolongR)
+        if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
+        if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
+        if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
+        if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
+        if ( associated(amg_struct%fine) ) nullify(amg_struct%fine)
+
+        if ( associated(amg_struct%coarse) ) then
+            call amg_destroy_block(amg_struct%coarse)
+            deallocate(amg_struct%coarse)
+        endif
+
+        
+
+
+    end subroutine amg_destroy_block
+
+    recursive subroutine amg_destroy_scalar(amg_struct)
+
+        implicit none
+
+        type(amg_level_scalar_type), intent(inout) :: amg_struct
+
+        if ( associated(amg_struct%restrictC) ) deallocate(amg_struct%restrictC)
+        if ( associated(amg_struct%restrictR) ) deallocate(amg_struct%restrictR)
+        if ( associated(amg_struct%prolongC) ) deallocate(amg_struct%prolongC)
+        if ( associated(amg_struct%prolongR) ) deallocate(amg_struct%prolongR)
+        if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
+        if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
+        if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
+        if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
+        if ( associated(amg_struct%fine) ) nullify(amg_struct%fine)
+
+        if ( associated(amg_struct%coarse) ) then
+            call amg_destroy_scalar(amg_struct%coarse)
+            deallocate(amg_struct%coarse)
+        endif
+
+        
+
+
+    end subroutine amg_destroy_scalar
+
+
+
+       ! subroutine algebraic_multigrid_restrict_legacy(ncells,nq,phi,V,C,R,nnz,res,level, &
     !                                                   ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,defect_res)
     
     !     ! Implementation of algebraic multi grid using additive correction.
@@ -239,319 +895,5 @@ module algebraic_multigird
     !     ! direction = DOWN ! we've finished a multigrid level that means we're going back down the levels
     
     ! end subroutine algebraic_multigrid_restrict_legacy
-
-    subroutine amg_restric_rs(nq,phi,fine_level,res,level, &
-        nnz_restrict,coarse_level,defect_restricted)
-
-        use common                  , only : p2, zero
-        
-        use grid                    , only : cc_data_type
-        
-        use direct_solve            , only : gewp_solve
-
-        use sparse_common           , only : insertion_sort_int, insertion_sort_real
-
-        use ruge_stuben             , only : rs_agglom
-
-
-        !use stdlib_sorting, only : sort
-        
-        implicit none
-
-        ! INPUT
-        integer,                                intent(in)    :: nq     ! number of equations for the flow
-        real(p2), dimension(:,:),               intent(in)    :: phi    ! dependent variables (du for level 1, del for level 2+)
-        real(p2), dimension(:,:),               intent(in)    :: res    ! RHS of the NL equation
-        integer,                                intent(in)    :: level  ! Multigrid level (not sure if we'll need it yet)
-        ! INOUT
-        type(amg_level_type), target,           intent(inout) :: fine_level        
-        ! OUTPUT
-        integer,                                intent(out)   :: nnz_restrict
-        type(amg_level_type), pointer,          intent(out)   :: coarse_level
-        real(p2), dimension(:,:), pointer,      intent(out)   :: defect_restricted ! R(A*phi + b)
-
-        ! Local Vars
-        integer                                     :: i, j, gi
-        integer                                     :: idestat
-        real(p2), dimension(nq,fine_level%ncells)   :: defect ! defect used in RHS for AMG
-
-
-        ! if this is the first amg_cycle we need to build all of the agglom functions
-        if (associated(fine_level%coarse)) then
-            coarse_level => fine_level%coarse
-        else
-            ! Each level points to the next coarse/fine level
-            allocate(fine_level%coarse)
-            coarse_level => fine_level%coarse
-            coarse_level = build_amg_struct()
-            coarse_level%fine  => fine_level
-        
-            call rs_agglom(fine_level%ncells, level, fine_level%C, fine_level%R, fine_level%ngroup, &
-                            coarse_level%RestrictR, coarse_level%RestrictC, coarse_level%ProlongR, coarse_level%prolongC)
-
-            coarse_level%ncells = fine_level%ngroup
-
-            ! Create coarse level operetor A^H = RAP
-            allocate(coarse_level%R(coarse_level%ncells + 1))
-            call R_A_P(fine_level%ncells,fine_level%ngroup,nq, &
-                        coarse_level%RestrictC,coarse_level%RestrictR,coarse_level%ProlongC,coarse_level%ProlongR,&
-                        fine_level%V,fine_level%C,fine_level%R,&
-                        coarse_level%V,coarse_level%C,coarse_level%R,nnz_restrict)
-        
-
-            
-            ! Create inverse block matrix of RAP diagonal terms
-            allocate(coarse_level%Dinv(5,5,coarse_level%ncells))
-            do gi = 1,coarse_level%ncells
-                do j = coarse_level%R(gi),(coarse_level%R(gi+1)-1)
-                    if (coarse_level%C(j) == gi) then ! diag
-                        call gewp_solve(coarse_level%V(:,:,j),5, coarse_level%Dinv(:,:,gi),idestat)
-                        if (idestat/=0) then
-                            write(*,*) " amg_restrict_rs: Error in inverting the diagonal block... Stop"
-                            write(*,*) "  Group number = ", gi
-                            write(*,*) "  Level        = ", level
-                            stop
-                        endif
-                    end if
-                end do
-            end do
-
-        endif   
-        
-
-        ! Calculate and restrict the defect d = A*phi + b
-        call compute_defect(fine_level%ncells,nq,fine_level%V,fine_level%C,fine_level%R,phi,res,defect)
-        allocate(defect_restricted(5,fine_level%ngroup))
-        defect_restricted = zero
-        do i = 1,fine_level%ngroup
-            do j = coarse_level%RestrictR(i),(coarse_level%RestrictR(i+1)-1)
-                defect_restricted(:,i) = defect_restricted(:,i) + defect(:,coarse_level%RestrictC(j))
-            end do
-        end do
-
-    end subroutine amg_restric_rs
-
-
-    subroutine algebraic_multigrid_prolong(ncells,prolongC,restricted_correction,correction)
-    
-        use common , only : p2
-        
-        implicit none
-    
-        ! INPUT
-        integer,                 intent(in) :: ncells
-        integer, dimension(:)  , intent(in) :: prolongC
-        real(p2),dimension(:,:), intent(in) :: restricted_correction
-        ! OUTPUT
-        real(p2),dimension(:,:), intent(inout) :: correction
-
-        integer :: i
-
-        do i = 1,ncells
-            ! Since ProlongC has 1 value per row we can skip the inner j loop.
-            correction(:,i) = correction(:,i) + restricted_correction(:,ProlongC(i))
-        end do
-
-    end subroutine algebraic_multigrid_prolong
-
-    subroutine A_times_P(nq,ncells,V,C,R,ProlongC,ProlongR,productV,productC,productR)
-
-        use common, only : p2, zero
-
-        use sparse_matrix , only : sparse_sparse_pre_alloc, sparse_real_times_sparse_bool
-        ! This subroutine performes the first half (AP) of RAP (where P = R^T).  The preallocation and computation are performed
-        ! using the row-wise product.  This takes advantage of the sparse nature of the cells for a very efficient matrix-matrix
-        ! product.  Additionally it allows for multiplication without needing to match indices.
-
-        implicit none
-
-        integer,                    intent(in) :: nq
-        integer,                    intent(in) :: ncells
-        real(p2), dimension(:,:,:), intent(in) :: V
-        integer, dimension(:),      intent(in) :: C
-        integer, dimension(:),      intent(in) :: R
-        integer, dimension(:),      intent(in) :: ProlongC
-        integer, dimension(:),      intent(in) :: ProlongR
-  
-
-        real(p2), dimension(:,:,:), pointer, intent(out) :: productV
-        integer,  dimension(:),     pointer, INTENT(OUT) :: productC
-        integer,  dimension(:),              INTENT(OUT) :: productR
-
-        integer :: nnz_prime
-
-        ! Compute the resultant number of nonzero values.
-        call sparse_sparse_pre_alloc(ncells,C,R,ProlongC,ProlongR,nnz_prime)
-
-        ! Compute A*Prolong
-        allocate(productV(5,5,nnz_prime))
-        allocate(productC(    nnz_prime))
-        call sparse_real_times_sparse_bool(nq,ncells,V,C,R,ProlongC,ProlongR,nnz_prime,productV,productC,productR)
-
-    end subroutine A_times_P
-
-
-    subroutine R_A_P(ncells,ngroups,nq,RestrictC,RestrictR,ProlongC,ProlongR,V,C,R,RAP_V,RAP_C,RAP_R,nnz_prime_final)
-        ! This subroutine computes the restriction matrix A^H = RAP for algebraic multi grid and stores it using BCSM.
-        use common , only : p2, zero
-
-        use sparse_matrix , only : sparse_sparse_pre_alloc, sparse_bool_times_sparse_real
-
-        implicit none
-
-        ! INPUT
-        integer,                    intent(in)  :: ncells    ! # of cells for the coarse mesh
-        integer,                    intent(in)  :: ngroups   ! # of groups on the restricted level
-        integer,                    intent(in)  :: nq        ! # of equations in block matrix
-        integer, dimension(:),      intent(in)  :: RestrictC ! Restriction matrix Columns
-        integer, dimension(:),      intent(in)  :: RestrictR ! Restriction matrix Columns
-        integer, dimension(:),      intent(in)  :: ProlongC  ! Restriction matrix Columns
-        integer, dimension(:),      intent(in)  :: ProlongR  ! Restriction matrix Columns
-        real(p2), dimension(:,:,:), intent(in)  :: V         ! Block Sparse Compressed Matrix (BSCM) values of A matrix
-        integer, dimension(:),      intent(in)  :: C         ! BCSM Columns of A matrix
-        integer, dimension(:),      intent(in)  :: R         ! BCSM Rows of A matrix
-        !OUTPUT
-        real(p2), dimension(:,:,:), pointer, INTENT(OUT) :: RAP_V           ! BCSM Values of restricted A matrix
-        integer, dimension(:),      pointer, INTENT(OUT) :: RAP_C           ! BCSM Columns of restricted A matrix
-        integer, dimension(:),               INTENT(OUT) :: RAP_R           ! BCSM Rows of restricted A matrix
-        integer, optional,                   intent(out) :: nnz_prime_final ! (Optional) # of nonzero values in restricted A matrix
-
-        ! Local
-        real(p2), dimension(:,:,:), pointer :: AP_V ! BCSM Values of intermediate A*(R^T) matrix
-        integer, dimension(:),      pointer :: AP_C ! BCSM Rows of intermediate A*(R^T) matrix
-        integer, dimension(ncells + 1)      :: AP_R ! BCSM Columns of intermediate A*(R^T) matrix
-
-        integer :: nnz_prime
-
-        nnz_prime = 0
-        
-        call A_times_P(nq,ncells,V,C,R,ProlongC,ProlongR,AP_V,AP_C,AP_R)
-
-        call sparse_sparse_pre_alloc(ngroups,RestrictC,RestrictR,AP_C,AP_R,nnz_prime)
-
-        allocate(RAP_V(5,5,nnz_prime))
-        allocate(RAP_C(    nnz_prime))
-        call sparse_bool_times_sparse_real(nq,ngroups,RestrictC,RestrictR,AP_V,AP_C,AP_R,nnz_prime,RAP_V,RAP_C,RAP_R)
-
-        deallocate(AP_V)
-        deallocate(AP_C)
-
-        if (present(nnz_prime_final)) nnz_prime_final = nnz_prime
-
-    end subroutine R_A_P 
-
-    subroutine compute_defect(ncells,nq,V,C,R,phi,b,defect)
-        ! Computes the defect d = A*phi + b
-        use common        , only : p2
-        use sparse_matrix , only : sparseblock_times_vectorblock
-
-        implicit none
-
-        integer,                    intent(in) :: ncells
-        integer,                    intent(in) :: nq
-        real(p2), dimension(:,:,:), intent(in) :: V
-        integer,  dimension(:),     intent(in) :: C
-        integer,  dimension(:),     intent(in) :: R
-        real(p2), dimension(:,:),   intent(in) :: phi
-        real(p2), dimension(:,:),   intent(in) :: b
-
-        real(p2), dimension(:,:),   intent(out) :: defect
-
-        real(p2), dimension(nq,ncells) :: product
-
-        call sparseblock_times_vectorblock(ncells,nq,V,C,R,phi,product)
-
-        defect = product + b
-
-    end subroutine compute_defect
-
-    function convert_amg_c_to_i(amg_char) result(amg_int)
-
-        character(1), intent(in) :: amg_char
-        integer                  :: amg_int
-
-        select case(amg_char)
-        case('f')
-            amg_int = AMG_F
-        case('w')
-            amg_int = AMG_W
-        case('v')
-            amg_int = AMG_V
-        case default
-            write(*,*) "convert_amg_c_to_i: invalid AMG cycle tpye. STOP!"
-            stop
-        end select
-
-    end function convert_amg_c_to_i
-
-    function build_amg_struct_empty() result (amg_struct)
-
-        type(amg_level_type) :: amg_struct
-
-        ! We're just making sure all the pointers are initialized (null)
-        nullify(amg_struct%V)
-        nullify(amg_struct%C)
-        nullify(amg_struct%R)
-        nullify(amg_struct%Dinv)
-        nullify(amg_struct%restrictC)
-        nullify(amg_struct%restrictR)
-        nullify(amg_struct%prolongC)
-        nullify(amg_struct%prolongR)
-        nullify(amg_struct%fine)
-        nullify(amg_struct%coarse)
-
-    end function build_amg_struct_empty
-
-    function build_amg_struct_VCR(V,C,R,Dinv) result (amg_struct)
-
-        implicit none
-
-        real(p2), dimension(:,:,:), target, intent(in) :: V
-        integer , dimension(:),     target, intent(in) :: C
-        integer , dimension(:),     target, intent(in) :: R
-        real(p2), dimension(:,:,:), target, intent(in) :: Dinv
-        
-        type(amg_level_type)                           :: amg_struct
-
-        ! We're just making sure all the pointers are initialized (null)
-        amg_struct%V    => V
-        amg_struct%C    => C
-        amg_struct%R    => R
-        amg_struct%Dinv => Dinv
-        nullify(amg_struct%restrictC)
-        nullify(amg_struct%restrictR)
-        nullify(amg_struct%prolongC)
-        nullify(amg_struct%prolongR)
-        nullify(amg_struct%fine)
-        nullify(amg_struct%coarse)
-
-    end function build_amg_struct_VCR
-        
-    recursive subroutine amg_destroy(amg_struct)
-
-        implicit none
-
-        type(amg_level_type), intent(inout) :: amg_struct
-
-        if ( associated(amg_struct%restrictC) ) deallocate(amg_struct%restrictC)
-        if ( associated(amg_struct%restrictR) ) deallocate(amg_struct%restrictR)
-        if ( associated(amg_struct%prolongC) ) deallocate(amg_struct%prolongC)
-        if ( associated(amg_struct%prolongR) ) deallocate(amg_struct%prolongR)
-        if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
-        if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
-        if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
-        if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
-        if ( associated(amg_struct%fine) ) nullify(amg_struct%fine)
-
-        if ( associated(amg_struct%coarse) ) then
-            call amg_destroy(amg_struct%coarse)
-            deallocate(amg_struct%coarse)
-        endif
-
-        
-
-
-    end subroutine amg_destroy
-
 
 end module algebraic_multigird
