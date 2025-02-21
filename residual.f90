@@ -20,7 +20,7 @@ module residual
 
     subroutine compute_residual_flow
 
-        use common          , only : p2, zero, half, one, two
+        use common          , only : p2, zero, one
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
 
@@ -35,7 +35,9 @@ module residual
 
         use utils           , only : ibc_type
         
-        use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi
+        use solution_vars   , only : res, q, ccgradq, vgradq, wsn, phi
+
+        use solution        , only : q2u
 
         use interface       , only : interface_flux
 

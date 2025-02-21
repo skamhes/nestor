@@ -148,12 +148,13 @@ module config
       character(80)         :: rans_model            = 'sa'       ! Spalart-Allmaras Turbulence.
       integer               :: rans_accuracy         = 2          ! Second order accurate
       real(p2)              :: pr_t                  = 0.9_p2     ! Turbulent Prandlt number (I think 0.9 is the standard default?)
-      real(p2), dimension(7):: turb_inf              = 1.0_p2     ! Freestream for the different turbulent values. 0 = default
+      real(p2), dimension(7):: turb_inf              = 3.0_p2     ! Freestream for the different turbulent values. 3. = default
       
 
 
     namelist / turbulence / &
-      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant, rans_model, rans_accuracy, turb_inf
+      turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant, rans_model, rans_accuracy, turb_inf, &
+      pr_t
 
 
     !-------------------------------------------------------------------------

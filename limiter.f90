@@ -13,7 +13,7 @@ module limiter
         
         use grid            , only : ncells, cell, x, y, z, cell
         
-        use solution        , only : ccgradq, phi, q
+        use solution_vars   , only : ccgradq, phi, q
       
         ! use least_squares   , only : lsq 
 
@@ -184,7 +184,7 @@ module limiter
     !********************************************************************************
     pure function vk_limiter(a, b, vol)
 
-        use common    , only : p2, two, pi, half, six, third
+        use common    , only : p2, two, pi, six, third
 
         real(p2), intent(in) :: a, b
         real(p2), intent(in) :: vol

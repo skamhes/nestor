@@ -47,11 +47,12 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/grid_statistics.o\
 		$(SDIR)/wall_distance.o\
-		$(SDIR)/solution.o\
+		$(SDIR)/solution_vars.o\
 		$(SDIR)/viscosity.o\
+		$(SDIR)/turb.o\
+		$(SDIR)/solution.o\
 		$(SDIR)/initialize.o\
 		$(SDIR)/turb_bc.o\
-		$(SDIR)/turb.o\
 		$(SDIR)/inputoutput.o\
 		$(SDIR)/sparse_common.o\
 		$(SDIR)/sparse_block_matrix.o\

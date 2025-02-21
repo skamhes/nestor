@@ -8,7 +8,7 @@ module interface_jacobian
 
     subroutine interface_jac(qj, qk, njk, dFnduL, dFnduR)
 
-        use common              , only : p2, zero, one, half
+        use common              , only : p2
 
         use ad_operators        ! all
 
@@ -107,8 +107,8 @@ module interface_jacobian
     !********************************************************************************
     function q2u_ddt(q_in) result(u_out)
 
-        use common              , only : p2, one, half
-        use solution            , only : gamma, gammamo
+        use common              , only : half
+        use solution_vars       , only : gamma, gammamo
         use ad_operators
 
         implicit none

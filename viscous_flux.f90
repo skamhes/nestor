@@ -13,9 +13,9 @@ module viscous_flux
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+        use common                  , only : p2, half
 
-        use solution                , only : gammamo, nq, ndim, T_inf ! w2u, nq
+        use solution_vars           , only : nq, ndim ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
@@ -52,9 +52,9 @@ module viscous_flux
 
     subroutine visc_flux_boundary(q1,qb,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
 
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+        use common                  , only : p2, half
 
-        use solution                , only : gammamo, nq, ndim, T_inf ! w2u, nq
+        use solution_vars           , only : nq, ndim ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
@@ -93,9 +93,9 @@ module viscous_flux
     end subroutine visc_flux_boundary
 
     subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+        use common                  , only : p2, half, zero, two_third, four_third
 
-        use solution                , only : gammamo, nq, ndim, T_inf ! w2u, nq
+        use solution_vars           , only : gammamo, nq, ndim ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
@@ -110,7 +110,6 @@ module viscous_flux
         ! Local Vars
         real(p2)                     :: mu
         real(p2)                     :: u, v, w, T
-        real(p2)                     :: C0
         real(p2)                     :: tauxx, tauyy, tauzz !Viscous stresses: diagonal compontens
         real(p2)                     :: tauxy, tauyz, tauzx !Viscous stresses: off-diagonal components
         real(p2)                     :: tauyx, tauzy, tauxz !Viscous stresses: same as above by symmetry

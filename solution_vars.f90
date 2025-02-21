@@ -62,8 +62,7 @@ module solution_vars
     real(p2) ::   T_inf = one ! p_inf*gamma/rho_inf
     real(p2) ::   mu_inf= one ! will need to be overwritten
 
-    ! Turb freestream values
-    real(p2) ::   nut_inf = three ! 3*mu/rho
+
 
     !These data will be allocated for a given grid size, and filled in the
     !following subroutine: construct_ccfv_data.
@@ -79,5 +78,37 @@ module solution_vars
     integer, parameter :: iv = 3
     integer, parameter :: iw = 4
     integer, parameter :: iT = 5
+
+        
+
+
+    ! Jacobian type has to be placed here to avoid circular dependencies.
+    type jacobian_type
+        real(p2), dimension(5,5)                :: diag     ! diagonal blocks of Jacobian matrix
+        real(p2), dimension(:,:,:), allocatable :: off_diag ! off-diagonal blocks
+        real(p2), dimension(5,5)                :: diag_inv ! inverse of diagonal blocks
+        real(p2), dimension(5)                  :: RHS      ! Right hand side (b) of the linear system
+    end type jacobian_type
+
+    public :: kth_nghbr_of_1, kth_nghbr_of_2
+    integer, dimension(:), allocatable :: kth_nghbr_of_1
+    integer, dimension(:), allocatable :: kth_nghbr_of_2
+
+    public :: jac
+    type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
+    
+    ! ! Jacobian Free Newton-Krylov Variables
+    ! real(p2), dimension(:,:,:), pointer :: gcr_precond_correction
+    ! real(p2), dimension(:,:),   pointer :: gcr_final_correction
+    ! real(p2), dimension(:,:,:), pointer :: gcr_search_direction
+    real(p2) :: inv_ncells ! 1/ncells/nq
+    real(p2) :: nl_reduction
+    integer  :: n_projections                   
+
+
+
+
+    ! Force values
+    real(p2) :: force_normalization
 
 end module solution_vars

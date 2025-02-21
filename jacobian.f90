@@ -2,7 +2,7 @@ module jacobian
 
     use common          , only : p2
 
-    use solution        , only : jacobian_type
+    use solution_vars   , only : jacobian_type
 
     implicit none
 
@@ -13,7 +13,7 @@ module jacobian
 
     subroutine compute_jacobian
 
-        use common              , only : p2, zero, half, one
+        use common              , only : p2, zero
 
         use utils               , only : iturb_type, TURB_INVISCID, ibc_type
 
@@ -22,8 +22,9 @@ module jacobian
                                          face_nrml_mag, face_nrml, &
                                          bound, nb
 
-        use solution            , only : q, gamma, gammamo, gmoinv, dtau, jac, &
-                                         kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, compute_primative_jacobian
+        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq
+
+        use solution            , only : compute_primative_jacobian
 
         use interface_jacobian  , only : interface_jac
 

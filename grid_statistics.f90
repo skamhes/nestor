@@ -79,8 +79,6 @@ module grid_statists
 
     subroutine init_ar_array
 
-        use common , only : p2
-
         use grid , only : ncells
 
         implicit none

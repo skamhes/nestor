@@ -20,7 +20,7 @@ module inout
                                      cell, &
                                      bound, bgrid_type
 
-        use solution        , only : q, nq, gamma
+        use solution_vars   , only : q, nq, gamma
 
         use config          , only : project_name, io_path
 
@@ -182,7 +182,7 @@ module inout
 
         use config   , only : CFL, solver_type, lift, drag
 
-        use solution , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift, &
+        use solution_vars , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift, &
                               n_projections, nl_reduction, CFL_used
 
         implicit none

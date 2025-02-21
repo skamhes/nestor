@@ -47,7 +47,9 @@ module res_sa
 
         use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var
 
-        use solution , only : ccgradq, q, q2u, kth_nghbr_of_1, kth_nghbr_of_2
+        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2
+
+        use solution , only : q2u
 
         use turb_bc
 
@@ -56,6 +58,8 @@ module res_sa
         use limiter  , only : compute_limiter_turb
 
         use wall_distance , only : cell_wall_distance
+
+        use direct_solve , only : safe_invert_scalar
 
         ! Grid Vars
         integer                     :: cell1, cell2, c1
@@ -241,6 +245,10 @@ module res_sa
 
         end do
 
+        do icell = 1,ncells
+            turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
+        end do
+
     end subroutine compute_res_sa
 
     subroutine sa_invFlux(nut1, nut2, q1, q2, gradnut1, gradnut2, n12, xc1, yc1, zc1, xc2, yc2, zc2, &
@@ -250,7 +258,7 @@ module res_sa
 
         use common , only : half, zero
 
-        use solution , only : nq
+        use solution_vars , only : nq
                             
         implicit none
 
@@ -301,7 +309,9 @@ module res_sa
 
         use common , only : half
 
-        use solution,only : ndim, q2u, nq
+        use solution_vars,only : ndim, nq
+
+        use solution , only : q2u
 
         use viscosity,only: compute_viscosity
         implicit none
@@ -333,6 +343,7 @@ module res_sa
         
         T   = half * ( q1( 5 ) + q2( 5 ) )
         u   = half * ( q2u(q1) + q2u(q2) )
+        nut = half * ( nut1    + nut2    )
         rho = u(1)
         mu  = compute_viscosity(T)
         nu  = mu / rho ! Kinematic Viscosity
@@ -457,26 +468,25 @@ module res_sa
     end subroutine sa_source
 
     
+    ! pure function sa_prod(nut,ft2,strain_rate) result(source)
 
-    pure function sa_prod(nut,ft2,strain_rate) result(source)
+    !     use common , only : one
 
-        use common , only : one
+    !     real(p2), intent(in)  :: nut, ft2, strain_rate
+    !     real(p2)              :: source
 
-        real(p2), intent(in)  :: nut, ft2, strain_rate
-        real(p2)              :: source
+    !     source = cb1 * (one - ft2) * strain_rate * nut
 
-        source = cb1 * (one - ft2) * strain_rate * nut
+    ! end function sa_prod
 
-    end function sa_prod
+    ! pure function sa_dest(nut,distance,fw,ft2) result(dest)
 
-    pure function sa_dest(nut,distance,fw,ft2) result(dest)
+    !     real(p2), intent(in) :: nut, distance, fw, ft2
+    !     real(p2)             :: dest
 
-        real(p2), intent(in) :: nut, distance, fw, ft2
-        real(p2)             :: dest
+    !     dest = ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * (nut / distance)**2
 
-        dest = ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * (nut / distance)**2
-
-    end function sa_dest
+    ! end function sa_dest
 
 
 end module res_sa

@@ -73,16 +73,16 @@ module sorting
 
     end function iLeftChild
 
-    pure function iRightChild(i) result(ri)
+    ! pure function iRightChild(i) result(ri)
 
-        implicit none
+    !     implicit none
 
-        integer, intent(in) :: i
-        integer :: ri
+    !     integer, intent(in) :: i
+    !     integer :: ri
 
-        ri = (2 * i) + 1
+    !     ri = (2 * i) + 1
 
-    end function iRightChild
+    ! end function iRightChild
 
     subroutine index_swap(val1,val2, ind1, ind2)
 

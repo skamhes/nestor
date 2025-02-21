@@ -24,6 +24,10 @@ module initialize
 
         use viscosity , only : C0, mu_norm, compute_viscosity
 
+        use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, T_inf, mu_inf
+
+        use turb , only : init_turb
+
         implicit none
 
         integer                 :: i
@@ -63,17 +67,17 @@ module initialize
             mu_inf = compute_viscosity(T_inf)
         end if
 
+        if (iturb_type >= TURB_RANS) call init_turb
+
     end subroutine set_initial_solution
 
     
     
     subroutine init_jacobian
 
-        use common          , only : p2
-
         use grid            , only : nfaces, face, cell, ncells
 
-        use solution        , only : nq, jacobian_type, kth_nghbr_of_1, kth_nghbr_of_2, jac
+        use solution_vars        , only : nq, jacobian_type, kth_nghbr_of_1, kth_nghbr_of_2, jac
 
         implicit none
 

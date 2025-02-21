@@ -93,7 +93,7 @@ module inviscid_flux
     ! I will at some point optimie this.  But right now I'm just looking to get a working code...
     subroutine roe(ucL, ucR, njk, num_flux,wsn)
 
-        use solution    , only : gamma
+        use solution_vars    , only : gamma
         use config      , only : eig_limiting_factor
        
         implicit none

@@ -212,97 +212,97 @@ module ruge_stuben
 
     end subroutine rs_build_CF
 
-    subroutine rs_build_r_p1(ncells,strong_agglom,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
+    ! subroutine rs_build_r_p1(ncells,strong_agglom,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
 
-        implicit none
+    !     implicit none
 
-        integer,               intent(in)           :: ncells, nc
-        logical,               intent(in)           :: strong_agglom
-        integer, dimension(:), intent(in)           :: sorted_to_w
-        integer, dimension(:), intent(inout)        :: CF ! we will set CF back to unassigned to signal it's been added to P & R   
-        integer, dimension(:), intent(in)           :: C
-        integer, dimension(:), intent(in)           :: R
+    !     integer,               intent(in)           :: ncells, nc
+    !     logical,               intent(in)           :: strong_agglom
+    !     integer, dimension(:), intent(in)           :: sorted_to_w
+    !     integer, dimension(:), intent(inout)        :: CF ! we will set CF back to unassigned to signal it's been added to P & R   
+    !     integer, dimension(:), intent(in)           :: C
+    !     integer, dimension(:), intent(in)           :: R
 
-        integer,                        intent(out) :: ngroups
-        integer, dimension(:), pointer, intent(out) :: restrictR
-        integer, dimension(:),          intent(out) :: prolongR
-        integer, dimension(:),          intent(out) :: prolongC
-        integer, dimension(:),          intent(out) :: restrictC
+    !     integer,                        intent(out) :: ngroups
+    !     integer, dimension(:), pointer, intent(out) :: restrictR
+    !     integer, dimension(:),          intent(out) :: prolongR
+    !     integer, dimension(:),          intent(out) :: prolongC
+    !     integer, dimension(:),          intent(out) :: restrictC
 
-        integer, dimension(nc+1) :: tmprestrictR
-        integer :: i, j, k, l
-        integer :: ci, cj, ck, cl
-        integer :: ccounter
+    !     integer, dimension(nc+1) :: tmprestrictR
+    !     integer :: i, j, k, l
+    !     integer :: ci, cj, ck, cl
+    !     integer :: ccounter
         
-        integer :: strong_agglom_int
+    !     integer :: strong_agglom_int
 
-        ! initialize some values
-        strong_agglom_int = 0
-        if (strong_agglom) strong_agglom_int = 1
-        ccounter           = 1
-        prolongR(:)  = (/ (i, i=1,ncells+1)/) ! 1 value per row
-        tmprestrictR(1) = 1
-        ngroups      = 0
+    !     ! initialize some values
+    !     strong_agglom_int = 0
+    !     if (strong_agglom) strong_agglom_int = 1
+    !     ccounter           = 1
+    !     prolongR(:)  = (/ (i, i=1,ncells+1)/) ! 1 value per row
+    !     tmprestrictR(1) = 1
+    !     ngroups      = 0
 
-        cloop : do i = 1,ncells
-            ! For now we are starting with the lowest weights.  The idea being they're less likely to "hog" F-cells from other
-            ! C-cells
-            ci = sorted_to_w(i)
-            if ( CF(ci) /= RS_C ) cycle cloop
-            ngroups = ngroups + 1
-            floop1 : do j = R(ci),R(ci+1)-1
-                cj = C(j)
-                if (CF(cj) == RS_U) then ! already added
-                    cycle floop1
-                elseif (CF(cj) == RS_F) then
-                    restrictC(ccounter) = cj
-                    prolongC(       cj) = ngroups
-                    CF(cj) = RS_Fnew * strong_agglom_int
-                    ccounter = ccounter + 1
-                elseif (cj == ci) then
-                    restrictC(ccounter) = cj
-                    prolongC(       cj) = ngroups
-                    CF(cj) = RS_U
-                    ccounter = ccounter + 1
-                end if
-            end do floop1
-            if (.not.STRONG_AGGLOM) then 
-                tmprestrictR(ngroups+1) = ccounter
-                cycle cloop
-            endif
-            ! With agressive (strong) coarsening we add 2nd face neighbors
-            floop2 : do j = R(ci),R(ci+1)-1
-                cj = C(j)
-                if (CF(cj) /= RS_Fnew) cycle floop2
-                CF(cj) = RS_U
-                f2loop : do k = R(cj),R(cj+1)-1 ! loop 2nd face neighbors
-                    ck = C(k)
-                    ! If a C cell is a 2nd face nghbr to ci we will add it to the agglomeration
-                    if ( CF(ck) /= RS_C) cycle f2loop
-                    floop3 : do l = R(ck),R(ck+1)-1
-                        cl = C(l)
-                        if (CF(cl) == RS_F) then
-                            restrictC(ccounter) = cl
-                            prolongC(       cl) = ngroups
-                            CF(cl) = RS_U
-                            ccounter = ccounter + 1
-                        elseif (cl == ck) then
-                            restrictC(ccounter) = cl
-                            prolongC(       cl) = ngroups
-                            CF(cl) = RS_U
-                            ccounter = ccounter + 1
-                        end if
-                    end do floop3
-                end do f2loop
-            end do floop2
-        tmprestrictR(ngroups+1) = ccounter
-        end do cloop
+    !     cloop : do i = 1,ncells
+    !         ! For now we are starting with the lowest weights.  The idea being they're less likely to "hog" F-cells from other
+    !         ! C-cells
+    !         ci = sorted_to_w(i)
+    !         if ( CF(ci) /= RS_C ) cycle cloop
+    !         ngroups = ngroups + 1
+    !         floop1 : do j = R(ci),R(ci+1)-1
+    !             cj = C(j)
+    !             if (CF(cj) == RS_U) then ! already added
+    !                 cycle floop1
+    !             elseif (CF(cj) == RS_F) then
+    !                 restrictC(ccounter) = cj
+    !                 prolongC(       cj) = ngroups
+    !                 CF(cj) = RS_Fnew * strong_agglom_int
+    !                 ccounter = ccounter + 1
+    !             elseif (cj == ci) then
+    !                 restrictC(ccounter) = cj
+    !                 prolongC(       cj) = ngroups
+    !                 CF(cj) = RS_U
+    !                 ccounter = ccounter + 1
+    !             end if
+    !         end do floop1
+    !         if (.not.STRONG_AGGLOM) then 
+    !             tmprestrictR(ngroups+1) = ccounter
+    !             cycle cloop
+    !         endif
+    !         ! With agressive (strong) coarsening we add 2nd face neighbors
+    !         floop2 : do j = R(ci),R(ci+1)-1
+    !             cj = C(j)
+    !             if (CF(cj) /= RS_Fnew) cycle floop2
+    !             CF(cj) = RS_U
+    !             f2loop : do k = R(cj),R(cj+1)-1 ! loop 2nd face neighbors
+    !                 ck = C(k)
+    !                 ! If a C cell is a 2nd face nghbr to ci we will add it to the agglomeration
+    !                 if ( CF(ck) /= RS_C) cycle f2loop
+    !                 floop3 : do l = R(ck),R(ck+1)-1
+    !                     cl = C(l)
+    !                     if (CF(cl) == RS_F) then
+    !                         restrictC(ccounter) = cl
+    !                         prolongC(       cl) = ngroups
+    !                         CF(cl) = RS_U
+    !                         ccounter = ccounter + 1
+    !                     elseif (cl == ck) then
+    !                         restrictC(ccounter) = cl
+    !                         prolongC(       cl) = ngroups
+    !                         CF(cl) = RS_U
+    !                         ccounter = ccounter + 1
+    !                     end if
+    !                 end do floop3
+    !             end do f2loop
+    !         end do floop2
+    !     tmprestrictR(ngroups+1) = ccounter
+    !     end do cloop
 
-        allocate(restrictR(ngroups+1))
-        restrictR(:) = tmprestrictR(1:ngroups+1)
+    !     allocate(restrictR(ngroups+1))
+    !     restrictR(:) = tmprestrictR(1:ngroups+1)
 
 
-    end subroutine rs_build_r_p1 
+    ! end subroutine rs_build_r_p1 
 
     subroutine rs_build_r_p2(ncells,strong_agglom,sorted_to_w,nc,CF,C,R,ngroups,restrictC,restrictR,prolongR,prolongC)
 
@@ -411,36 +411,36 @@ module ruge_stuben
 
     end subroutine rs_build_r_p2 
 
-    subroutine set_intersect(si,sj,sintr,nintr)
+    ! subroutine set_intersect(si,sj,sintr,nintr)
 
-        implicit none
+    !     implicit none
 
-        integer, dimension(:), intent(in)           :: si, sj ! Input sets to be intersected
+    !     integer, dimension(:), intent(in)           :: si, sj ! Input sets to be intersected
 
-        integer, dimension(:), pointer, intent(out) :: sintr
-        integer,                        intent(out) :: nintr
+    !     integer, dimension(:), pointer, intent(out) :: sintr
+    !     integer,                        intent(out) :: nintr
 
-        integer :: i, szi, szj
-        integer, dimension(:), allocatable :: tempintr
+    !     integer :: i, szi, szj
+    !     integer, dimension(:), allocatable :: tempintr
 
-        nintr = 0
+    !     nintr = 0
 
-        szi = size(si)
-        szj = size(sj)
-        allocate( tempintr( max(szi,szj) ) )
+    !     szi = size(si)
+    !     szj = size(sj)
+    !     allocate( tempintr( max(szi,szj) ) )
 
-        do i = 1,szi
-            if (.not. any(si(i) == sj) ) cycle
-            nintr = nintr + 1
-            tempintr(nintr) = i
-        end do
+    !     do i = 1,szi
+    !         if (.not. any(si(i) == sj) ) cycle
+    !         nintr = nintr + 1
+    !         tempintr(nintr) = i
+    !     end do
 
-        if (nintr > 0) then
-            allocate(sintr(nintr))
-            sintr = tempintr(1:nintr)
-        end if
+    !     if (nintr > 0) then
+    !         allocate(sintr(nintr))
+    !         sintr = tempintr(1:nintr)
+    !     end if
 
-        deallocate(tempintr)
+    !     deallocate(tempintr)
 
-    end subroutine set_intersect
+    ! end subroutine set_intersect
 end module ruge_stuben

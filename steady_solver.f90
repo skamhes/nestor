@@ -4,7 +4,7 @@ module steady_solver
     
     use grid   , only : ncells
 
-    use solution , only : nq
+    use solution_vars , only : nq
 
     implicit none
 
@@ -23,7 +23,7 @@ module steady_solver
     contains
 
     subroutine steady_solve
-        use common    , only : p2, half, one, zero 
+        use common    , only : p2, one, zero 
 
         ! use linear_solver , only :  lrelax_sweeps_actual, lrelax_roc
 
@@ -32,12 +32,14 @@ module steady_solver
                                 lift, drag, solver_type
 
         use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
-                               itime_method, TM_REMAINING, TM_ELAPSED, TURB_RANS
+                               itime_method, TM_ELAPSED, TURB_RANS
                                 
         use initialize, only : set_initial_solution
 
-        use solution  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
-                               n_projections, nl_reduction, compute_local_time_step_dtau
+        use solution_vars  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
+                               n_projections, nl_reduction
+                               
+        use solution  , only : compute_local_time_step_dtau
 
         use grid      , only : ncells
 
@@ -242,7 +244,7 @@ module steady_solver
 
         use common          , only : p2, zero
         use grid            , only : ncells
-        use solution        , only : res, nq
+        use solution_vars   , only : res, nq
     
         implicit none
     
@@ -270,7 +272,7 @@ module steady_solver
 
         use common              , only : p2, half, one, zero
         
-        use solution            , only : q, res, dtau, gammamo, gamma, gmoinv
+        use solution_vars       , only : q, res, dtau, gammamo, gamma, gmoinv
 
         use grid                , only : cell, ncells
 
@@ -353,7 +355,7 @@ module steady_solver
 
         use common          , only : p2, half, one, zero
 
-        use solution        , only : q, res, dtau, gammamo, gamma, gmoinv
+        use solution_vars   , only : q, res, dtau, gammamo, gamma, gmoinv
 
         use grid            , only : cell, ncells
 
@@ -411,7 +413,7 @@ module steady_solver
 
         use  grid               , only : ncells
 
-        use solution            , only : q, res, solution_update, nq, jac
+        use solution_vars       , only : q, res, solution_update, nq, jac
 
         use linear_solver       , only : linear_relaxation_block
 
@@ -439,9 +441,7 @@ module steady_solver
 
     subroutine gcr
 
-        use common              , only : p2
-
-        use gcr                 , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control, GCR_CFL_FREEZE
+        use gcr                 , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control
 
         use config              , only : variable_ur
 

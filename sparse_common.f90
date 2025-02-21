@@ -8,7 +8,6 @@ module sparse_common
     subroutine queue_sort(queue1_C,length1,queue2_C,length2)
         ! This subroutine sorts two lists in the same method as queue_sort_5x5.  The only difference is it only takes in lists of 
         ! column indices (no value lists).
-        use common , only : p2, zero
         
         implicit none
 

@@ -10,7 +10,7 @@ module turb_bc
 
         use common , only : p2, zero
 
-        use solution,only : nut_inf
+        use turb,only : nut_inf
 
         use utils , only : BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
 

@@ -19,13 +19,13 @@ module gradient
 
         use config        , only : grad_method, lsq_stencil
 
-        use solution      , only : ccgradq, vgradq
+        use solution_vars , only : ccgradq, vgradq
 
-        use common        , only : p2, zero
+        use common        , only : zero
 
         use utils         , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, iturb_model, TURB_LAMINAR
 
-        use turb            , only : nturb, ccgrad_turb_var, vgrad_turb_var, turb_var
+        use turb            , only : ccgrad_turb_var, vgrad_turb_var
 
 
         implicit none
@@ -57,13 +57,13 @@ module gradient
         ! This is a wrapper function to call the various gradient functions baced on the config.  Leaves the compute residual 
         ! subroutine a little cleaner...
 
-        use common          , only : p2, zero
+        use common          , only : zero
 
         use config          , only : grad_method, lsq_stencil
         
         use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
 
-        use solution        , only : ccgradq, vgradq
+        use solution_vars   , only : ccgradq, vgradq
 
         implicit none
 
@@ -94,13 +94,13 @@ module gradient
 
     subroutine compute_vgradient_flow
         
-        use common          , only : p2, zero
+        use common          , only : p2
 
         use grid            , only : ncells, nnodes, bound, cell
 
         use least_squares   , only : lsq, INTERNAL
 
-        use solution        , only : ccgradq, vgradq, nq, q
+        use solution_vars   , only : ccgradq, vgradq, nq, q
 
         use bc_states       , only : get_right_state
 
@@ -172,7 +172,7 @@ module gradient
     subroutine boundary_value_flow(boundary_type, scalar, known, value)
         use common          , only : p2, zero
 
-        use solution        , only : p_inf, u_inf, v_inf, w_inf, T_inf
+        use solution_vars   , only : p_inf, u_inf, v_inf, w_inf, T_inf
 
         use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET
 
@@ -223,13 +223,13 @@ module gradient
         ! This is a wrapper function to call the various gradient functions baced on the config.  Leaves the compute residual 
         ! subroutine a little cleaner...
 
-        use common          , only : p2, zero
+        use common          , only : zero
 
         use config          , only : grad_method, lsq_stencil
         
         use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
 
-        use turb            , only : nturb, ccgrad_turb_var, vgrad_turb_var, turb_var
+        use turb            , only : ccgrad_turb_var, vgrad_turb_var
 
         implicit none
 
@@ -257,8 +257,6 @@ module gradient
     end subroutine compute_gradient_turb
 
     subroutine compute_vgradient_turb
-        
-        use common          , only : p2, zero
 
         use grid            , only : ncells, nnodes, bound, cell
 
@@ -339,7 +337,7 @@ module gradient
 
         use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET
 
-        use solution        , only : nut_inf
+        use turb            , only : nut_inf
 
         use utils           , only : iturb_model, TURB_SA
 

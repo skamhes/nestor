@@ -8,7 +8,7 @@ module forces
 
     subroutine compute_forces
 
-        use common      , only : p2, zero, one, three_half, two, half
+        use common      , only : p2, zero
 
         use config      , only : drag, lift, accuracy_order, turbulence_type, M_inf, Re_inf, sutherland_constant, reference_temp
 
@@ -16,8 +16,8 @@ module forces
 
         use grid        , only : bound, nb, bc_type, cell
 
-        use solution    , only : q, force_drag, force_lift, ndim, ccgradq, force_normalization, &
-                                 vector_drag, vector_lift, vgradq, T_inf
+        use solution_vars, only : q, force_drag, force_lift, ndim, ccgradq, force_normalization, &
+                                 vector_drag, vector_lift, vgradq
 
         implicit none
 
@@ -30,10 +30,8 @@ module forces
         real(p2), dimension(ndim)      :: face_center
         real(p2), dimension(ndim)      :: cell_to_face_vect
         real(p2), dimension(ndim,ndim) :: bface_grad
-        real(p2), dimension(ndim)      :: b_grad_vel_mag
         real(p2), dimension(ndim,ndim) :: stress_tensor
         real(p2), dimension(ndim)      :: bface_shear
-        real(p2)                       :: T, C0, mu
         real(p2)                       :: pforce_lift, vforce_lift
         real(p2)                       :: pforce_drag, vforce_drag
         integer                        :: face_sides
@@ -115,7 +113,7 @@ module forces
 
         use config , only : lift, drag
 
-        use solution , only : force_drag, force_lift
+        use solution_vars , only : force_drag, force_lift
 
         ! character(11) :: format = '(a,es18.12)'
         character(11) :: format = '(g0)' !unlimited format specifier
@@ -132,7 +130,7 @@ module forces
 
         use config , only : lift, drag
 
-        use solution , only : force_lift, force_drag
+        use solution_vars , only : force_lift, force_drag
 
         implicit none
 
@@ -144,11 +142,11 @@ module forces
 
     pure function compute_tau_wall(T,face_grad) result(tau)
         
-        use common                  , only : p2, half, one, four_third, three_half, two_third
+        use common                  , only : p2, four_third, three_half, two_third, one
 
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
         
-        use solution                , only : gammamo, nq, ndim, T_inf 
+        use solution_vars           , only : ndim, T_inf 
         implicit none
 
         real(p2),                 intent(in) :: T              ! Temperature at the attached cell
@@ -158,8 +156,7 @@ module forces
                 ! Local Vars
         real(p2)                     :: mu
         real(p2)                     :: C0
-        real(p2), dimension(3)       :: grad_u, grad_v, grad_w   !Interface gradients of velocities
-        real(p2), dimension(3)       :: grad_T
+        real(p2), dimension(ndim)    :: grad_u, grad_v, grad_w   !Interface gradients of velocities
         
         integer, parameter :: ix = 1
         integer, parameter :: iy = 2

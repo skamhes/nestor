@@ -19,6 +19,16 @@ module linear_solver
         module procedure multilevel_cycle_scalar
     end interface multilevel_cycle
 
+    interface build_A_BCSM
+        module procedure build_A_BCSM_block
+        module procedure build_A_BCSM_scalar
+    end interface build_A_BCSM
+
+    interface build_Dinv_array
+        module procedure build_Dinv_array_block
+        module procedure build_Dinv_array_scalar
+    end interface build_Dinv_array
+
     public :: RELAX_SUCCESS
     public :: RELAX_FAIL_DIVERGE, RELAX_FAIL_STALL
     integer, parameter :: RELAX_SUCCESS      = 0
@@ -42,7 +52,7 @@ module linear_solver
 
         use grid                , only : ncells, cell
 
-        use solution            , only : jacobian_type
+        use solution_vars       , only : jacobian_type
 
         ! use gauss_seidel
 
@@ -84,7 +94,7 @@ module linear_solver
 
         use config          , only : lrelax_tolerance, max_amg_cycles
 
-        use solution        , only : lrelax_sweeps_actual, lrelax_roc, roc
+        use solution_vars   , only : lrelax_sweeps_actual, lrelax_roc, roc
 
         use algebraic_multigird , only : amg_level_block_type, build_amg_struct_block, amg_destroy
 
@@ -295,7 +305,7 @@ module linear_solver
         ! so the other two indices do not need to be stored.
         use common      , only : p2
 
-        use solution    , only : jacobian_type
+        use solution_vars    , only : jacobian_type
 
         implicit none
         integer,                            intent(in) :: ncells
@@ -320,7 +330,7 @@ module linear_solver
 
         use grid        , only : cc_data_type
 
-        use solution    , only : jacobian_type
+        use solution_vars, only : jacobian_type
 
         use sparse_common, only: insertion_sort_index
 
@@ -412,7 +422,7 @@ module linear_solver
 
         use config          , only : lrelax_tolerance, max_amg_cycles
 
-        use solution        , only : lrelax_sweeps_actual, lrelax_roc, roc
+        use solution_vars   , only : lrelax_sweeps_actual, lrelax_roc, roc
 
         use algebraic_multigird , only : amg_level_scalar_type, build_amg_struct_scalar, amg_destroy
 

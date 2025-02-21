@@ -1,7 +1,7 @@
 &project
   project_name = "quad_3d"
-  second_namelist = "grids/cylinder/final_grids/nestor.nml"
-  io_path = "grids/cylinder/final_grids/"
+  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  !io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
@@ -16,7 +16,7 @@
 
 &solver
   CFL = 1
-  solver_type = "gcr"
+  solver_type = "implicit"
   perturb_initial = .true.
   solver_tolerance = 1e-2
   solver_max_itr = 1000
@@ -42,7 +42,8 @@ gcr_reduction_target = 0.05
   /
 
 &turbulence
-  !turbulence_type = 'viscous'
+  turbulence_type = 'rans'
+  rans_model = 'sa'
   /
 
 &debug

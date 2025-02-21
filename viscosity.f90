@@ -20,8 +20,6 @@ module viscosity
 
         use config , only : M_inf, Re_inf, sutherland_constant, reference_temp
 
-        use solution,only : T_inf
-
         implicit none
 
         real(p2), intent(in) :: T

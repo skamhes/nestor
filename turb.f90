@@ -1,11 +1,9 @@
 module turb
 
-    use common , only : p2
+    use common , only : p2, three
 
     use utils  , only : iturb_model, iturb_type, TURB_RANS, TURB_DES, TURB_LES, TURB_SA, &
                         isolver_type, SOLVER_IMPLICIT, SOLVER_GCR
-
-    use solution,only: jacobian_type
 
     implicit none
 
@@ -18,12 +16,16 @@ module turb
     public nturb
     public phi_turb
     public turb_jacobian_type
+    public nut_inf
+    public allocate_rans
+    public init_turb
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res
     real(p2), dimension(:,:,:), allocatable :: ccgrad_turb_var, vgrad_turb_var
     integer                                 :: nturb
     real(p2), dimension(:)    , allocatable :: phi_turb
+    real(p2)                                ::   nut_inf = three ! 3*mu/rho
 
     ! Jacobian type has to be placed here to avoid circular dependencies.
     type turb_jacobian_type
@@ -37,17 +39,11 @@ module turb
 
     contains
 
-    subroutine init_rans
+    subroutine allocate_rans
         
         use viscosity , only : compute_viscosity
 
-        use solution  , only : rho_inf, nut_inf, mu_inf
-
         use grid      , only : ncells, nnodes
-
-        use config    , only : turb_inf
-
-        use common    , only : zero
 
         implicit none
 
@@ -56,10 +52,7 @@ module turb
             stop
         end if
 
-        if (iturb_model == TURB_SA) then
-            nturb = 1
-            nut_inf = turb_inf(nturb) * mu_inf / rho_inf
-        endif
+        
 
         allocate(turb_var(ncells,nturb)) ! we're generally gonna be working through one variable at a time
         allocate(turb_res(ncells,nturb))
@@ -70,11 +63,15 @@ module turb
 
         allocate(phi_turb(ncells))
 
-    end subroutine init_rans
+    end subroutine allocate_rans
 
-    subroutine init_turb_jacobian
+    subroutine init_turb
 
         use grid, only : ncells, cell
+
+        use config    , only : turb_inf
+
+        use solution_vars , only : mu_inf, rho_inf
 
         implicit none
 
@@ -87,6 +84,13 @@ module turb
             end do
         end do
 
-    end subroutine init_turb_jacobian
+        ! Set freestream values
+        if (iturb_model == TURB_SA) then
+            nturb = 1
+            nut_inf = turb_inf(nturb) * mu_inf / rho_inf
+            turb_var(:,1) = nut_inf
+        endif
+
+    end subroutine init_turb
 
 end module turb

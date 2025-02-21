@@ -41,7 +41,7 @@ module bc_states
 
     subroutine freestream(qb)
         use common      , only : p2
-        use solution    , only : p_inf, u_inf, v_inf, w_inf, T_inf
+        use solution_vars    , only : p_inf, u_inf, v_inf, w_inf, T_inf
         implicit none
 
         real(p2),dimension(5), intent(out) :: qb
@@ -56,7 +56,7 @@ module bc_states
 
     subroutine back_pressure(qL,qcB)
         use common      , only : p2
-        use solution    , only : p_inf
+        use solution_vars    , only : p_inf
         implicit none
         real(p2), dimension(5), intent( in) :: qL
         real(p2),dimension(5), intent(out) :: qcb
@@ -88,7 +88,7 @@ module bc_states
 
     subroutine no_slip_wall(qL,qcB)
         ! no slip wall with zero heat flux (adiabatic condition)
-        use common      ,   only : p2, zero, one
+        use common      ,   only : p2
         implicit none
 
         real(p2), dimension(5), intent( in) :: qL

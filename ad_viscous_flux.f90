@@ -10,9 +10,9 @@ module ad_viscous_flux
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+        use common                  , only : p2, half
 
-        use solution                , only : gammamo, nq, ndim, T_inf ! w2u, nq
+        use solution_vars           , only : nq, ndim ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
@@ -69,9 +69,9 @@ module ad_viscous_flux
 
     subroutine visc_flux_boundary_ddt(q1,qb,interface_grad_dummy,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
 
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+        use common                  , only : p2, half
 
-        use solution                , only : gammamo, nq, ndim
+        use solution_vars           , only : nq, ndim
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
@@ -130,7 +130,7 @@ module ad_viscous_flux
     subroutine compute_visc_num_flux_ddt(q1,q2,interface_grad,n12,dFdU)
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third
 
-        use solution                , only : gammamo, nq, ndim, T_inf ! w2u, nq
+        use solution_vars           , only : gammamo, nq, ndim, T_inf ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
