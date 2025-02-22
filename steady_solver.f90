@@ -53,6 +53,8 @@ module steady_solver
 
         use wall_distance , only : compute_wall_distance
 
+        use turb        , only : turb_res_norm
+
         implicit none
 
         integer                       :: i, n_residual_evaluation
@@ -142,6 +144,7 @@ module steady_solver
             
             ! Compute residual norm
             call compute_residual_norm(res_norm)
+            if (iturb_type == TURB_RANS) call compute_turb_res_norm(turb_res_norm)
             
             ! Compute forces
             if ( lift .OR. drag ) call compute_forces
@@ -243,8 +246,10 @@ module steady_solver
     subroutine compute_residual_norm(res_norm)
 
         use common          , only : p2, zero
+
         use grid            , only : ncells
-        use solution_vars   , only : res, nq
+        
+        use solution_vars   , only : res, nq, inv_ncells
     
         implicit none
     
@@ -262,10 +267,38 @@ module steady_solver
     
         end do cell_loop
     
-        res_norm(:) = res_norm(:) / real(ncells,p2)   !L1 norm
+        res_norm(:) = res_norm(:) * inv_ncells   !L1 norm
   
     end subroutine compute_residual_norm
 
+    subroutine compute_turb_res_norm(tres_norm)
+
+        use common        , only : p2, zero
+
+        use solution_vars , only : inv_ncells
+
+        use grid          , only : ncells
+
+        use turb          , only : nturb, turb_res
+
+        implicit none
+
+        real(p2), dimension(:), intent(out) :: tres_norm
+
+        integer i, j
+
+        tres_norm = zero
+
+        do i = 1,nturb
+            do j = 1,ncells
+                tres_norm(i) = tres_norm(i) + turb_res(j,i)
+            end do
+            tres_norm(i) = tres_norm(i) * inv_ncells
+        end do
+
+        
+
+    end subroutine compute_turb_res_norm
 
 
     subroutine explicit_pseudo_time_rk
@@ -407,18 +440,22 @@ module steady_solver
 
         use common              , only : p2
 
-        use config              , only : variable_ur
+        use config              , only : variable_ur, turb_ur
+
+        use utils               , only : iturb_type, TURB_RANS
 
         use jacobian            , only : compute_jacobian
 
-        use  grid               , only : ncells
+        use grid                , only : ncells
 
         use solution_vars       , only : q, res, solution_update, nq, jac
 
-        use linear_solver       , only : linear_relaxation_block
+        use linear_solver       , only : linear_relaxation
+
+        use turb                , only : turb_jac, turb_res, turb_update, nturb, turb_var
 
         implicit none
-        integer         :: i, os
+        integer         :: icell, it, os
         real(p2)        :: omegan !under-relaxation factor for nonlinear iteration
         
         ! First compute the jacobian
@@ -426,16 +463,26 @@ module steady_solver
 
         ! next compute the correction by relaxing the linear system
         ! It turns out calling a generic interface with an assumed shape derived data type causes issues with fortran.  Interesting.
-        call linear_relaxation_block(nq, jac, res, solution_update,os)
+        call linear_relaxation(nq, jac, res, solution_update,os)
 
-        loop_cells : do i = 1,ncells
-            omegan = safety_factor_primative(q(:,i),solution_update(:,i))
+        loop_cells : do icell = 1,ncells
+            omegan = safety_factor_primative(q(:,icell),solution_update(:,icell))
             ! update solution
-            ! q(:,i) = q(:,i) + omegan * matmul(var_ur_array,solution_update(:,i))
-            q(:,i) = q(:,i) + omegan * ( variable_ur * solution_update(:,i))
+            ! q(:,icell) = q(:,icell) + omegan * matmul(var_ur_array,solution_update(:,icell))
+            q(:,icell) = q(:,icell) + omegan * ( variable_ur * solution_update(:,icell))
             ! Pretty sure this should work.  Fortran does elemental multiplication for vector * vector. So this is the equivalent of
             ! v_ur * I * sol_update, where I is the identity matrix, which is Identical to the commented line above.
         end do loop_cells
+
+        if (iturb_type < TURB_RANS) return
+
+        do it = 1,nturb
+            call linear_relaxation(turb_jac(:,it), turb_res(:,it), turb_update(:), os)
+
+            do icell = 1,ncells
+                turb_var(icell,it) = turb_var(icell,it) + turb_ur(it) * turb_update(icell)
+            end do
+        end do
 
     end subroutine implicit
 

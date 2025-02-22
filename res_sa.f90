@@ -246,6 +246,8 @@ module res_sa
         end do
 
         do icell = 1,ncells
+
+            ! TODO add pseudo-transient term to this
             turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
         end do
 

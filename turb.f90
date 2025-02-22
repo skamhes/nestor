@@ -19,13 +19,17 @@ module turb
     public nut_inf
     public allocate_rans
     public init_turb
+    public turb_res_norm
+    public turb_update
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res
+    real(p2), dimension(:)    , allocatable :: turb_update
     real(p2), dimension(:,:,:), allocatable :: ccgrad_turb_var, vgrad_turb_var
     integer                                 :: nturb
     real(p2), dimension(:)    , allocatable :: phi_turb
-    real(p2)                                ::   nut_inf = three ! 3*mu/rho
+    real(p2)                                :: nut_inf = three ! 3*mu/rho
+    real(p2), dimension(7)                  :: turb_res_norm
 
     ! Jacobian type has to be placed here to avoid circular dependencies.
     type turb_jacobian_type
@@ -52,11 +56,16 @@ module turb
             stop
         end if
 
+        if (iturb_model == TURB_SA) then
+            nturb = 1
+        endif
         
 
         allocate(turb_var(ncells,nturb)) ! we're generally gonna be working through one variable at a time
         allocate(turb_res(ncells,nturb))
         allocate(turb_jac(ncells,nturb))
+        
+        allocate(turb_update(ncells))
 
         allocate(vgrad_turb_var( 3,nnodes,nturb))
         allocate(ccgrad_turb_var(3,ncells,nturb))
@@ -86,7 +95,6 @@ module turb
 
         ! Set freestream values
         if (iturb_model == TURB_SA) then
-            nturb = 1
             nut_inf = turb_inf(nturb) * mu_inf / rho_inf
             turb_var(:,1) = nut_inf
         endif

@@ -156,9 +156,13 @@ module inout
 
         use config , only : lift, drag
 
-        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iturb_type, iturb_model, TURB_RANS, TURB_SA
 
-        write(*,"(A)",advance="no") " Iteration   continuity   x-momemtum   y-momentum   z-momentum       energy      max-res"
+        write(*,"(A)",advance="no") " Iteration   continuity   x-momemtum   y-momentum   z-momentum       energy"
+        if (iturb_type == TURB_RANS .and. iturb_model == TURB_SA) then
+            write(*,"(A)",advance="no") "          nut"
+        endif
+        write(*,"(A)",advance="no") "      max-res"
 
         !Forces
         if (lift) write(*,"(A)",advance="no") "         lift"
@@ -180,10 +184,14 @@ module inout
     subroutine print_residual_status(i_iteration, minutes, seconds)
 
 
-        use config   , only : CFL, solver_type, lift, drag
+        use config   , only : CFL, lift, drag
 
         use solution_vars , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift, &
                               n_projections, nl_reduction, CFL_used
+
+        use utils , only : isolver_type, SOLVER_IMPLICIT, SOLVER_GCR, iturb_type, iturb_model, TURB_RANS, TURB_SA
+
+        use turb  , only : turb_res_norm
 
         implicit none
 
@@ -191,33 +199,36 @@ module inout
         integer, intent(in) :: minutes, seconds
 
         ! Formatting strings
-        character(13) :: residual_format = '(i10,6es13.3)'
-        character(9)  :: force_format    = '(6es13.3)'
+        character(13) :: residual_format = '(i10,5es13.3)'
+        character(8)  :: float_format    = '(es13.3)'
         character(45) :: implicit_format = '(i7,es14.1,i8.2,a,i2.2,es13.3)'
         character(35) :: explicit_format = '(i10.2,a,i2.2,es13.3)'
 
 
         ! Residuals
-        write(*,residual_format,advance="no") i_iteration, res_norm(:), maxval(res_norm(:)/res_norm_initial(:))
-
+        write(*,residual_format,advance="no") i_iteration, res_norm(:)
+        if (iturb_type == TURB_RANS .and. iturb_model == TURB_SA) then
+            write(*,float_format,advance="no") turb_res_norm
+        endif
+        write(*,float_format,advance="no") maxval(res_norm(:)/res_norm_initial(:))
         ! Forces
-        if (lift) write(*,force_format,advance="no") force_lift
-        if (drag) write(*,force_format,advance="no") force_drag
+        if (lift) write(*,float_format,advance="no") force_lift
+        if (drag) write(*,float_format,advance="no") force_drag
 
         write(*,"(A)",advance="no") "   | "
 
 
 
         ! Print out residual
-        if ( trim(solver_type) == 'implicit' ) then
+        if ( isolver_type == SOLVER_IMPLICIT ) then
             write(*,implicit_format) lrelax_sweeps_actual, lrelax_roc, &
                                      minutes, ":", seconds, CFL
-        elseif ( trim(solver_type) == 'gcr' ) then
+        elseif ( isolver_type == SOLVER_GCR ) then
             write(*,implicit_format) n_projections, nl_reduction, &
                                      minutes, ":", seconds, CFL_used
             ! note: the CFL is most likely wrong as it is updated for the next iteration before this line has had a chance to print.
             ! refactoring will take a little work so for now I'm leaving this note to remind me that it is wrong...
-        else ! RK Explicit
+        else ! RK or Explicit
             write(*,explicit_format) minutes, ":", seconds, CFL
         endif
 
