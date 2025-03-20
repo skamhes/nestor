@@ -114,7 +114,7 @@ module wall_distance
 
         ! Return early in the case where are no wall cells.
         if ( nwall_nodes == 0 ) then
-            cell_wall_distance = (1.0_p2)
+            cell_wall_distance = my_huge
             return
         endif
 
