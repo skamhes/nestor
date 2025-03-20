@@ -49,7 +49,7 @@ module gradient
         write(*,*)
         
         ccgradq = zero
-        if (iturb_model > FLOW_LAMINAR) ccgrad_turb_var = zero
+        if (iflow_type > FLOW_LAMINAR) ccgrad_turb_var = zero
         
     end subroutine init_gradients
 
