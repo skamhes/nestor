@@ -272,7 +272,7 @@ module gradient
 
         implicit none
 
-        integer  :: i, ib, ivar, k, bound_int
+        integer  :: i, ib, ivar, k, bound_int, icell
         integer  :: attached_cell, attached_bface
         integer  :: unknowns
         real(p2) :: ti, tk          ! Node and attached cell values
@@ -326,9 +326,11 @@ module gradient
         end do var_loop    
 
         ! Devide cell gradient by number of attached vertices
-        do i = 1,ncells
-            ccgrad_turb_var(:,:,i) = ccgrad_turb_var(:,:,i) / real(cell(i)%nvtx, p2)
-        end do
+        var_loop2 : do ivar = 1, nturb
+            do icell = 1,ncells
+                ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) / real(cell(icell)%nvtx, p2)
+            end do
+        end do var_loop2
 
     end subroutine compute_vgradient_turb
 

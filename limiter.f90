@@ -91,7 +91,7 @@ module limiter
         
         use grid            , only : ncells, cell, x, y, z, cell
 
-        use turb            , only : ccgrad_turb_var, turb_var, phi_turb
+        use turb            , only : ccgrad_turb_var, turb_var, phi_turb, nturb
       
         ! use least_squares   , only : lsq 
 
@@ -105,7 +105,7 @@ module limiter
         !allocate(phi(ncells)) ! possible memory leak? Moved allocation to steady solve subroutine (only called once)
         limiter_beps = 1.0e-14_p2
         !loop over cells
-        variable_loop : do ivar = 1,5
+        variable_loop : do ivar = 1,nturb
             cell_loop : do i = 1,ncells
                 tmin = turb_var(i,ivar)
                 tmax = turb_var(i,ivar)
@@ -157,8 +157,8 @@ module limiter
                 else
                     phi_var_min = min(phi_var_min, phi_vertex_min)
                 endif
+                phi_turb(i) = phi_var_min
             end do cell_loop
-            phi_turb(i) = phi_var_min
         end do variable_loop
                     
     end subroutine compute_limiter_turb

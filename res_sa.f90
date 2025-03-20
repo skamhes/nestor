@@ -61,6 +61,8 @@ module res_sa
 
         use direct_solve , only : safe_invert_scalar
 
+        use viscosity , only : compute_viscosity
+
         ! Grid Vars
         integer                     :: cell1, cell2, c1
         real(p2), dimension(3)      :: unit_face_normal, bface_centroid, face_mag
@@ -95,7 +97,7 @@ module res_sa
             q1 = q(1:5, cell1)
             q2 = q(1:5, cell2)
             nut1 = turb_var(cell1,1)
-            nut2 = turb_var(cell1,2)
+            nut2 = turb_var(cell2,1)
             gradnut1 = ccgrad_turb_var(:,cell1,1)
             gradnut2 = ccgrad_turb_var(:,cell2,1)
 
@@ -131,7 +133,7 @@ module res_sa
             turb_jac(cell1,1)%diag = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
             
             ! Cell 2
-            turb_res(cell2,1) = turb_res(cell2,1)                  + num_flux * face_nrml_mag(iface)
+            turb_res(cell2,1) = turb_res(cell2,1)                  - num_flux * face_nrml_mag(iface)
 
             turb_jac(cell2,1)%diag = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
@@ -244,6 +246,7 @@ module res_sa
             d1       = cell_wall_distance(icell)
             gradq    = ccgradq(:,:,icell)
             gradnut1 = ccgrad_turb_var(:,icell,1)
+            mu1 = compute_viscosity(q(5,icell))
 
             call sa_source(nut1,d1,mu1, gradq, gradnut1, nsource, num_jac1)
 
@@ -405,9 +408,9 @@ module res_sa
         integer :: i, j
 
         Omega = zero
-        do i = 2,5 ! gradQ, Q = [p u v w T]'
+        do i = 2,4 ! gradQ, Q = [p u v w T]'
             do j = 1,3 ! if we really wanted to optimize this we could unroll this loop and remove diagonal terms...
-                Wij   = half * (gradQ(j,i) - gradq(i-1,j+1))
+                Wij   = half * (gradQ(j,i) - gradQ(i-1,j+1))
                 Omega = Omega + two * ( Wij**2 )
             end do
         end do

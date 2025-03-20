@@ -17,7 +17,7 @@
 &solver
   CFL = 1
   solver_type = "implicit"
-  perturb_initial = .true.
+ ! perturb_initial = .true.
   solver_tolerance = 1e-2
   solver_max_itr = 1000
 !  method_inv_flux = "roe_lm_w"

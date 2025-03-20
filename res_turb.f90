@@ -12,11 +12,11 @@ module res_turb
 
     subroutine compute_residual_turb
 
-        use utils , only : iflow_type, TURB_SA
+        use utils , only : iturb_model, TURB_SA
 
         use res_sa , only: compute_res_sa
 
-        select case(iflow_type)
+        select case(iturb_model)
         case(TURB_SA)
             call compute_res_sa
         case default
