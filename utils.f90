@@ -15,7 +15,7 @@ module utils
     public IJAC_RHLL, IJAC_HLL, IJAC_RUSANOV
     public ismoother, SMOOTH_GS
     public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
-    public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS, iturb_model, TURB_SA
+    public iflow_type, FLOW_DES, FLOW_INVISCID, FLOW_LAMINAR, FLOW_LES, FLOW_RANS, iturb_model, TURB_SA
     public ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
 
     public initialize_isettings
@@ -59,13 +59,13 @@ module utils
     integer, parameter :: LSQ_STENCIL_WVERTEX = 0
 
     ! Turbulence settings
-    integer :: iturb_type
+    integer :: iflow_type
 
-    integer, parameter :: TURB_INVISCID = 0
-    integer, parameter :: TURB_LAMINAR  = 1
-    integer, parameter :: TURB_RANS     = 2
-    integer, parameter :: TURB_DES      = 3
-    integer, parameter :: TURB_LES      = 4
+    integer, parameter :: FLOW_INVISCID = 0
+    integer, parameter :: FLOW_LAMINAR  = 1
+    integer, parameter :: FLOW_RANS     = 2
+    integer, parameter :: FLOW_DES      = 3
+    integer, parameter :: FLOW_LES      = 4
 
     integer :: iturb_model
     integer, parameter :: TURB_SA       = 0
@@ -92,7 +92,7 @@ module utils
         ismoother        = 0
         igrad_method     = 0
         ilsq_stencil     = 0
-        iturb_type       = 0
+        iflow_type       = 0
 
     end subroutine initialize_isettings
 

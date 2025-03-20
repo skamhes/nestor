@@ -8,13 +8,13 @@ module residual
 
     subroutine compute_residual
 
-        use utils , only : iturb_type, TURB_RANS
+        use utils , only : iflow_type, FLOW_RANS
 
         use res_turb
 
         call compute_residual_flow
 
-        if (iturb_type == TURB_RANS) call compute_residual_turb
+        if (iflow_type == FLOW_RANS) call compute_residual_turb
 
     end subroutine compute_residual
 
@@ -24,7 +24,7 @@ module residual
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
 
-        use utils           , only : iturb_type, TURB_INVISCID
+        use utils           , only : iflow_type, FLOW_INVISCID
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -83,7 +83,7 @@ module residual
         !--------------------------------------------------------------------------------
         ! Compute gradients at cells.
         !
-        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID) then
+        if (accuracy_order == 2 .OR. iflow_type > FLOW_INVISCID) then
             call compute_gradient_flow(0) ! For now we are just using unweighted gradients
         endif
 
@@ -156,7 +156,7 @@ module residual
             res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed*face_nrml_mag(i)
 
-            if ( iturb_type == TURB_INVISCID) cycle loop_faces
+            if ( iflow_type == FLOW_INVISCID) cycle loop_faces
 
             ! Viscous flux
             call visc_flux_internal(q1,q2,gradq1,gradq2,unit_face_normal,  &
@@ -214,7 +214,7 @@ module residual
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
-                if ( iturb_type == TURB_INVISCID ) cycle bface_loop
+                if ( iflow_type == FLOW_INVISCID ) cycle bface_loop
                 
                 face_sides = bound(ib)%bfaces(1,j)
 

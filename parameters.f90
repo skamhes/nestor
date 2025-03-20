@@ -393,11 +393,11 @@ module config
 
       select case(trim(turbulence_type))
       case('inviscid')
-        iturb_type = TURB_INVISCID
+        iflow_type = FLOW_INVISCID
       case('laminar')
-        iturb_type = TURB_LAMINAR
+        iflow_type = FLOW_LAMINAR
       case('rans')
-        iturb_type = TURB_RANS
+        iflow_type = FLOW_RANS
       case default
         write(*,*) ' turbulence_type input "', trim(turbulence_type),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'

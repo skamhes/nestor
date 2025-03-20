@@ -16,7 +16,7 @@ module initialize
         use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
                             high_ar_correction, sutherland_constant, reference_temp, Re_inf, M_inf
 
-        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iturb_type, TURB_INVISCID, TURB_RANS
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iflow_type, FLOW_INVISCID, FLOW_RANS
 
         use solution
 
@@ -61,13 +61,13 @@ module initialize
             call compute_aspect_ratio
         endif
         
-        if (iturb_type > TURB_INVISCID) then
+        if (iflow_type > FLOW_INVISCID) then
             C0 = (sutherland_constant/reference_temp) / T_inf
             mu_norm = M_inf/Re_inf
             mu_inf = compute_viscosity(T_inf)
         end if
 
-        if (iturb_type >= TURB_RANS) call init_turb
+        if (iflow_type >= FLOW_RANS) call init_turb
 
     end subroutine set_initial_solution
 

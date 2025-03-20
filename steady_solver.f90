@@ -31,8 +31,8 @@ module steady_solver
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
                                 lift, drag, solver_type
 
-        use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
-                               itime_method, TM_ELAPSED, TURB_RANS
+        use utils     , only : isolver_type, iflow_type, FLOW_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
+                               itime_method, TM_ELAPSED, FLOW_RANS
                                 
         use initialize, only : set_initial_solution
 
@@ -112,11 +112,11 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID ) then
+        if (accuracy_order == 2 .OR. iflow_type > FLOW_INVISCID ) then
             call init_gradients
         endif    
 
-        if (iturb_type >= TURB_RANS) call compute_wall_distance
+        if (iflow_type >= FLOW_RANS) call compute_wall_distance
 
         ! Skipping importing data for now
         
@@ -144,7 +144,7 @@ module steady_solver
             
             ! Compute residual norm
             call compute_residual_norm(res_norm)
-            if (iturb_type == TURB_RANS) call compute_turb_res_norm(turb_res_norm)
+            if (iflow_type == FLOW_RANS) call compute_turb_res_norm(turb_res_norm)
             
             ! Compute forces
             if ( lift .OR. drag ) call compute_forces
@@ -442,7 +442,7 @@ module steady_solver
 
         use config              , only : variable_ur, turb_ur
 
-        use utils               , only : iturb_type, TURB_RANS
+        use utils               , only : iflow_type, FLOW_RANS
 
         use jacobian            , only : compute_jacobian
 
@@ -474,7 +474,7 @@ module steady_solver
             ! v_ur * I * sol_update, where I is the identity matrix, which is Identical to the commented line above.
         end do loop_cells
 
-        if (iturb_type < TURB_RANS) return
+        if (iflow_type < FLOW_RANS) return
 
         do it = 1,nturb
             call linear_relaxation(turb_jac(:,it), turb_res(:,it), turb_update(:), os)

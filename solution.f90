@@ -11,7 +11,7 @@ module solution
         use config , only : accuracy_order, grad_method, lsq_stencil, lift, drag, aoa, sideslip, &
                             gcr_max_projections, CFL
 
-        use utils  , only : iturb_type, TURB_INVISCID, TURB_RANS, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
+        use utils  , only : iflow_type, FLOW_INVISCID, FLOW_RANS, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
                             igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use solution_vars
@@ -32,7 +32,7 @@ module solution
         dtau = zero
         wsn = zero
 
-        if ( accuracy_order > 1 .OR. iturb_type > TURB_INVISCID) then
+        if ( accuracy_order > 1 .OR. iflow_type > FLOW_INVISCID) then
             allocate( ccgradq(ndim,nq,ncells) )
             if (igrad_method == GRAD_LSQ .and. ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 allocate(  vgradq(ndim,nq,nnodes) )
@@ -63,7 +63,7 @@ module solution
 
         CFL_used = CFL
 
-        if (iturb_type >= TURB_RANS) call allocate_rans
+        if (iflow_type >= FLOW_RANS) call allocate_rans
 
     end subroutine allocate_solution_vars
 

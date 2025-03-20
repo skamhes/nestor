@@ -23,7 +23,7 @@ module gradient
 
         use common        , only : zero
 
-        use utils         , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, iturb_model, TURB_LAMINAR
+        use utils         , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, iflow_type, FLOW_LAMINAR
 
         use turb            , only : ccgrad_turb_var, vgrad_turb_var
 
@@ -39,7 +39,7 @@ module gradient
                 write(*,*)
                 write(*,*) 'Initializing gradient vertex arrays.'
                 vgradq = zero
-                if (iturb_model > TURB_LAMINAR) vgrad_turb_var = zero
+                if (iflow_type > FLOW_LAMINAR) vgrad_turb_var = zero
             endif
         end select
 
@@ -49,7 +49,7 @@ module gradient
         write(*,*)
         
         ccgradq = zero
-        if (iturb_model > TURB_LAMINAR) ccgrad_turb_var = zero
+        if (iturb_model > FLOW_LAMINAR) ccgrad_turb_var = zero
         
     end subroutine init_gradients
 

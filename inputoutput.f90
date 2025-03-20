@@ -156,10 +156,10 @@ module inout
 
         use config , only : lift, drag
 
-        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iturb_type, iturb_model, TURB_RANS, TURB_SA
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iflow_type, iturb_model, FLOW_RANS, TURB_SA
 
         write(*,"(A)",advance="no") " Iteration   continuity   x-momemtum   y-momentum   z-momentum       energy"
-        if (iturb_type == TURB_RANS .and. iturb_model == TURB_SA) then
+        if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
             write(*,"(A)",advance="no") "          nut"
         endif
         write(*,"(A)",advance="no") "      max-res"
@@ -189,7 +189,7 @@ module inout
         use solution_vars , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift, &
                               n_projections, nl_reduction, CFL_used
 
-        use utils , only : isolver_type, SOLVER_IMPLICIT, SOLVER_GCR, iturb_type, iturb_model, TURB_RANS, TURB_SA
+        use utils , only : isolver_type, SOLVER_IMPLICIT, SOLVER_GCR, iflow_type, iturb_model, FLOW_RANS, TURB_SA
 
         use turb  , only : turb_res_norm
 
@@ -207,7 +207,7 @@ module inout
 
         ! Residuals
         write(*,residual_format,advance="no") i_iteration, res_norm(:)
-        if (iturb_type == TURB_RANS .and. iturb_model == TURB_SA) then
+        if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
             write(*,float_format,advance="no") turb_res_norm
         endif
         write(*,float_format,advance="no") maxval(res_norm(:)/res_norm_initial(:))

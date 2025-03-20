@@ -2,7 +2,7 @@ module turb
 
     use common , only : p2, three
 
-    use utils  , only : iturb_model, iturb_type, TURB_RANS, TURB_DES, TURB_LES, TURB_SA, &
+    use utils  , only : iturb_model, iflow_type, FLOW_RANS, FLOW_DES, FLOW_LES, TURB_SA, &
                         isolver_type, SOLVER_IMPLICIT, SOLVER_GCR
 
     implicit none
@@ -51,7 +51,7 @@ module turb
 
         implicit none
 
-        if (iturb_type > TURB_RANS) then
+        if (iflow_type > FLOW_RANS) then
             write(*,*) "DES and LES not yet supported"
             stop
         end if

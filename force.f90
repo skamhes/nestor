@@ -12,7 +12,7 @@ module forces
 
         use config      , only : drag, lift, accuracy_order, turbulence_type, M_inf, Re_inf, sutherland_constant, reference_temp
 
-        use utils       , only : ibc_type, BC_VISC_STRONG, iturb_type, TURB_INVISCID
+        use utils       , only : ibc_type, BC_VISC_STRONG, iflow_type, FLOW_INVISCID
 
         use grid        , only : bound, nb, bc_type, cell
 
@@ -69,7 +69,7 @@ module forces
                 bface_normal = bound(ib)%bface_nrml(:,i)
                 bface_mag    = bound(ib)%bface_nrml_mag(i)
 
-                if ( iturb_type > TURB_INVISCID ) then
+                if ( iflow_type > FLOW_INVISCID ) then
                     face_sides = bound(ib)%bfaces(1,i)
 
                     bface_grad = zero
@@ -86,13 +86,13 @@ module forces
 
                 if ( lift ) then
                     pforce_lift = pforce_lift + face_pressure * bface_mag * dot_product(bface_normal,vector_lift)
-                    if ( iturb_type > TURB_INVISCID ) then 
+                    if ( iflow_type > FLOW_INVISCID ) then 
                         vforce_lift = vforce_lift - bface_mag * dot_product(bface_shear, vector_lift)
                     end if
                 endif
                 if ( drag ) then
                     pforce_drag = pforce_drag + face_pressure * bface_mag * dot_product(bface_normal,vector_drag)
-                    if ( iturb_type > TURB_INVISCID ) then 
+                    if ( iflow_type > FLOW_INVISCID ) then 
                         vforce_drag = vforce_drag - bface_mag * dot_product(bface_shear, vector_drag)
                     end if
                 endif
