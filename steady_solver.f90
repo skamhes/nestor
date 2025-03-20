@@ -89,7 +89,7 @@ module steady_solver
         write(*,*) 
         write(*,*)
         write(*,*) "    solver_type = ", trim(solver_type)
-        write(*,'(a,i1)') " accuracy_order = ", accuracy_order
+        write(*,'(a,i1)') "  accuracy_order = ", accuracy_order
         write(*,*) " inviscid_flux  = ", trim(method_inv_flux)
         
 
