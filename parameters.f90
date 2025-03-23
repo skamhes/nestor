@@ -23,7 +23,9 @@ module common
     real(p2), parameter ::  sixth = 1.0_p2/6.0_p2
     real(p2), parameter ::  fivesixth = 5.0_p2/6.0_p2
     real(p2), parameter :: my_eps = epsilon(one)  !Machine zero w.r.t. 1.0.
-    real(p2), parameter :: my_huge = huge(1.0_p2) ! A very big number
+    real(p2), parameter :: my_huge = huge(1.0_p2) ! A very big number ~1.7e+308 (gcc 9.4.0 x86_64)
+    real(p2), parameter :: my_big  = huge(1.0) ! A reasonably big number.  ~3.4e+38 (gcc 9.4.0 x86_64)
+    ! Use this if you need some head room (such as in the wall distance which is squared).
     real(p2), parameter :: pi = 3.141592653589793238_p2
     integer             :: ix = 1, iy = 2, iz = 3
     real(p2), parameter, dimension(5,5) :: canonical_array = reshape( (/1,0,0,0,0, 0,1,0,0,0, 0,0,1,0,0, 0,0,0,1,0, 0,0,0,0,1/), &

@@ -51,7 +51,7 @@ module wall_distance
 
     subroutine compute_wall_distance
 
-        use common , only : my_huge
+        use common , only : my_big ! cell wall distance may need to be squared.  This gives us some head room.
 
         use grid , only : nnodes, x, y, z, bound, nb, bc_type, ncells, cell
 
@@ -114,7 +114,7 @@ module wall_distance
 
         ! Return early in the case where are no wall cells.
         if ( nwall_nodes == 0 ) then
-            cell_wall_distance = my_huge
+            cell_wall_distance = my_big
             return
         endif
 
@@ -208,7 +208,7 @@ module wall_distance
             ! do it for smaller wall distances.  Inverse wall distance is the only therm that shows up in any turbulence model which
             ! means past a certain point, "good enough" is fine.  Then we move to the next bounding box.  If the closest point is 
             ! greater than the wall distance we know we have the closest wall point.  If not we repeat
-            cell_wall_distance(icell) = my_huge
+            cell_wall_distance(icell) = my_big
             bloop3 : do ibox = 1,nleafs
                 if (icell_box_dist(ibox) > cell_wall_distance(icell)) exit bloop3
                 bxi = interior_cells(ibox)
