@@ -18,7 +18,7 @@ module turb
     public phi_turb
     public turb_jacobian_type
     public nut_inf
-    public turb_res_norm
+    public turb_res_norm, turb_res_norm_init
     public turb_update
 
     ! FUNCTIONS
@@ -33,7 +33,8 @@ module turb
     integer                                 :: nturb
     real(p2), dimension(:)    , allocatable :: phi_turb
     real(p2)                                :: nut_inf = three ! 3*mu/rho
-    real(p2), dimension(7)                  :: turb_res_norm
+    real(p2), dimension(7)                  :: turb_res_norm, turb_res_norm_init
+
 
     ! Jacobian type has to be placed here to avoid circular dependencies.
     type turb_jacobian_type
@@ -166,7 +167,7 @@ module turb
 
     fv1 = chi3 / ( chi3 + cv13 )
 
-    mutf = rhoF * mutf * fv1
+    mutf = rhoF * nutf * fv1
     
 end function calcmut_SA
 

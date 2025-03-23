@@ -53,7 +53,7 @@ module steady_solver
 
         use wall_distance , only : compute_wall_distance
 
-        use turb        , only : turb_res_norm
+        use turb        , only : turb_res_norm, turb_res_norm_init, nturb
 
         implicit none
 
@@ -166,6 +166,9 @@ module steady_solver
             ! Allow the initial residual norm to increase for the first 5 iterations
             if ( i_iteration == 0 ) then
                 res_norm_initial = res_norm
+                if (iflow_type == FLOW_RANS) then
+                    turb_res_norm_init = turb_res_norm
+                endif
                 minutes = 0
                 seconds = 0
                 do i = 1,5
@@ -174,10 +177,20 @@ module steady_solver
                         res_norm_initial(i) = one
                     end if
                 end do
+                do i =1,nturb
+                    if (iflow_type == FLOW_RANS .and. abs(turb_res_norm_init(i)) < MIN_RES_NORM_INIT) then
+                        turb_res_norm_init(i) = one
+                    end if
+                end do
             elseif ( i_iteration <= 5 ) then
                 do i = 1,5
                     if ( res_norm(i) > res_norm_initial(i) ) then
                         res_norm_initial(i) = res_norm(i)
+                    end if
+                end do
+                do i =1,nturb
+                    if (iflow_type == FLOW_RANS .and. abs(turb_res_norm(i)) > turb_res_norm_init(i)) then
+                        turb_res_norm_init(i) = turb_res_norm(i)
                     end if
                 end do
             endif
@@ -187,8 +200,14 @@ module steady_solver
 
             ! Check for convergence and exit if true
             if (maxval(res_norm(:)/res_norm_initial(:)) < solver_tolerance) then
-                write(*,*) " Solution is converged!"
-                exit solver_loop
+                if (iflow_type /= FLOW_RANS ) then
+                    write(*,*) " Solution is converged!"
+                    exit solver_loop
+                elseif (maxval(turb_res_norm(1:nturb) / turb_res_norm_init(1:nturb)_ < solver_tolerance ) ) then
+                    ! Previous if eval being false implies iflow_type == FLOW_RANS
+                    write(*,*) " Solution is converged!"
+                    exit solver_loop
+                end if
             end if
 
             i_iteration = i_iteration + 1

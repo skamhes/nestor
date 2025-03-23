@@ -208,7 +208,7 @@ module inout
         ! Residuals
         write(*,residual_format,advance="no") i_iteration, res_norm(:)
         if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-            write(*,float_format,advance="no") turb_res_norm
+            write(*,float_format,advance="no") turb_res_norm(1)
         endif
         write(*,float_format,advance="no") maxval(res_norm(:)/res_norm_initial(:))
         ! Forces

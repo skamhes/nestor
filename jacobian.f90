@@ -36,6 +36,8 @@ module jacobian
 
         use turb                , only : turb_var, nturb, calcmut
 
+        use turb_bc             , only : turb_rhstate
+
         use viscosity           , only : compute_viscosity
 
         implicit none
