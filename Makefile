@@ -48,6 +48,7 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/grid_statistics.o\
 		$(SDIR)/wall_distance.o\
 		$(SDIR)/solution_vars.o\
+		$(SDIR)/sa_vars.o\
 		$(SDIR)/viscosity.o\
 		$(SDIR)/turb.o\
 		$(SDIR)/solution.o\

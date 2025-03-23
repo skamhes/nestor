@@ -2,29 +2,15 @@ module res_sa
 
     use common , only : p2
 
+    use sa_vars
+    
     implicit none
 
     private
 
     public compute_res_sa
 
-    real(p2), parameter :: cb1   = 0.1355_p2
-    real(p2), parameter :: cb2   = 0.622_p2
-    real(p2), parameter :: KAPPA = 0.41_p2
-    real(p2), parameter :: cw2   = 0.3_p2
-    real(p2), parameter :: cw3   = 2.0_p2
-    real(p2), parameter :: cv1   = 7.1_p2
-    real(p2), parameter :: ct3   = 1.2_p2
-    real(p2), parameter :: ct4   = 0.5_p2
-    real(p2), parameter :: SIGMA = 1.5_p2 ! 1/sigma, sigma = 2/3
-    real(p2), parameter :: c2    = 0.7_p2
-    real(p2), parameter :: c22   = 0.49_p2
-    real(p2), parameter :: c3    = 0.9_p2
-    
-    ! Computed
-    real(p2), parameter :: cw1    = ( cb1 / KAPPA**2 ) + ( ( 1.0_p2 + cb2 ) / SIGMA )
-    real(p2), parameter :: c3m2c2 = c3 - 2.0_p2 * c2
-    real(p2), parameter :: cw36   = cw3**6
+
 
     contains
 
@@ -64,8 +50,9 @@ module res_sa
         use viscosity , only : compute_viscosity
 
         ! Grid Vars
-        integer                     :: cell1, cell2, c1
-        real(p2), dimension(3)      :: unit_face_normal, bface_centroid, face_mag
+        integer                     :: cell1, cell2
+        real(p2), dimension(3)      :: unit_face_normal, bface_centroid
+        real(p2)                    :: face_mag
         real(p2)                    :: nut1, nut2, nutb
         real(p2), dimension(5)      :: q1, q2, qb
         real(p2), dimension(3,5)    :: gradq
@@ -84,6 +71,10 @@ module res_sa
 
         turb_res(:,:) = zero
         wsn(:) = zero
+        do icell = 1,ncells
+            turb_jac(icell,1)%diag = zero
+            turb_jac(icell,1)%off_diag(:) = zero
+        end do
 
         ! update turbulent variable gradients
         call compute_gradient_turb(0)
@@ -175,17 +166,19 @@ module res_sa
         
         bound_loop : do ib = 1,nb
             bfaces_loop : do iface = 1,bound(ib)%nbfaces
-                c1 = bound(ib)%bcell(iface)
-
+                cell1 = bound(ib)%bcell(iface)
+                
+                gradnut1 = ccgrad_turb_var(:,cell1,1)
+                
                 bface_centroid   = bound(ib)%bface_center(:,iface)
                 unit_face_normal = bound(ib)%bface_nrml(:,iface)
                 face_mag         = bound(ib)%bface_nrml_mag(iface)
 
-                nut1 = turb_var(c1,1)
-                q1   =        q(:,c1)
+                nut1 = turb_var(cell1,1)
+                q1   =        q(:,cell1)
 
                 if (use_limiter) then
-                    phi1 = phi_turb(c1)
+                    phi1 = phi_turb(cell1)
                     phi2 = one
                 else 
                     phi1 = one
@@ -209,9 +202,9 @@ module res_sa
                                       num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1 only
-                turb_res(cell1,1) = turb_res(cell1,1)                  + num_flux * face_nrml_mag(iface)
+                turb_res(cell1,1) = turb_res(cell1,1)                  + num_flux * face_mag
 
-                turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
+                turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_mag
                 
                 face_sides = bound(ib)%bfaces(1,iface)
 
@@ -225,10 +218,10 @@ module res_sa
                 ! Diffusion Flux terms
                 call sa_viscFlux(                   nut1,     nutb, &
                                                       q1,       qb, &
-                                                gradnut1, gradnutb, &
+                                                gradnutb, gradnutb, & !We want gradface = gradnutb
                                                   unit_face_normal, &
                     cell(cell1)%xc, cell(cell1)%yc, cell(cell1)%zc, & !<- Left  cell centroid
-                    cell(cell2)%xc, cell(cell2)%yc, cell(cell2)%zc, & !<- Right cell centroid
+             bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
                                       num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1
@@ -265,8 +258,6 @@ module res_sa
             turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL
 
             turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
-            
-
         end do
 
     end subroutine compute_res_sa
@@ -486,6 +477,7 @@ module res_sa
         
         
     end subroutine sa_source
+
 
     
     ! pure function sa_prod(nut,ft2,strain_rate) result(source)
