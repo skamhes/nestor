@@ -76,7 +76,7 @@ module jacobian
             k = kth_nghbr_of_2(i)
             jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
 
-            if ( iturb_type > TURB_INVISCID ) cycle loop_faces
+            if ( iturb_type == TURB_INVISCID ) cycle loop_faces
 
             gradq1 = ccgradq(1:3,1:5,c1)
             gradq2 = ccgradq(1:3,1:5,c2)
