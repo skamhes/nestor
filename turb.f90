@@ -9,6 +9,7 @@ module turb
 
     private
 
+    ! VARS
     public turb_var
     public turb_jac
     public turb_res
@@ -17,10 +18,13 @@ module turb
     public phi_turb
     public turb_jacobian_type
     public nut_inf
-    public allocate_rans
-    public init_turb
     public turb_res_norm
     public turb_update
+
+    ! FUNCTIONS
+    public allocate_rans
+    public init_turb
+    public calcmut
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res
@@ -100,5 +104,71 @@ module turb
         endif
 
     end subroutine init_turb
+
+    function calcmut(q1,q2,trbv1,trbv2) result(mutf)
+
+        use common , only : half
+
+        use solution_vars , only : nq
+
+        use utils , only : TURB_SA, iturb_model
+
+        implicit none
+
+        real(p2), dimension(nq),    intent(in) :: q1, q2
+        real(p2), dimension(nturb), intent(in) :: trbv1, trbv2
+
+        real(p2)                               :: mutf
+
+        select case(iturb_model)
+        case(TURB_SA)
+            mutf = calcmut_SA(q1,q2,trbv1,trbv2)
+        case default
+            write(*,*) "Error turb.f90 calcmut(). Unsupported turbulence model."
+            stop
+        end select  
+        
+    end function calcmut
+
+    pure function calcmut_SA(q1,q2,trbv1,trbv2) result(mutf)
+
+    use common , only : half
+
+    use solution_vars , only : nq, gamma, ip, iT
+
+    use viscosity , only : compute_viscosity
+
+    use sa_vars , only : cv1
+
+    implicit none
+
+    real(p2), dimension(nq), intent(in) :: q1, q2
+    real(p2), dimension(1),  intent(in) :: trbv1, trbv2
+
+    real(p2)                               :: mutf
+
+    ! Local Vars
+    real(p2) :: rho1, rho2, rhoF
+    real(p2) :: Tf
+    real(p2) :: muf, nuf
+    real(p2) :: nutf
+    real(p2) :: chi3, fv1
+
+    rho1 = q1(ip)*gamma / q1(iT)
+    rho2 = q2(ip)*gamma / q2(iT)
+    rhoF = half * ( rho1 + rho2 )
+
+    Tf = half * ( q1(iT) + q2(iT) )
+    muf = compute_viscosity(Tf) ! this is getting called way too often.  Need to refactor.
+    nuf = muf / rhoF
+
+    nutf = half * ( trbv1(1) + trbv2(1) )
+    chi3 = ( nutf / muf )**3
+
+    fv1 = chi3 / ( chi3 + cv1**3 )
+
+    mutf = rhoF * mutf * fv1
+    
+end function calcmut_SA
 
 end module turb
