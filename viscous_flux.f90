@@ -9,7 +9,7 @@ module viscous_flux
 
     contains
 
-    subroutine visc_flux_internal(q1,q2,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2, num_flux)
+    subroutine visc_flux_internal(q1,q2,mut1,mut2,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2, num_flux)
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
@@ -22,6 +22,7 @@ module viscous_flux
         implicit none
 
         real(p2), dimension(nq),      intent(in) :: q1, q2
+        real(p2),                     intent(in) :: mut1, mut2
         real(p2), dimension(ndim,nq), intent(in) :: gradq1, gradq2
         real(p2), dimension(ndim),    intent(in) :: n12               ! Unit area vector (from c1 to c2)
         real(p2),                     intent(in) :: xc1, yc1, zc1     ! Left cell centroid
@@ -46,11 +47,11 @@ module viscous_flux
 
         ! This subroutine only handles computing the interface gradient.
         ! Once we have it we call the internal function
-        call compute_visc_num_flux(q1,q2,gradq_face,n12,num_flux)
+        call compute_visc_num_flux(q1,q2,mut1,mut2,gradq_face,n12,num_flux)
 
     end subroutine visc_flux_internal
 
-    subroutine visc_flux_boundary(q1,qb,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
+    subroutine visc_flux_boundary(q1,qb,mut1,mut2,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
 
         use common                  , only : p2, half
 
@@ -61,6 +62,7 @@ module viscous_flux
         implicit none
 
         real(p2), dimension(nq),      intent(in)    :: q1, qb
+        real(p2),                     intent(in)    :: mut1, mut2
         real(p2), dimension(ndim,nq), intent(in)    :: face_gradient     ! Grad at bound interface computed using avg face's vgrad
         real(p2), dimension(ndim),    intent(in)    :: n12               ! Normalized face vector
         real(p2),                     intent(in)    :: xc1, yc1, zc1     ! Left cell centroid
@@ -87,12 +89,12 @@ module viscous_flux
 
 
         ! This is just a wrapper function since we already have the interface gradient computed.
-        call compute_visc_num_flux(q1,qb,gradq_face,n12,num_flux)
+        call compute_visc_num_flux(q1,qb,mut1,mut2,gradq_face,n12,num_flux)
 
         
     end subroutine visc_flux_boundary
 
-    subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
+    subroutine compute_visc_num_flux(q1,q2,mut1,mut2,interface_grad,n12,num_flux)
         use common                  , only : p2, half, zero, two_third, four_third
 
         use solution_vars           , only : gammamo, nq, ndim ! w2u, nq
@@ -103,12 +105,13 @@ module viscous_flux
         implicit none 
 
         real(p2), dimension(nq),      intent(in)    :: q1, q2
+        real(p2),                     intent(in)    :: mut1, mut2
         real(p2), dimension(ndim,nq), intent(in)    :: interface_grad
         real(p2), dimension(ndim),    intent(in)    :: n12
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
         ! Local Vars
-        real(p2)                     :: mu
+        real(p2)                     :: mu, mut
         real(p2)                     :: u, v, w, T
         real(p2)                     :: tauxx, tauyy, tauzz !Viscous stresses: diagonal compontens
         real(p2)                     :: tauxy, tauyz, tauzx !Viscous stresses: off-diagonal components
@@ -124,7 +127,8 @@ module viscous_flux
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
         
-        mu = compute_viscosity(T)
+        mut = half * (mut1 + mut2)
+        mu = compute_viscosity(T) + mut
 
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
         if (isnan(mu)) then 

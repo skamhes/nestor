@@ -24,7 +24,7 @@ module residual
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
 
-        use utils           , only : iflow_type, FLOW_INVISCID
+        use utils           , only : iflow_type, FLOW_INVISCID, FLOW_RANS
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -57,6 +57,7 @@ module residual
 
         ! Flow variables
         real(p2), dimension(5)      :: q1, q2
+        real(p2)                    :: mut1,mut2
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5)      :: num_flux
         real(p2), dimension(5)      :: qb
@@ -139,6 +140,7 @@ module residual
                 phi1 = one
                 phi2 = one
             end if
+
             call interface_flux(          q1,       q2   , & !<- Left/right states
                                       gradq1,      gradq2, & !<- Left/right gradients
                                          unit_face_normal, & !<- unit face normal
@@ -159,7 +161,7 @@ module residual
             if ( iflow_type == FLOW_INVISCID) cycle loop_faces
 
             ! Viscous flux
-            call visc_flux_internal(q1,q2,gradq1,gradq2,unit_face_normal,  &
+            call visc_flux_internal(q1,q2,mut1,mut2,gradq1,gradq2,unit_face_normal,  &
                                     cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                     cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
                                                                    num_flux)
@@ -225,7 +227,7 @@ module residual
                 end do
                 gradqb = gradqb / real(face_sides, p2)
 
-                call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
+                call visc_flux_boundary(q1,qb,mut1,mut2,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                 bface_centroid(1),bface_centroid(2),bface_centroid(3), &
                                                               num_flux )
