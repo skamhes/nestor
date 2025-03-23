@@ -44,6 +44,7 @@ SDIR = .
 OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
+		$(SDIR)/ad_operators.o\
 		$(SDIR)/sorting.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
@@ -60,7 +61,6 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/sparse_common.o\
 		$(SDIR)/sparse_block_matrix.o\
 		$(SDIR)/sparse_scalar_matrix.o\
-		$(SDIR)/ad_operators.o\
 		$(SDIR)/direct_solve.o\
 		$(SDIR)/bc_states.o\
 		$(SDIR)/lsq.o\
