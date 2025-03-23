@@ -116,7 +116,7 @@ module jacobian
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 
-                if ( iturb_type > TURB_INVISCID ) cycle bfaces_loop
+                if ( iturb_type == TURB_INVISCID ) cycle bfaces_loop
 
                 face_sides = bound(ib)%bfaces(1,i)
 
