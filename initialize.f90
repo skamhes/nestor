@@ -24,7 +24,7 @@ module initialize
 
         use viscosity , only : C0, mu_norm, compute_viscosity
 
-        use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, T_inf, mu_inf
+        use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, T_inf, mu_inf, mu
 
         use turb , only : init_turb
 
@@ -65,6 +65,7 @@ module initialize
             C0 = (sutherland_constant/reference_temp) / T_inf
             mu_norm = M_inf/Re_inf
             mu_inf = compute_viscosity(T_inf)
+            mu(:) = mu_inf
         end if
 
         if (iflow_type >= FLOW_RANS) call init_turb

@@ -6,7 +6,7 @@ module ad_viscous_flux
     private
     contains
 
-    subroutine visc_flux_internal_ddt(q1,q2,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2,dFndQL,dFndQR)
+    subroutine visc_flux_internal_ddt(q1,q2,mutf,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2,dFndQL,dFndQR)
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
@@ -21,6 +21,7 @@ module ad_viscous_flux
         implicit none
 
         real(p2), dimension(nq),      intent(in)  :: q1, q2
+        real(p2),                     intent(in)  :: mutf
         real(p2), dimension(ndim,nq), intent(in)  :: gradq1, gradq2
         real(p2), dimension(ndim),    intent(in)  :: n12               ! Unit area vector (from c1 to c2)
         real(p2),                     intent(in)  :: xc1, yc1, zc1     ! Left cell centroid
@@ -58,7 +59,7 @@ module ad_viscous_flux
 
             ! This subroutine only handles computing the interface gradient.
             ! Once we have it we call the internal function
-            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,gradq_face,n12,dFndQ)
+            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,mutf,gradq_face,n12,dFndQ)
             if (icell==1) then
                 dFndQL = dFndQ
             else
@@ -67,7 +68,7 @@ module ad_viscous_flux
         end do jac_L_R
     end subroutine visc_flux_internal_ddt
 
-    subroutine visc_flux_boundary_ddt(q1,qb,interface_grad_dummy,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
+    subroutine visc_flux_boundary_ddt(q1,qb,mutf,interface_grad_dummy,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
 
         use common                  , only : p2, half
 
@@ -80,6 +81,7 @@ module ad_viscous_flux
         implicit none
 
         real(p2), dimension(nq),      intent(in)  :: q1, qb
+        real(p2),                     intent(in)  :: mutf
         real(p2), dimension(ndim,nq), intent(in)  :: interface_grad_dummy
         real(p2), dimension(ndim),    intent(in)  :: n12
         real(p2),                     intent(in)  :: xc1, yc1, zc1     ! Left cell centroid
@@ -117,7 +119,7 @@ module ad_viscous_flux
             end do
 
             ! This is just a wrapper function since we already have the interface gradient computed.
-            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,gradq_face,n12,dFndQ)
+            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,mutf,gradq_face,n12,dFndQ)
 
             if (icell==1) then
                 dFndQL = dFndQ
@@ -127,7 +129,7 @@ module ad_viscous_flux
         end do jac_L_R
     end subroutine visc_flux_boundary_ddt
 
-    subroutine compute_visc_num_flux_ddt(q1,q2,interface_grad,n12,dFdU)
+    subroutine compute_visc_num_flux_ddt(q1,q2,mutf,interface_grad,n12,dFdU)
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third
 
         use solution_vars           , only : gammamo, nq, ndim, T_inf ! w2u, nq
@@ -136,9 +138,12 @@ module ad_viscous_flux
 
         use ad_operators
 
+        use viscosity               , only : compute_viscosity_ddt
+
         implicit none
 
         type(derivative_data_type_df5), dimension(nq),      intent(in)    :: q1, q2
+        real(p2)                      ,                     intent(in)    :: mutf
         type(derivative_data_type_df5), dimension(ndim,nq), intent(in)    :: interface_grad
         real(p2), dimension(ndim),                          intent(in)    :: n12
         real(p2), dimension(nq,nq),                         intent(out)   :: dFdU
@@ -163,14 +168,17 @@ module ad_viscous_flux
         v = half * (q1(3)  + q2(3) ) ! v at the face
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
-        C0= sutherland_constant/reference_temp
-        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+        
+        mu =  compute_viscosity_ddt(T)
+        mu = mu + mutf
 
+#ifdef NANCHECK
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
         if (ddt_isnan(mu)) then 
             write (*,*) "nan value present - press [Enter] to continue"
             read(unit=*,fmt=*)
         end if
+#endif
 
         ! Interface values
         grad_u = interface_grad(:,2)

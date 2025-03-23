@@ -6,6 +6,32 @@ module turb_bc
     
     contains
 
+    subroutine turb_rhstate(turbvarL,bc_state_type, turbvarB)
+
+        use utils , only : iturb_model, TURB_SA
+
+        use turb , only : nturb
+
+        implicit none
+
+        ! Input 
+        real(p2), dimension(:), intent(in) :: turbvarL
+        integer ,               intent(in) :: bc_state_type
+
+        ! Output
+        real(p2), dimension(:), intent(out):: turbvarB
+
+        select case(iturb_model)
+        case(TURB_SA)
+            call sa_rhstate(turbvarL(1),bc_state_type,turbvarB(1))
+        case default
+            write(*,*) " Unsupported turbulence model. Stop"
+            write(*,*) " res_turb.f90"
+            stop
+        end select
+
+    end subroutine turb_rhstate
+
     subroutine sa_rhstate(nutL,bc_state_type, nutB)
 
         use common , only : p2, zero

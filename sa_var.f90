@@ -21,5 +21,6 @@ module sa_vars
     real(p2), parameter :: cw1    = ( cb1 / KAPPA**2 ) + ( ( one + cb2 ) / SIGMA )
     real(p2), parameter :: c3m2c2 = c3 - two * c2
     real(p2), parameter :: cw36   = cw3**6
+    real(p2), parameter :: cv13   = cv1**3
 
 end module sa_vars

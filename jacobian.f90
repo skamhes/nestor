@@ -13,16 +13,16 @@ module jacobian
 
     subroutine compute_jacobian
 
-        use common              , only : p2, zero
+        use common              , only : p2, zero, half
 
-        use utils               , only : iflow_type, FLOW_INVISCID, ibc_type
+        use utils               , only : iflow_type, FLOW_INVISCID, ibc_type, FLOW_RANS
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
                                          bound, nb
 
-        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq
+        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, mu, iT
 
         use solution            , only : compute_primative_jacobian
 
@@ -34,6 +34,10 @@ module jacobian
 
         use ad_viscous_flux     , only : visc_flux_boundary_ddt, visc_flux_internal_ddt
 
+        use turb                , only : turb_var, nturb, calcmut
+
+        use viscosity           , only : compute_viscosity
+
         implicit none
         ! Local Vars
         integer                     :: c1, c2, i, k, ib, idestat, j, nk
@@ -42,6 +46,9 @@ module jacobian
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
         real(p2)                    :: face_mag
+        real(p2)                    :: mu1, mu2, muf
+        real(p2)                    :: mutf
+        real(p2), dimension(nturb)  :: trbv1,trbv2
 
         real(p2), dimension(5,5)    :: preconditioner
         
@@ -54,6 +61,7 @@ module jacobian
             jac(i)%diag_inv = zero
         end do
 
+        mutf = zero
         ! Loop Faces
         loop_faces : do i = 1,nfaces
             c1 = face(1,i)
@@ -82,7 +90,16 @@ module jacobian
             gradq1 = ccgradq(1:3,1:5,c1)
             gradq2 = ccgradq(1:3,1:5,c2)
 
-            call visc_flux_internal_ddt(q(:,c1),q(:,c2),gradq1,gradq2,unit_face_nrml, &
+            mu1 = mu(c1)
+            mu2 = mu(c2)
+            muf = half * (mu1 + mu2) ! we do this here because we need it more than once
+            if (iflow_type == FLOW_RANS) then
+                trbv1 = turb_var(c1,:)
+                trbv2 = turb_var(c2,:)
+                mutf = calcmut(q(:,c1),q(:,c2),muf,trbv1,trbv2)
+            end if
+
+            call visc_flux_internal_ddt(q(:,c1),q(:,c2),mutf,gradq1,gradq2,unit_face_nrml, &
                                                cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                                cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
                                                                         dFnduL, dFnduR)
@@ -128,7 +145,17 @@ module jacobian
                 end do
                 gradqb = gradqb / real(face_sides, p2)
 
-                call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
+                mu1 = mu(c1)
+                mu2 = compute_viscosity(qb(iT))
+                muf = half * (mu1 + mu2) ! we do this here because we need it more than once
+                if (iflow_type == FLOW_RANS) then
+                    trbv1 = turb_var(c1,:)
+                    call turb_rhstate(trbv1, ibc_type(ib), trbv2)
+                    mutf = calcmut(q1,qb,muf,trbv1,trbv2)
+                    ! no elseif needed, we set this to zero before the loop.
+                end if
+                
+                call visc_flux_boundary_ddt(q1,qb,mutf,gradqb,unit_face_nrml, &
                                   cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                   bface_centroid(1),bface_centroid(2),bface_centroid(3), &
                                                            dFnduL, dFnduR)

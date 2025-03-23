@@ -15,6 +15,7 @@ module solution_vars
     real(p2), dimension(:,:)  , pointer :: u        ! conservative variables at cells center
     real(p2), dimension(:,:)  , pointer :: w        ! primitive (rho, u, v, w, p) variables at cells center.
     real(p2), dimension(:,:)  , pointer :: q        ! alternate primitive variables (p, u, v, w, T) at cells centers.
+    real(p2), dimension(:)    , pointer :: mu       ! viscosity
     real(p2), dimension(:,:,:), pointer :: ccgradw  ! gradients of w at cell center.
     real(p2), dimension(:,:,:), pointer :: vgradw   ! gradients of w at vertices (nodes).
     real(p2), dimension(:,:,:), pointer :: ccgradq  ! gradients of q at cell center.

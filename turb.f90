@@ -105,7 +105,7 @@ module turb
 
     end subroutine init_turb
 
-    function calcmut(q1,q2,trbv1,trbv2) result(mutf)
+    function calcmut(q1,q2,muf,trbv1,trbv2) result(mutf)
 
         use common , only : half
 
@@ -116,13 +116,14 @@ module turb
         implicit none
 
         real(p2), dimension(nq),    intent(in) :: q1, q2
+        real(p2),                   intent(in) :: muf
         real(p2), dimension(nturb), intent(in) :: trbv1, trbv2
 
         real(p2)                               :: mutf
 
         select case(iturb_model)
         case(TURB_SA)
-            mutf = calcmut_SA(q1,q2,trbv1,trbv2)
+            mutf = calcmut_SA(q1,q2,muf,trbv1,trbv2)
         case default
             write(*,*) "Error turb.f90 calcmut(). Unsupported turbulence model."
             stop
@@ -130,7 +131,7 @@ module turb
         
     end function calcmut
 
-    pure function calcmut_SA(q1,q2,trbv1,trbv2) result(mutf)
+    pure function calcmut_SA(q1,q2,muf,trbv1,trbv2) result(mutf)
 
     use common , only : half
 
@@ -138,19 +139,19 @@ module turb
 
     use viscosity , only : compute_viscosity
 
-    use sa_vars , only : cv1
+    use sa_vars , only : cv13
 
     implicit none
 
     real(p2), dimension(nq), intent(in) :: q1, q2
+    real(p2),                intent(in) :: muf
     real(p2), dimension(1),  intent(in) :: trbv1, trbv2
 
     real(p2)                               :: mutf
 
     ! Local Vars
     real(p2) :: rho1, rho2, rhoF
-    real(p2) :: Tf
-    real(p2) :: muf, nuf
+    real(p2) :: nuf
     real(p2) :: nutf
     real(p2) :: chi3, fv1
 
@@ -158,14 +159,12 @@ module turb
     rho2 = q2(ip)*gamma / q2(iT)
     rhoF = half * ( rho1 + rho2 )
 
-    Tf = half * ( q1(iT) + q2(iT) )
-    muf = compute_viscosity(Tf) ! this is getting called way too often.  Need to refactor.
     nuf = muf / rhoF
 
     nutf = half * ( trbv1(1) + trbv2(1) )
     chi3 = ( nutf / muf )**3
 
-    fv1 = chi3 / ( chi3 + cv1**3 )
+    fv1 = chi3 / ( chi3 + cv13 )
 
     mutf = rhoF * mutf * fv1
     

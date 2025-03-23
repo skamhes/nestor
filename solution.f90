@@ -27,6 +27,8 @@ module solution
         allocate( q(nq,ncells) )
         q = zero
 
+        if (iflow_type > FLOW_INVISCID) allocate(mu(ncells))
+
         allocate( dtau(ncells) )
         allocate( wsn( ncells) )
         dtau = zero

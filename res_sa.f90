@@ -37,7 +37,7 @@ module res_sa
 
         use solution , only : q2u
 
-        use turb_bc
+        use turb_bc , only : sa_rhstate
 
         use bc_states, only : get_right_state
 
