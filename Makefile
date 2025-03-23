@@ -15,7 +15,7 @@ FC = gfortran
 #       don't use it until you're sure bugs are removed.
 FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
-		 -fbacktrace -fall-intrinsics -Wargument-mismatch
+		 -fbacktrace -fall-intrinsics -Wargument-mismatch -Dnancheck
 # FFLAGS = -O2 -pg
 # FFLAGS = -O3
 ##########################################################
@@ -32,8 +32,10 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 # target which is why "all" is run when we run "make"
 ##########################################################
 %.o: %.mod
-.SUFFIXES : .o .f90
+.SUFFIXES : .o .f90 .F90
 .f90.o:
+	$(FC) $(FFLAGS) -c $<
+.F90.o:
 	$(FC) $(FFLAGS) -c $<
 
 ##########################################################
