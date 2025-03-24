@@ -478,6 +478,6 @@ module direct_solve
         real(p2), parameter :: cutoff = 1.0e-012
         
         ! This method avoids any branching.  I don't know if it's actually faster but it looks faster and that's what really counts
-        inv = one / ( sign(scal,one) * max( abs(scal) , cutoff ) )
+        inv = one / ( sign(one,scal) * max( abs(scal) , cutoff ) )
     end function safe_invert_scalar
 end module direct_solve

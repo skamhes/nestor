@@ -53,7 +53,7 @@ module steady_solver
 
         use wall_distance , only : compute_wall_distance
 
-        use turb        , only : turb_res_norm, turb_res_norm_init, nturb
+        use turb        , only : turb_res_norm, turb_res_norm_init, nturb, compute_turb_local_time_step_dtau
 
         implicit none
 
@@ -203,7 +203,7 @@ module steady_solver
                 if (iflow_type /= FLOW_RANS ) then
                     write(*,*) " Solution is converged!"
                     exit solver_loop
-                elseif (maxval(turb_res_norm(1:nturb) / turb_res_norm_init(1:nturb)_ < solver_tolerance ) ) then
+                elseif (maxval(turb_res_norm(1:nturb) / turb_res_norm_init(1:nturb)) < solver_tolerance )  then
                     ! Previous if eval being false implies iflow_type == FLOW_RANS
                     write(*,*) " Solution is converged!"
                     exit solver_loop
@@ -213,6 +213,7 @@ module steady_solver
             i_iteration = i_iteration + 1
 
             call compute_local_time_step_dtau
+            if (iflow_type == FLOW_RANS) call compute_turb_local_time_step_dtau
 
             ! March in pseudo-time to update u: u = u + du
             select case(isolver_type)
@@ -310,7 +311,7 @@ module steady_solver
 
         do i = 1,nturb
             do j = 1,ncells
-                tres_norm(i) = tres_norm(i) + turb_res(j,i)
+                tres_norm(i) = tres_norm(i) + abs(turb_res(j,i))
             end do
             tres_norm(i) = tres_norm(i) * inv_ncells
         end do

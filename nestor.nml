@@ -15,10 +15,10 @@
   /
 
 &solver
-  CFL = 1
+  CFL = 100000
   solver_type = "implicit"
- ! perturb_initial = .true.
-  solver_tolerance = 1e-2
+ perturb_initial = .true.
+  solver_tolerance = 1e-14
   solver_max_itr = 1000
 !  method_inv_flux = "roe_lm_w"
 !   method_inv_jac = "roe_lm_w"
@@ -44,6 +44,7 @@ gcr_reduction_target = 0.05
 &turbulence
   turbulence_type = 'rans'
   rans_model = 'sa'
+  turb_ur = 0.8
   /
 
 &debug

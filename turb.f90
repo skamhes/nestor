@@ -20,11 +20,13 @@ module turb
     public nut_inf
     public turb_res_norm, turb_res_norm_init
     public turb_update
+    public twsn, tdtau
 
     ! FUNCTIONS
     public allocate_rans
     public init_turb
     public calcmut
+    public compute_turb_local_time_step_dtau
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res
@@ -32,6 +34,7 @@ module turb
     real(p2), dimension(:,:,:), allocatable :: ccgrad_turb_var, vgrad_turb_var
     integer                                 :: nturb
     real(p2), dimension(:)    , allocatable :: phi_turb
+    real(p2), dimension(:)    , allocatable :: twsn, tdtau
     real(p2)                                :: nut_inf = three ! 3*mu/rho
     real(p2), dimension(7)                  :: turb_res_norm, turb_res_norm_init
 
@@ -77,7 +80,30 @@ module turb
 
         allocate(phi_turb(ncells))
 
+        allocate(twsn(ncells))
+        allocate(tdtau(ncells))
+
     end subroutine allocate_rans
+
+    subroutine compute_turb_local_time_step_dtau
+
+        
+        use common                  , only : half
+        use grid                    , only : ncells, cell
+        use config                  , only : CFL, high_ar_correction
+        use grid_statists           , only : cell_aspect_ratio
+        
+        implicit none
+
+        integer :: i
+        ! real(p2), dimension(ncells) :: viscous_dtau
+
+        cell_loop : do i = 1,ncells
+            tdtau(i) = CFL * cell(i)%vol/( half * twsn(i) )
+            if (high_ar_correction) tdtau(i) = tdtau(i) * cell_aspect_ratio(i)
+        end do cell_loop
+
+    end subroutine compute_turb_local_time_step_dtau
 
     subroutine init_turb
 

@@ -31,9 +31,9 @@ module res_sa
         
         use gradient , only : compute_gradient_turb
 
-        use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var
+        use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var, twsn
 
-        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, wsn
+        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2
 
         use solution , only : q2u
 
@@ -60,7 +60,7 @@ module res_sa
         real(p2)                    :: phi1, phi2
         real(p2)                    :: d1
         real(p2)                    :: mu1
-        real(p2)                    :: iwsn!, idtau
+        real(p2)                    :: itwsn!, idtau
 
         real(p2)                    :: num_flux, num_jac1, num_jac2
         real(p2)                    :: nsource
@@ -70,7 +70,8 @@ module res_sa
         integer :: face_sides
 
         turb_res(:,:) = zero
-        wsn(:) = zero
+        twsn(:) = zero
+        
         do icell = 1,ncells
             turb_jac(icell,1)%diag = zero
             turb_jac(icell,1)%off_diag(:) = zero
@@ -117,25 +118,25 @@ module res_sa
                                   num_flux, num_jac1, num_jac2  ) !<- Output
 
             !Cell 1
-            turb_res(cell1,1) = turb_res(cell1,1)                  + num_flux * face_nrml_mag(iface)
+            turb_res(cell1,1) =             turb_res(cell1,1)             + num_flux * face_nrml_mag(iface)
 
-            turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%diag =        turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
             k = kth_nghbr_of_1(iface)
-            turb_jac(cell1,1)%diag = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
             
             ! Cell 2
-            turb_res(cell2,1) = turb_res(cell2,1)                  - num_flux * face_nrml_mag(iface)
+            turb_res(cell2,1) =             turb_res(cell2,1)             - num_flux * face_nrml_mag(iface)
 
-            turb_jac(cell2,1)%diag = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%diag =        turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
-            turb_jac(cell2,1)%diag = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
 
             ! Add contribution to the wave speed which (assuming I understand the Rankine Hugonot relation correctly)
             ! is equivalent to the jacobian of the convective term.
             ! One will always be zero so we take the absolute value of whichever one isn't.
-            iwsn = max(abs(num_jac1),abs(num_jac2))
-            wsn(cell1) = wsn(cell1) + iwsn * face_nrml_mag(iface)
-            wsn(cell2) = wsn(cell2) + iwsn * face_nrml_mag(iface)
+            itwsn = max(abs(num_jac1),abs(num_jac2))
+            twsn(cell1) = twsn(cell1) + itwsn * face_nrml_mag(iface)
+            twsn(cell2) = twsn(cell2) + itwsn * face_nrml_mag(iface)
 
             ! Diffusion Flux terms
             call sa_viscFlux(                   nut1,     nut2, &
@@ -147,18 +148,18 @@ module res_sa
                                   num_flux, num_jac1, num_jac2  ) !<- Output
 
             !Cell 1
-            turb_res(cell1,1) = turb_res(cell1,1)                  + num_flux * face_nrml_mag(iface)
+            turb_res(cell1,1)             = turb_res(cell1,1)             + num_flux * face_nrml_mag(iface)
 
-            turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%diag        = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
             k = kth_nghbr_of_1(iface)
-            turb_jac(cell1,1)%diag = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
             
             ! Cell 2
-            turb_res(cell2,1) = turb_res(cell2,1)                  + num_flux * face_nrml_mag(iface)
+            turb_res(cell2,1)             = turb_res(cell2,1)             + num_flux * face_nrml_mag(iface)
 
-            turb_jac(cell2,1)%diag = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%diag        = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
-            turb_jac(cell2,1)%diag = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
                       
         end do loop_faces
         
@@ -202,7 +203,7 @@ module res_sa
                                       num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1 only
-                turb_res(cell1,1) = turb_res(cell1,1)                  + num_flux * face_mag
+                turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux * face_mag
 
                 turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_mag
                 
@@ -225,7 +226,7 @@ module res_sa
                                       num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1
-                turb_res(cell1,1) = turb_res(cell1,1)                  + num_flux * face_nrml_mag(iface)
+                turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux * face_nrml_mag(iface)
 
                 turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
 
@@ -253,9 +254,9 @@ module res_sa
         do icell = 1,ncells
 
             ! TODO add pseudo-transient term to this
-            ! dtaui = CFL * cell(icell)%vol/( half * wsn(icell) )
+            ! dtaui = CFL * cell(icell)%vol/( half * twsn(icell) )
             ! turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / dtaui
-            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL
+            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * twsn(icell) / CFL
 
             turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
         end do

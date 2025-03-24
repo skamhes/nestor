@@ -191,7 +191,7 @@ module inout
 
         use utils , only : isolver_type, SOLVER_IMPLICIT, SOLVER_GCR, iflow_type, iturb_model, FLOW_RANS, TURB_SA
 
-        use turb  , only : turb_res_norm
+        use turb  , only : turb_res_norm, turb_res_norm_init
 
         implicit none
 
@@ -209,8 +209,10 @@ module inout
         write(*,residual_format,advance="no") i_iteration, res_norm(:)
         if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
             write(*,float_format,advance="no") turb_res_norm(1)
+            write(*,float_format,advance="no") max(maxval(res_norm(:)/res_norm_initial(:)),turb_res_norm(1)/turb_res_norm_init(1))
+        else
+            write(*,float_format,advance="no") maxval(res_norm(:)/res_norm_initial(:))
         endif
-        write(*,float_format,advance="no") maxval(res_norm(:)/res_norm_initial(:))
         ! Forces
         if (lift) write(*,float_format,advance="no") force_lift
         if (drag) write(*,float_format,advance="no") force_drag
