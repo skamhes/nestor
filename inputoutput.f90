@@ -20,13 +20,17 @@ module inout
                                      cell, &
                                      bound, bgrid_type
 
-        use solution_vars   , only : q, nq, gamma
+        use solution_vars   , only : q, nq, gamma, ip
 
         use config          , only : project_name, io_path
+
+        use utils           , only : iflow_type, FLOW_RANS, iturb_model, TURB_SA
 
         use lowlevel        , only : my_alloc_int_ptr
 
         use files
+
+        use turb            , only : turb_var, nturb
                                      
         implicit none 
 
@@ -41,10 +45,11 @@ module inout
         
         integer                           :: j, k, ib, nk, j_count
         integer                           :: bcell_i, candidate_node
-        real(p2), dimension(:,:), pointer :: qn
+        real(p2), dimension(:,:), pointer :: qn,turbn
         real(p2), dimension(:), pointer   :: Mn, rhon
         integer , dimension(:  ), pointer :: nc
         logical                           :: already_added
+        real(p2)                          :: an
         ! integer, dimension(:), pointer    :: nbnodes
 
         allocate(qn(nq, nnodes))
@@ -53,6 +58,7 @@ module inout
         allocate(Mn(           nnodes))
         allocate(rhon(         nnodes))
 
+        if (iflow_type == FLOW_RANS) allocate(turbn(nnodes,nturb))
         
         nc = 0
         qn = zero
@@ -67,12 +73,32 @@ module inout
             end do bface_loop
         end do bound_loop
 
+        
+
         do j = 1,nnodes
-            qn(:,j) = qn(:,j) / nc(j) ! copmute an average
-            Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2)  ! mach number (wrt free stream a)
+            qn(:,j) = qn(:,j) / real(nc(j),p2) ! copmute an average
             ! rho    = p      * gamma / T
             rhon(j) = qn(1,j) * gamma / qn(5,j)
+            an = sqrt(gamma*qn(ip,j)/rhon(j))
+            Mn(j) = sqrt(qn(2,j)**2 + qn(3,j)**2 + qn(4,j)**2) / an ! mach number
         end do
+
+        if (iflow_type == FLOW_RANS) then
+            turbn = zero
+            bound_loopt : do ib = 1,nb
+                bface_loopt : do i = 1,bound(ib)%nbfaces
+                    bcell_i = bound(ib)%bcell(i)
+                    do k = 1,cell(bcell_i)%nvtx
+                        turbn(cell(bcell_i)%vtx(k),:) = turbn(cell(bcell_i)%vtx(k),:)  + turb_var(bcell_i,:)
+                    end do
+                end do bface_loopt
+            end do bound_loopt
+            do i = 1,nturb
+                do j = 1,nnodes
+                    turbn(j,i) = turbn(j,i) / real(nc(j),p2)
+                end do
+            end do
+        endif
 
         allocate(bound_export(nb))
         boundary_loop : do ib = 1,nb
@@ -123,14 +149,33 @@ module inout
         !(0)Header information
 
         write(8,*) 'TITLE = "GRID"'
-        write(8,*) 'VARIABLES = "x","y","z","p","u","v","w","T","rho","M"'
+        if (iflow_type < FLOW_RANS) then
+            write(8,*) 'VARIABLES = "x","y","z","p","u","v","w","T","rho","M"'
+        else
+            if (iturb_model == TURB_SA) then
+                write(8,*) 'VARIABLES = "x","y","z","p","u","v","w","T","rho","M","nut"'
+            else
+                write(8,*) 'VARIABLES = "x","y","z","p","u","v","w","T","rho","M"'
+            endif
+        endif
 
         do ib = 1,nb
             write(8,*) 'ZONE T = "',ib,'"  n=', bnode_data(ib)%nbnodes, &
                             ',e=', bound(ib)%nbfaces,' , zonetype=fequadrilateral, datapacking=point'
             do j_count = 1,bnode_data(ib)%nbnodes
                 j = bnode_data(ib)%bnodes(j_count)
-                write(8,'(10es25.15)') x(j), y(j), z(j), qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j), rhon(j), Mn(j)
+                if (iflow_type < FLOW_RANS) then
+                    write(8,'(10es25.15)') x(j), y(j), z(j), qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j), rhon(j), Mn(j)
+                else
+                    write(8,'(11es25.15)',advance="no") x(j), y(j), z(j), &
+                                                        qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j),&
+                                                        rhon(j), Mn(j)
+                    if (iturb_model == TURB_SA)  then
+                        write(8,'(1es25.15)') turbn(j,1)
+                    else
+                        write(8,*)
+                    endif
+                endif
             end do
             ! Loop through faces
             do i = 1,bound_export(ib)%nbfaces
