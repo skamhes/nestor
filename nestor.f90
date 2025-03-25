@@ -10,7 +10,7 @@
 ! Version: 0.0.1
 
 program nestor
-    use config, only : read_nml_config, grid_type, generate_tec_file_b
+    use config, only : read_nml_config, generate_tec_file_b
 
     use common, only : version
 
@@ -47,14 +47,7 @@ program nestor
     !-------------------------------------------------------------------------------
     ! READ GRID
     !-------------------------------------------------------------------------------
-    if (trim(grid_type) == 'ugrid') then
-        call read_grid
-    elseif (trim(grid_type) == 'su2') then
-        call read_su2
-    else
-        write(*,*) 'Unsupported grid type: ', trim(grid_type), '. Stop!'
-        stop
-    endif
+    call read_grid
 
     call construct_grid
 

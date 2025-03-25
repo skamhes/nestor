@@ -91,6 +91,24 @@ module grid
 
     subroutine read_grid
 
+        use config , only : grid_type
+
+        if (trim(grid_type) == 'ugrid') then
+            call read_grid_ugrid
+        elseif (trim(grid_type) == 'su2') then
+            call read_su2
+        else
+            write(*,*) 'Unsupported grid type: ', trim(grid_type), '. Stop!'
+            stop
+        endif
+
+        ! set up the integer bc_type array
+        call bc_convert_c_to_i
+
+    end subroutine read_grid
+
+    subroutine read_grid_ugrid
+
         !********************************************************************************
         !* Read the grid and boundary condition file.
         !* Note: This is a combo of the 2D cell centered and 3D node centered grids
@@ -366,8 +384,6 @@ module grid
 
         close(2)
 
-        ! set up the integer bc_type array
-        call bc_convert_c_to_i
         ! End of Read the boundary condition data file
         !--------------------------------------------------------------------------------
 
@@ -376,7 +392,7 @@ module grid
                     trim(io_path)//trim(filename_bc)
         write(*,*) "-------------------------------------------------------"
         write(*,*)
-    end subroutine read_grid
+    end subroutine read_grid_ugrid
 
     subroutine read_su2
         ! Read .su2 grid format
