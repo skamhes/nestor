@@ -33,7 +33,7 @@ module res_sa
 
         use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var, twsn
 
-        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2
+        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, gamma
 
         use solution , only : q2u
 
@@ -59,7 +59,8 @@ module res_sa
         real(p2), dimension(3)      :: gradnut1, gradnut2, gradnutb
         real(p2)                    :: phi1, phi2
         real(p2)                    :: d1
-        real(p2)                    :: mu1
+        real(p2)                    :: nu1
+        real(p2)                    :: rho1
         real(p2)                    :: itwsn!, idtau
 
         real(p2)                    :: num_flux, num_jac1, num_jac2
@@ -155,7 +156,7 @@ module res_sa
             turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
             
             ! Cell 2
-            turb_res(cell2,1)             = turb_res(cell2,1)             + num_flux * face_nrml_mag(iface)
+            turb_res(cell2,1)             = turb_res(cell2,1)             - num_flux * face_nrml_mag(iface)
 
             turb_jac(cell2,1)%diag        = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
@@ -240,14 +241,14 @@ module res_sa
             d1       = cell_wall_distance(icell)
             gradq    = ccgradq(:,:,icell)
             gradnut1 = ccgrad_turb_var(:,icell,1)
-            mu1 = compute_viscosity(q(5,icell))
-
-            call sa_source(nut1,d1,mu1, gradq, gradnut1, nsource, num_jac1)
+            rho1 = q(1,icell)*gamma / q(5,icell)
+            nu1 = compute_viscosity(q(5,icell)) / rho1
+            call sa_source(nut1,d1,nu1, gradq, gradnut1, nsource, num_jac1)
 
             ! We have to subtract the source term to move it to the LHS
-            turb_res(icell,1)      = turb_res(icell,1) - nsource
+            turb_res(icell,1)      = turb_res(icell,1) - nsource * cell(icell)%vol
 
-            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag - num_jac1
+            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag - num_jac1 * cell(icell)%vol
 
         end do
 
@@ -414,13 +415,13 @@ module res_sa
         Chi = nut * dChi ! Chi = nut / kvisc
 
         num     = Chi**3
-        denom   = (num + cv1**3) ! Chi**3 + cv1**3
+        denom   = (num + cv13) ! Chi**3 + cv1**3
         fv1     = num / denom    ! (Chi**3) / (Chi**3 + cv1**3)
         dfv1    = ( (three * dChi * Chi**2) * ( denom - num) ) / denom**2 ! Quotient rule: f' = g', f + C = g ==> f' * (g-f) / g**2
         
         denom   = (one + Chi * fv1)
         fv2     = one - Chi / denom
-        dfv2    = ( dChi * denom - Chi * fv1 ) / denom**2
+        dfv2    = - ( dChi - Chi * Chi * dfv1 ) / denom**2
 
         Sbar    = nut * fv2 / (KAPPA * distance)**2
         dSbar   = ( fv2 + nut * dfv2) / (KAPPA * distance)**2 
@@ -434,7 +435,11 @@ module res_sa
             num   = c22 * Omega + c3 * Sbar
             denom = c3m2c2 * Omega - Sbar
             Shat  = Omega + Omega * num / denom
-            dShat = Omega * ( (c3 * denom) + (num*dSbar) ) / denom**2 ! g' = -dSbar
+            dShat = dSbar * (c3 * Omega + num/denom) / denom
+        endif
+        if (Shat <= 1.e-010_p2) then
+            shat = 1.e-010_p2
+            dShat = zero
         endif
 
         ft2  = ct3 * exp(-ct4 * Chi**2)
@@ -449,7 +454,7 @@ module res_sa
         endif
 
         g  = r + cw2 * (r**6 - r)
-        dg = dr + cw2 * (six * r**5 - one)
+        dg = dr * ( one + cw2 * (six * r**5 - one) )
 
         num   = one + cw36
         denom = g**6 + cw36
@@ -474,8 +479,10 @@ module res_sa
         ! jac = Pbar - Dbar = neg(prod - dest) + neg(dprod - ddest)*nut
         ! neg(x) = min(0,x)
         ! This treatment ensures diagonal dominance which improves convergence and stability of the linear solver.
-        dsource = min(prod - dest, zero) + min(dprod - ddest, zero) * nut
+        ! dsource = min(prod - dest, zero) + min(dprod - ddest, zero) * nut
         
+        ! Trying a simpler approach
+        dsource = min(dprod, zero) - max(ddest, zero)
         
     end subroutine sa_source
 

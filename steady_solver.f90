@@ -458,7 +458,7 @@ module steady_solver
 
     subroutine implicit
 
-        use common              , only : p2
+        use common              , only : p2, zero
 
         use config              , only : variable_ur, turb_ur
 
@@ -500,7 +500,7 @@ module steady_solver
             call linear_relaxation(turb_jac(:,it), turb_res(:,it), turb_update(:), os)
 
             do icell = 1,ncells
-                turb_var(icell,it) = turb_var(icell,it) + turb_ur(it) * turb_update(icell)
+                turb_var(icell,it) = max(turb_var(icell,it) + turb_ur(it) * turb_update(icell) , zero)
             end do
         end do
 
