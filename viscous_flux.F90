@@ -99,7 +99,7 @@ module viscous_flux
 
         use solution_vars           , only : gammamo, nq, ndim ! w2u, nq
         
-        use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
+        use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp, pr_t
 
         use viscosity               , only : compute_viscosity
         implicit none 
@@ -158,9 +158,9 @@ module viscous_flux
     
         ! Heat fluxes: q = - mu*grad(T)/(Prandtl*(gamma-1))
     
-        qx = - mu_effective*grad_T(1)/(pr*(gammamo))
-        qy = - mu_effective*grad_T(2)/(pr*(gammamo))
-        qz = - mu_effective*grad_T(3)/(pr*(gammamo))
+        qx = - ( muf/(pr*gammamo) + mutf/(pr*gammamo) ) * grad_T(1)
+        qy = - ( muf/(pr*gammamo) + mutf/(pr*gammamo) ) * grad_T(2)
+        qz = - ( muf/(pr*gammamo) + mutf/(pr*gammamo) ) * grad_T(3)
 
         tauxn = tauxx*n12(1) + tauxy*n12(2) + tauxz*n12(3)
         tauyn = tauyx*n12(1) + tauyy*n12(2) + tauyz*n12(3)
