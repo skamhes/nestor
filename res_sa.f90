@@ -31,9 +31,9 @@ module res_sa
         
         use gradient , only : compute_gradient_turb
 
-        use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var, twsn
+        use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var
 
-        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, gamma
+        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, gamma, wsn
 
         use solution , only : q2u
 
@@ -71,7 +71,6 @@ module res_sa
         integer :: face_sides
 
         turb_res(:,:) = zero
-        twsn(:) = zero
         
         do icell = 1,ncells
             turb_jac(icell,1)%diag = zero
@@ -136,9 +135,7 @@ module res_sa
             ! is equivalent to the jacobian of the convective term.
             ! One will always be zero so we take the absolute value of whichever one isn't.
             itwsn = max(abs(num_jac1),abs(num_jac2))
-            twsn(cell1) = twsn(cell1) + itwsn * face_nrml_mag(iface)
-            twsn(cell2) = twsn(cell2) + itwsn * face_nrml_mag(iface)
-
+            
             ! Diffusion Flux terms
             call sa_viscFlux(                   nut1,     nut2, &
                                                   q1,       q2, &
@@ -255,9 +252,9 @@ module res_sa
         do icell = 1,ncells
 
             ! TODO add pseudo-transient term to this
-            ! dtaui = CFL * cell(icell)%vol/( half * twsn(icell) )
+            ! dtaui = CFL * cell(icell)%vol/( half * wsn(icell) )
             ! turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / dtaui
-            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * twsn(icell) / CFL
+            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL
 
             turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
         end do

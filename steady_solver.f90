@@ -53,7 +53,7 @@ module steady_solver
 
         use wall_distance , only : compute_wall_distance
 
-        use turb        , only : turb_res_norm, turb_res_norm_init, nturb, compute_turb_local_time_step_dtau
+        use turb        , only : turb_res_norm, turb_res_norm_init, nturb
 
         implicit none
 
@@ -213,7 +213,6 @@ module steady_solver
             i_iteration = i_iteration + 1
 
             call compute_local_time_step_dtau
-            if (iflow_type == FLOW_RANS) call compute_turb_local_time_step_dtau
 
             ! March in pseudo-time to update u: u = u + du
             select case(isolver_type)
