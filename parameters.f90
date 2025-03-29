@@ -153,12 +153,13 @@ module config
       real(p2)              :: pr_t                  = 0.9_p2     ! Turbulent Prandlt number (I think 0.9 is the standard default?)
       real(p2), dimension(7):: turb_inf              = 3.0_p2     ! Freestream for the different turbulent values. 3. = default
       real(p2), dimension(7):: turb_ur               = 0.8_p2     ! Freestream for the different turbulent values. 3. = default
+      real(p2)              :: CFL_turb              = 5.0_p2
       
 
 
     namelist / turbulence / &
       turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant, rans_model, rans_accuracy, turb_inf, &
-      pr_t, turb_ur
+      pr_t, turb_ur, CFL_turb
 
 
     !-------------------------------------------------------------------------
