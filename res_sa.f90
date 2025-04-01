@@ -18,7 +18,7 @@ module res_sa
 
         use common  , only : zero, half, one
 
-        use config  , only : use_limiter, CFL
+        use config  , only : use_limiter, CFL_turb
 
         use utils   , only : ibc_type
 
@@ -33,9 +33,9 @@ module res_sa
 
         use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var
 
-        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, gamma, wsn
+        use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, wsn
 
-        use solution , only : q2u
+        use solution , only : q2u, q2rho
 
         use turb_bc , only : sa_rhstate
 
@@ -61,9 +61,11 @@ module res_sa
         real(p2)                    :: d1
         real(p2)                    :: nu1
         real(p2)                    :: rho1
-        real(p2)                    :: itwsn!, idtau
+        real(p2)                    :: itwsn, dtaui
 
-        real(p2)                    :: num_flux, num_jac1, num_jac2
+        ! real(p2)                    :: num_flux, num_jac1, num_jac2
+        real(p2)                    :: num_jacsrc
+        real(p2), dimension(2)      :: num_flux, num_jac1, num_jac2 ! convective terms are cell specific
         real(p2)                    :: nsource
 
         integer :: iface, ib, icell
@@ -115,27 +117,27 @@ module res_sa
                                         face_centroid(2,iface), &
                                         face_centroid(3,iface), & !<- face midpoint
                                              phi1,        phi2, & !<- Limiter functions
-                                  num_flux, num_jac1, num_jac2  ) !<- Output
+                               num_flux, num_jac1, num_jac2  ) !<- Output
 
             !Cell 1
-            turb_res(cell1,1) =             turb_res(cell1,1)             + num_flux * face_nrml_mag(iface)
+            turb_res(cell1,1) =             turb_res(cell1,1)             + num_flux(1) * face_nrml_mag(iface)
 
-            turb_jac(cell1,1)%diag =        turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%diag =        turb_jac(cell1,1)%diag        + num_jac1(1) * face_nrml_mag(iface)
             k = kth_nghbr_of_1(iface)
-            turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac1(2) * face_nrml_mag(iface)
             
-            ! Cell 2
-            turb_res(cell2,1) =             turb_res(cell2,1)             - num_flux * face_nrml_mag(iface)
+            ! Cell 2 Note the + sign because the flux sub already accounts sign
+            turb_res(cell2,1) =             turb_res(cell2,1)             + num_flux(2) * face_nrml_mag(iface)
 
-            turb_jac(cell2,1)%diag =        turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%diag =        turb_jac(cell2,1)%diag        + num_jac2(1) * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
-            turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) + num_jac2(2) * face_nrml_mag(iface)
 
             ! Add contribution to the wave speed which (assuming I understand the Rankine Hugonot relation correctly)
             ! is equivalent to the jacobian of the convective term.
             ! One will always be zero so we take the absolute value of whichever one isn't.
-            itwsn = max(abs(num_jac1),abs(num_jac2))
-            
+            ! itwsn = max(abs(num_jac1),abs(num_jac2))
+
             ! Diffusion Flux terms
             call sa_viscFlux(                   nut1,     nut2, &
                                                   q1,       q2, &
@@ -146,18 +148,18 @@ module res_sa
                                   num_flux, num_jac1, num_jac2  ) !<- Output
 
             !Cell 1
-            turb_res(cell1,1)             = turb_res(cell1,1)             + num_flux * face_nrml_mag(iface)
+            turb_res(cell1,1)             = turb_res(cell1,1)             + num_flux(1) * face_nrml_mag(iface)
 
-            turb_jac(cell1,1)%diag        = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%diag        = turb_jac(cell1,1)%diag        + num_jac1(1) * face_nrml_mag(iface)
             k = kth_nghbr_of_1(iface)
-            turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac1(2) * face_nrml_mag(iface)
             
             ! Cell 2
-            turb_res(cell2,1)             = turb_res(cell2,1)             - num_flux * face_nrml_mag(iface)
+            turb_res(cell2,1)             = turb_res(cell2,1)             + num_flux(2) * face_nrml_mag(iface)
 
-            turb_jac(cell2,1)%diag        = turb_jac(cell2,1)%diag        - num_jac2 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%diag        = turb_jac(cell2,1)%diag        + num_jac2(1) * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
-            turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) - num_jac1 * face_nrml_mag(iface)
+            turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) + num_jac1(2) * face_nrml_mag(iface)
                       
         end do loop_faces
         
@@ -193,17 +195,16 @@ module res_sa
                                                 gradnut1, gradnut2, &
                                                   unit_face_normal, &
                     cell(cell1)%xc, cell(cell1)%yc, cell(cell1)%zc, & !<- Left  cell centroid
-                    cell(cell2)%xc, cell(cell2)%yc, cell(cell2)%zc, & !<- Right cell centroid
-                                            face_centroid(1,iface), &
-                                            face_centroid(2,iface), &
-                                            face_centroid(3,iface), & !<- face midpoint
+             bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
+             bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
                                                  phi1,        phi2, & !<- Limiter functions
                                       num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1 only
-                turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux * face_mag
+                turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux(1) * face_mag
 
-                turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_mag
+                turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1(1) * face_mag
+                ! No off diagonal terms and the second term of num flux is ignored.
                 
                 face_sides = bound(ib)%bfaces(1,iface)
 
@@ -224,9 +225,9 @@ module res_sa
                                       num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1
-                turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux * face_nrml_mag(iface)
+                turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux(1) * face_mag
 
-                turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1 * face_nrml_mag(iface)
+                turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1(1) * face_mag
 
             end do bfaces_loop
 
@@ -238,23 +239,23 @@ module res_sa
             d1       = cell_wall_distance(icell)
             gradq    = ccgradq(:,:,icell)
             gradnut1 = ccgrad_turb_var(:,icell,1)
-            rho1 = q(1,icell)*gamma / q(5,icell)
-            nu1 = compute_viscosity(q(5,icell)) / rho1
-            call sa_source(nut1,d1,nu1, gradq, gradnut1, nsource, num_jac1)
+            rho1 = q2rho(q(:,icell))
+            nu1 = compute_viscosity(q(5,icell)) / rho1 ! kinematic viscosity
+            call sa_source(nut1,d1,nu1, gradq, gradnut1, nsource, num_jacsrc)
 
             ! We have to subtract the source term to move it to the LHS
             turb_res(icell,1)      = turb_res(icell,1) - nsource * cell(icell)%vol
 
-            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag - num_jac1 * cell(icell)%vol
+            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag - num_jacsrc * cell(icell)%vol
 
         end do
 
         do icell = 1,ncells
 
             ! TODO add pseudo-transient term to this
-            ! dtaui = CFL * cell(icell)%vol/( half * wsn(icell) )
-            ! turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / dtaui
-            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL
+            dtaui = CFL_turb * cell(icell)%vol/( half * wsn(icell) )
+            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / dtaui
+            ! turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL_turb
 
             turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
         end do
@@ -268,7 +269,7 @@ module res_sa
 
         use common , only : half, zero
 
-        use solution_vars , only : nq
+        use solution_vars , only : nq, iu, iv, iw
                             
         implicit none
 
@@ -280,18 +281,16 @@ module res_sa
         real(p2),               intent(in) :: xm, ym, zm
         real(p2),               intent(in) :: phi1, phi2
 
-        real(p2),               intent(out):: nut_flux
-        real(p2),               intent(out):: jac1, jac2
+        real(p2), dimension(2), intent(out):: nut_flux
+        real(p2), dimension(2), intent(out):: jac1, jac2
 
         real(p2) :: nutL, nutR
 
-        real(p2), dimension(nq) :: qF
-        real(p2)                :: vL, vR, vF
+        real(p2), dimension(nq) :: qL, qR, qi
+        real(p2)                :: vP, vM, vBar
 
+        real(p2), parameter :: eig_min = 1e-06
 
-        integer, parameter :: iu = 2
-        integer, parameter :: iv = 3
-        integer, parameter :: iw = 4
 
         if (rans_accuracy == 2) then
             nutL = nut1 + phi1 * ( gradnut1(1)*(xm-xc1) + gradnut1(2)*(ym-yc1) + gradnut1(3)*(zm-zc1) ) ! gradnut <=> gradnut (var) 
@@ -301,17 +300,28 @@ module res_sa
             nutR = nut2
         end if
 
-        qF(iu) = half * (q1(iu) + q2(iu))
-        qF(iv) = half * (q1(iv) + q2(iv))
-        qF(iw) = half * (q1(iw) + q2(iw))
+        qL = q1
+        qR = q2
 
-        vF = qF(iu) * n12(1) + qF(iv) * n12(2) + qF(iw) * n12(3)
-        vL = max(vF,zero)
-        vR = min(vF,zero)
+        vBar = qL(iu) * n12(1) + qL(iv) * n12(2) + qL(iw) * n12(3)
+        vP   = half * (vBar + abs(vBar) )
+        vM   = half * (vBar - abs(vBar) )
+        
+        nut_flux(1) = vP * nutL + vM * nutR
+        jac1(1)       = vP ! diag (dF/dnuL)
+        jac1(2)       = vM ! off diag (dF/dnuR)
 
-        nut_flux = vL * nutL + vR * nutR
-        jac1 = vL
-        jac2 = vR
+        vBar = -( qR(iu) * n12(1) + qR(iv) * n12(2) + qR(iw) * n12(3) )
+        vP   = half * (vBar + abs(vBar) )
+        vM   = half * (vBar - abs(vBar) )
+        
+        nut_flux(2) = vP * nutR + vM * nutL
+        jac2(1)     = vP ! diag (dF/dnuR)
+        jac2(2)     = vM ! off diag (dF/dnuL)
+        ! Apply Harten's Entropy fix as described by Eq 6 in: https://doi.org/10.2514/1.J058549
+        ! if (abs(vF) < eig_min) then
+        !     vF = half * ( (vF*vF / eig_min) + eig_min) * sign(one,vF)
+        ! endif
 
     end subroutine sa_invFlux
 
@@ -332,17 +342,19 @@ module res_sa
         real(p2),               intent(in) :: xc1, yc1, zc1, xc2, yc2, zc2
         real(p2), dimension(:), intent(in) :: q1,q2
         
-        real(p2),               intent(out):: nut_flux
-        real(p2),               intent(out):: jac1, jac2
+        real(p2), dimension(2), intent(out):: nut_flux
+        real(p2), dimension(2), intent(out):: jac1, jac2
 
         ! Local
         real(p2), dimension(ndim)   :: gradnut_face
         real(p2), dimension(ndim)   :: ds,  dsds2
         real(p2)                    :: T, rho
         real(p2), dimension(nq)     :: u
-        real(p2)                    :: mu ! dynamic viscosity
-        real(p2)                    :: nu ! kinematic viscosity
-        real(p2)                    :: nut ! face nut
+        real(p2)                    :: muf ! dynamic viscosity
+        real(p2)                    :: nuf ! kinematic viscosity
+        real(p2)                    :: nutf ! face nut
+        real(p2)                    :: normal_face_grad
+        real(p2)                    :: term1, term21, term22
 
         ! Calculate the face gradients
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
@@ -353,21 +365,33 @@ module res_sa
         
         T   = half * ( q1( 5 ) + q2( 5 ) )
         u   = half * ( q2u(q1) + q2u(q2) )
-        nut = half * ( nut1    + nut2    )
+        nutf = half * ( nut1    + nut2    )
         rho = u(1)
-        mu  = compute_viscosity(T)
-        nu  = mu / rho ! Kinematic Viscosity
+        muf  = compute_viscosity(T)
+        nuf  = muf / rho ! Kinematic Viscosity
 
-        nut_flux = dot_product( gradnut_face, n12 )
-        jac1 = - half * SIGMA * nut_flux ! SIGMA = 1/ sigma
-        jac2 = jac1
-        nut_flux = - nut_flux * SIGMA * (nu + nut)
+        term1 = (one + cb2) * (nuf + nutf)
+        term21 = cb2 * (nuf + nut1) ! cross diffusion term doesn't use the face gradient it uses the cell value
+        term22 = cb2 * (nuf + nut2)
+
+        normal_face_grad = dot_product( gradnut_face, n12 )
+
+        nut_flux(1) = iSIGMA * (term1 - term21) * normal_face_grad
+        jac1(:)     = iSIGMA * (one + cb2) * normal_face_grad * half
+        jac1(1)     = (jac1(1) - cb2 * iSIGMA * normal_face_grad)
+
+        nut_flux(2) = -( iSIGMA * (term1 - term22) * normal_face_grad )
+        jac2(:)     = - ( iSIGMA * (one + cb2) * normal_face_grad ) * half
+        jac2(1)     =   ( jac2(1) + cb2 * iSIGMA * normal_face_grad ) ! have to be a little careful with the signs here
 
     end subroutine sa_viscFlux
 
     subroutine sa_source(nut,distance,kvisc,gradQ,gradnut, source,dsource)
         
-        use common , only : zero, sixth, half, fivesixth, one, two, three, six
+        use common , only : zero, sixth, fivesixth, one, three, six, & 
+                            ix, iy, iz
+        
+        use solution_vars , only : iu, iv, iw
 
         implicit none
 
@@ -381,7 +405,8 @@ module res_sa
         real(p2) :: Chi
         real(p2) :: fv1, fv2, fw, ft2
         real(p2) :: g, r, Omega, Shat, Sbar
-        real(p2) :: Wij
+        ! real(p2) :: Wij
+        real(p2) :: uy, uz, vx, vz, wx, wy
 
         ! SA Jacobian Variables
         real(p2) :: dChi
@@ -391,20 +416,31 @@ module res_sa
         ! Source terms
         real(p2) :: prod, dest, s1
         real(p2) :: dprod, ddest
+        ! Terms from Eq 15 and 16 of Spalart 1992 and their derivative
+        real(p2) :: p, d, pprm, dprm
 
         ! Temp vars
         real(p2) :: num, denom
         !
-        integer :: i, j
+        ! integer :: i, j
 
-        Omega = zero
-        do i = 2,4 ! gradQ, Q = [p u v w T]'
-            do j = 1,3 ! if we really wanted to optimize this we could unroll this loop and remove diagonal terms...
-                Wij   = half * (gradQ(j,i) - gradQ(i-1,j+1))
-                Omega = Omega + two * ( Wij**2 )
-            end do
-        end do
-        Omega = sqrt(Omega)
+        ! Omega = zero
+        ! do i = 2,4 ! gradQ, Q = [p u v w T]'
+        !     do j = 1,3 ! if we really wanted to optimize this we could unroll this loop and remove diagonal terms...
+        !         Wij   = half * (gradQ(j,i) - gradQ(i-1,j+1))
+        !         Omega = Omega + two * ( Wij**2 )
+        !     end do
+        ! end do
+        ! Omega = sqrt(Omega)
+        uy = gradQ(iy, iu)
+        uz = gradQ(iz, iu)
+        vx = gradQ(ix, iv)
+        vz = gradQ(iz, iv)
+        wx = gradQ(ix, iw)
+        wy = gradQ(iy, iw)
+        
+        ! The line below is equivalent to Omega
+        Omega = sqrt( (uy - vx)**2 + (uz - wx)**2 + (vz - wy)**2 )
         ! dOmega = zero
 
         ! Alot of these functions have been optimized (note I never said I did a good job...)
@@ -421,7 +457,7 @@ module res_sa
         dfv2    = - ( dChi - Chi * Chi * dfv1 ) / denom**2
 
         Sbar    = nut * fv2 / (KAPPA * distance)**2
-        dSbar   = ( fv2 + nut * dfv2) / (KAPPA * distance)**2 
+        dSbar   = ( fv2 + zero * nut * dfv2) / (KAPPA * distance)**2 
 
         ! Equation (12) from ICCFD7-1902.  This is a modification of the standard implimentation that provides better numerical 
         ! stability. (See Note 1 from the NASA TMR for other potential treatments)
@@ -460,26 +496,35 @@ module res_sa
               g * sixth * ( six * num * g**5 ) / denom**2 / &
               ( num / denom )**fivesixth
 
-        prod  = cb1 * (one - ft2) * Shat * nut
-        dprod = cb1 * ( ((one - dft2) * Shat * nut ) + (one-ft2) * (dShat * nut + Shat) )
+        p     = cb1 * (one - ft2) * Shat
+        prod  = p * nut
+        pprm  = cb1 * ( (one-ft2)*dShat - dft2 * Shat)
+        ! dprod = cb1 * ( ((one - dft2) * Shat * nut ) + (one-ft2) * (dShat * nut + Shat) )
 
-        dest  = ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * (nut / distance)**2
-        ddest = ( ( cw1 * dfw - cb1 * dft2 / KAPPA**2) * (nut / distance)**2 ) + &
-                ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * two * nut / distance**2
+        d     = ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) / distance**2
+        ! dprm  = ( cw1 * dfw - cb1 * dft2 / KAPPA**2) * nut / distance**2 + d
+        dprm  = d
+        d     = d * nut
+        dest  = d * nut
+        ! ddest = ( ( cw1 * dfw - cb1 * dft2 / KAPPA**2) * (nut / distance)**2 ) + &
+        !         ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * two * nut / distance**2
 
-        s1 = cb2 * dot_product(gradnut,gradnut) * SIGMA ! SIGMA = 1/ sigma
+        s1 = cb2 * dot_product(gradnut,gradnut) * iSIGMA 
         ! ds1 = zero
 
-        source = prod - dest + s1
+        ! if (prod > 1.0_p2) then
+        !     write(*,*)
+        ! endif
+        source = prod - dest! + s1 
         
         ! Jacobian is treated using EQ (40) from https://doi.org/10.2514/6.1992-439 (multiplied by -1)
         ! jac = Pbar - Dbar = neg(prod - dest) + neg(dprod - ddest)*nut
         ! neg(x) = min(0,x)
         ! This treatment ensures diagonal dominance which improves convergence and stability of the linear solver.
-        ! dsource = min(prod - dest, zero) + min(dprod - ddest, zero) * nut
+        dsource = min(p - d, zero) + min(pprm - dprm, zero) * nut
         
         ! Trying a simpler approach
-        dsource = min(dprod, zero) - max(ddest, zero)
+        ! dsource = min(dprod, zero) - max(ddest, zero)
         
     end subroutine sa_source
 

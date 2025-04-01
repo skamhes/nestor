@@ -281,6 +281,10 @@ module inviscid_flux
         ! Max wave speed normal to the face:
                     wsn = abs(qn) + a
        
+        if (any(isnan(num_flux(:)))) then 
+          write (*,*) "nan value present - press [Enter] to continue"
+          read(unit=*,fmt=*)
+        end if
     end subroutine roe
     !--------------------------------------------------------------------------------
 

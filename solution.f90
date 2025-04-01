@@ -152,6 +152,32 @@ module solution
     
     end function q2u
 
+    !********************************************************************************
+    ! Compute rho from Q
+    !
+    ! ------------------------------------------------------------------------------
+    ! This is just the first line of q2u 
+    ! ------------------------------------------------------------------------------
+    !
+    ! Note: rho*E = p/(gamma-1) + rho*0.5*(u^2 + v^2 + w^2)
+    !       rho   = p*gamma/T
+    !********************************************************************************
+    pure function q2rho(q_in) result(rho_out)
+
+        use common, only : p2, half
+
+        use solution_vars, only : gamma
+        
+        implicit none
+    
+        real(p2), dimension(5), intent(in) :: q_in ! input
+        real(p2)                           :: rho_out !output
+        
+        ! rho    = p      *gamma / T
+        rho_out = q_in(1)*gamma / q_in(5)
+        
+    end function q2rho
+
     pure function compute_primative_jacobian(qi) result(preconditioner)
 
         ! This function computes the Jacobian DU/DQ where U is the vector of conserved variables [rho rhoU rhoV rhoW rhoE] and W is

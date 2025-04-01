@@ -86,8 +86,8 @@ module initialize
         integer :: c1, c2
 
         ! Create kth_nghbr arrays
-        allocate(kth_nghbr_of_1(nfaces))
-        allocate(kth_nghbr_of_2(nfaces))
+        if(.not.allocated(kth_nghbr_of_1) )allocate(kth_nghbr_of_1(nfaces))
+        if(.not.allocated(kth_nghbr_of_2) )allocate(kth_nghbr_of_2(nfaces))
         allocate(jac           (ncells))
 
         ! Define kth neighbor arrays

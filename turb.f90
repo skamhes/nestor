@@ -53,7 +53,9 @@ module turb
         
         use viscosity , only : compute_viscosity
 
-        use grid      , only : ncells, nnodes
+        use grid      , only : ncells, nnodes, nfaces
+
+        use solution_vars , only : kth_nghbr_of_1, kth_nghbr_of_2
 
         implicit none
 
@@ -80,6 +82,16 @@ module turb
 
         allocate(twsn(ncells))
         allocate(tdtau(ncells))
+
+        ! This isn't actually used except to prevent a runtime error.
+        if(.not.allocated(kth_nghbr_of_1)) then
+            allocate(kth_nghbr_of_1(nfaces))
+            kth_nghbr_of_1 = 1
+        endif
+        if(.not.allocated(kth_nghbr_of_2)) then
+            allocate(kth_nghbr_of_2(nfaces))
+            kth_nghbr_of_2 = 1
+        endif
 
     end subroutine allocate_rans
 

@@ -407,6 +407,10 @@ module steady_solver
 
         use common          , only : p2, half, one, zero
 
+        use config          , only : turb_ur
+
+        use utils           , only : iflow_type, FLOW_RANS
+
         use solution_vars   , only : q, res, dtau, gammamo, gamma, gmoinv
 
         use grid            , only : cell, ncells
@@ -415,10 +419,14 @@ module steady_solver
 
         use direct_solve    , only : gewp_solve
 
+        use turb            , only : nturb, turb_var, turb_update, turb_res
+
         real(p2), dimension(5) :: update_q
-        integer i, os
+        integer i, os, it, icell
         real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
         real(p2), dimension(5,5) :: preconditioner, pre_inv
+
+        real(p2), dimension(ncells) :: resLoc, turbloc
         
         ! Compute the precondition matrix as described in https://doi.org/10.2514/3.12946
         ! Note: because we are not performing low-mach correction this is equivalent to the jacobian dW/dQ in equation (2)
@@ -453,13 +461,29 @@ module steady_solver
             
             q(:,i) = q(:,i) + update_q
         end do
+
+        if (iflow_type < FLOW_RANS) return
+
+        do it = 1,nturb
+
+            do icell = 1,ncells
+                turb_update(icell) = -(dtau(icell) / cell(icell)%vol) * turb_res(icell,it)
+                
+                turb_var(icell,it) = turb_var(icell,it) + turb_ur(it) * turb_update(icell)
+                resLoc(icell) = turb_res(icell,it) ! easier debuggin
+                turbLoc(icell) = turb_var(icell,it) ! easier debuggin
+            end do
+        end do
+
+        return 
+
     end subroutine explicit_pseudo_time_forward_euler
 
     subroutine implicit
 
-        use common              , only : p2, zero
+        use common              , only : p2
 
-        use config              , only : variable_ur, turb_ur
+        use config              , only : variable_ur, turb_ur, turb_inf
 
         use utils               , only : iflow_type, FLOW_RANS
 
@@ -499,9 +523,14 @@ module steady_solver
             call linear_relaxation(turb_jac(:,it), turb_res(:,it), turb_update(:), os)
 
             do icell = 1,ncells
-                turb_var(icell,it) = max(turb_var(icell,it) + turb_ur(it) * turb_update(icell) , zero)
+                ! turb_var(icell,it) = max(turb_var(icell,it) + turb_ur(it) * turb_update(icell),zero)
+                turb_var(icell,it) = turb_var(icell,it) + turb_ur(it) * turb_update(icell)
+                ! if (turb_var(icell,it) < zero) turb_var(icell,it) = turb_inf(it)
             end do
         end do
+        ! it = maxloc(turb_update(:),1)
+        ! write(*,*) "Max_update: ", turb_update(it), "maxloc: ", it
+        ! write(*,*) "Res(maxloc):", turb_res(it,1)
 
     end subroutine implicit
 

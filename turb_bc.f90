@@ -10,8 +10,6 @@ module turb_bc
 
         use utils , only : iturb_model, TURB_SA
 
-        use turb , only : nturb
-
         implicit none
 
         ! Input 
@@ -34,7 +32,7 @@ module turb_bc
 
     subroutine sa_rhstate(nutL,bc_state_type, nutB)
 
-        use common , only : p2, zero
+        use common , only : p2
 
         use turb,only : nut_inf
 
@@ -55,7 +53,8 @@ module turb_bc
         case(BC_TANGENT)
             nutB = nutL
         case(BC_VISC_STRONG) ! Adiabatic
-            nutB = zero
+            ! nutB = zero
+            nutB = - nutL
         case(BC_BACK_PRESSURE)
             nutB = nut_inf ! This seems correct
         case default

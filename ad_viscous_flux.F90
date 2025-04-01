@@ -170,7 +170,7 @@ module ad_viscous_flux
         T = half * (q1(nq) + q2(nq)) ! T at the face
         
         mu =  compute_viscosity_ddt(T)
-        mu = mu + mutf
+        mu = mu + mutf*zero
 
 #ifdef NANCHECK
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2

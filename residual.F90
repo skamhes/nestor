@@ -194,6 +194,13 @@ module residual
 
             res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
 
+#ifdef NANCHECK
+            if (any(isnan(res(:,c1)))) then 
+                write (*,*) "nan value present - press [Enter] to continue"
+                read(unit=*,fmt=*)
+            end if
+#endif
+
         end do loop_faces
 
         boundary_loop : do ib = 1,nb
@@ -240,6 +247,12 @@ module residual
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
+#ifdef NANCHECK
+                if (any(isnan(res(:,c1)))) then 
+                    write (*,*) "nan value present - press [Enter] to continue"
+                    read(unit=*,fmt=*)
+                end if
+#endif
                 if ( iflow_type == FLOW_INVISCID ) cycle bface_loop
                 
                 face_sides = bound(ib)%bfaces(1,j)
@@ -267,6 +280,13 @@ module residual
                                                               num_flux )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+
+#ifdef NANCHECK
+                if (any(isnan(res(:,c1)))) then 
+                    write (*,*) "nan value present - press [Enter] to continue"
+                    read(unit=*,fmt=*)
+                end if
+#endif
 
             end do bface_loop
 

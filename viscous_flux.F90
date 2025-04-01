@@ -127,7 +127,7 @@ module viscous_flux
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
         
-        mu_effective = muf + mutf
+        mu_effective = muf + mutf*zero
 
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
 #ifdef NANCHECK
@@ -158,9 +158,9 @@ module viscous_flux
     
         ! Heat fluxes: q = - mu*grad(T)/(Prandtl*(gamma-1))
     
-        qx = - ( muf/(pr*gammamo) + mutf/(pr*gammamo) ) * grad_T(1)
-        qy = - ( muf/(pr*gammamo) + mutf/(pr*gammamo) ) * grad_T(2)
-        qz = - ( muf/(pr*gammamo) + mutf/(pr*gammamo) ) * grad_T(3)
+        qx = - ( muf/(pr*gammamo) + zero*mutf/(pr*gammamo) ) * grad_T(1)
+        qy = - ( muf/(pr*gammamo) + zero*mutf/(pr*gammamo) ) * grad_T(2)
+        qz = - ( muf/(pr*gammamo) + zero*mutf/(pr*gammamo) ) * grad_T(3)
 
         tauxn = tauxx*n12(1) + tauxy*n12(2) + tauxz*n12(3)
         tauyn = tauyx*n12(1) + tauyy*n12(2) + tauyz*n12(3)
