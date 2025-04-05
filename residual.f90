@@ -48,6 +48,8 @@ module residual
         real(p2), dimension(5)      :: qb
         real(p2)                    :: wave_speed
         real(p2)                    :: phi1, phi2
+        real(p2)                    :: xc,yc,zc, xc2, yc2,zc2
+        real(p2)                    :: fxc,fyc,fzc, dxc2, dyc2,dzc2
 
         ! Misc int/counters
         integer                     :: i
@@ -137,10 +139,10 @@ module residual
                                      num_flux, wave_speed  ) !<- Output
  
             res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
-            wsn(c1)   = wsn(c1) + wave_speed*face_nrml_mag(i)
+            wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
             
             res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
-            wsn(c2)   = wsn(c2) + wave_speed*face_nrml_mag(i)
+            wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
 
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
 
@@ -176,7 +178,19 @@ module residual
                 q1 = q(:,c1)
                 
                 ! Get the right hand state (weak BC!)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                xc   = cell(c1)%xc
+                yc   = cell(c1)%yc
+                zc   = cell(c1)%zc
+                fxc  = bound(ib)%bface_center(1,j)
+                fyc  = bound(ib)%bface_center(2,j)
+                fzc  = bound(ib)%bface_center(3,j)
+                dxc2 = fxc - xc
+                dyc2 = fyc - yc
+                dzc2 = fzc - zc
+                xc2  = fxc + dxc2
+                yc2  = fyc + dyc2
+                zc2  = fzc + dzc2
+                call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
                 else
@@ -211,13 +225,18 @@ module residual
                 end do
                 gradqb = gradqb / real(face_sides, p2)
 
+                call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
+
                 call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                bface_centroid(1),bface_centroid(2),bface_centroid(3), &
+                                                          xc2,yc2,zc2, &
                                                               num_flux )
+
+                continue
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
 
+                continue
             end do bface_loop
 
         end do boundary_loop

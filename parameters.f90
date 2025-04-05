@@ -150,6 +150,13 @@ module config
 
 
     !-------------------------------------------------------------------------
+    ! MMS SETTINGS (&debug)
+      logical :: run_mms = .false.
+
+    namelist / mms / &
+      run_mms
+
+    !-------------------------------------------------------------------------
     ! DEBUG SETTINGS (&debug)
       integer :: gcr_verbosity = 0
 
@@ -226,6 +233,10 @@ module config
         call nml_read_error_check(os,'TURBULENCE')
         rewind(10)
 
+        read(unit=10,nml=mms,iostat=os)
+        call nml_read_error_check(os,'MMS')
+        rewind(10)
+
         read(unit=10,nml=debug,iostat=os)
         call nml_read_error_check(os,'DEBUG')
         rewind(10)
@@ -265,6 +276,10 @@ module config
         write(*,*)
         write(*,*) "VERBOSITY SETTINGS (&verbosity)"
         write(*,nml=debug)
+        
+        write(*,*)
+        write(*,*) "MMS SETTINGS (&mms)"
+        write(*,nml=mms)
         
         write(*,*)
         write(*,*) " End of Reading the input file: ",namelist_file,"..... "

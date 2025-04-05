@@ -16,7 +16,7 @@ module utils
     public ismoother, SMOOTH_GS
     public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
     public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS
-    public ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
+    public ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG, MMS_DIRICHLET
 
     public initialize_isettings
 
@@ -74,6 +74,7 @@ module utils
     integer, parameter :: BC_FARFIELD      = 5000
     integer, parameter :: BC_TANGENT       = 3000 ! used for symmetry planes and slip walls
     integer, parameter :: BC_BACK_PRESSURE = 5051
+    integer, parameter :: MMS_DIRICHLET    = -1   ! MMS bcs will be -1*the normal BC value (ie viscous mms wall is -4000)
 
     contains
 

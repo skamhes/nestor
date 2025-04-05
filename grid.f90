@@ -1574,6 +1574,8 @@ module grid
                 inside = .true. ! not implemented yet...
             else if (cell(i)%nvtx == 8) then
                 inside = .true. ! not implemented yet...
+            else
+                inside = .false.
             end if
             if (inside .eqv. .false.) then
                 write(*,*) " Cell ", i ," centroid is outside of cell.  Cannot continue. Stop!"
@@ -2037,7 +2039,7 @@ module grid
 
     subroutine bc_convert_c_to_i
 
-        use utils , only : ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
+        use utils , only : ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG, MMS_DIRICHLET
 
         implicit none
 
@@ -2059,6 +2061,8 @@ module grid
                 ibc_type(ib) = BC_VISC_STRONG
             case('outflow_subsonic')
                 ibc_type(ib) = BC_BACK_PRESSURE
+            case('mms_dirichlet')
+                ibc_type(ib) = MMS_DIRICHLET
             case default
                 write(*,*) "Boundary condition=",trim(bc_type(ib)),"  not implemented."
                 write(*,*) " --- Stop at bc_convert_c_to_i in grid.f90..."

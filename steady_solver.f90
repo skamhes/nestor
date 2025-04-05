@@ -29,7 +29,7 @@ module steady_solver
 
         use config    , only : accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag, solver_type
+                                lift, drag, solver_type, run_mms
 
         use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
                                itime_method, TM_REMAINING, TM_ELAPSED
@@ -109,6 +109,12 @@ module steady_solver
         if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID ) then
             call init_gradients
         endif    
+
+        ! run mms
+        if (run_mms) then
+            call solve_mms
+            return
+        endif
 
         ! Skipping importing data for now
         
@@ -548,5 +554,76 @@ module steady_solver
             safety_factor_primative = safety_factor_primative * 0.2_p2 * q(5) / deltaq(5)
         endif   
     end function safety_factor_primative
+
+    subroutine solve_mms
+
+        use common , only : p2
+
+        use mms
+
+        use residual , only : compute_residual
+
+        use solution , only : q, res, inv_ncells, ccgradq
+
+        use grid , only : nb, ncells, cell
+
+        use utils , only : ibc_type, MMS_DIRICHLET
+
+        integer :: i, ib
+        real(p2), dimension(:,:), allocatable :: S ! source term added to the residual
+        real(p2), dimension(:,:,:), allocatable :: exac_gradW
+        real(p2), dimension(5) :: norm1, gnorm1
+
+        do ib = 1,nb
+            if (ibc_type(ib) /= MMS_DIRICHLET) then
+                write(*,*) "  Dirichlet BC enforced: ", ib
+                ibc_type(ib) = MMS_DIRICHLET
+            end if
+        end do
+
+        allocate(S(5,ncells))
+        allocate(exac_gradW(3,5,ncells))
+
+        do i = 1,ncells
+            call fMMS(cell(i)%xc,cell(i)%yc,cell(i)%zc, q(:,i), S(:,i), gradW=exac_gradW(:,:,i))
+        end do
+
+        call compute_residual
+
+        ! subtract the source term from the residual
+        do i = 1,ncells
+            res(:,i) = res(:,i) - S(:,i) * cell(i)%vol
+        end do
+
+        norm1 = 0.0_p2
+        gnorm1= 0.0_p2
+        do i = 1, ncells
+            norm1 = norm1 + abs(res(:,i)/cell(i)%vol) !TE = Res/Volume.
+            gnorm1(1) = gnorm1(1) + abs(exac_gradW(1,5,i) - ccgradq(1,1,i)) + abs(exac_gradW(2,5,i) - ccgradq(2,1,i)) ! ip
+            gnorm1(2) = gnorm1(2) + abs(exac_gradW(1,2,i) - ccgradq(1,2,i)) + abs(exac_gradW(2,2,i) - ccgradq(2,2,i)) ! iu
+            gnorm1(3) = gnorm1(3) + abs(exac_gradW(1,3,i) - ccgradq(1,3,i)) + abs(exac_gradW(2,3,i) - ccgradq(2,3,i)) ! iw
+            ! iz = 0 and iT isn't calculated
+        end do
+
+        norm1 = norm1 * inv_ncells
+        gnorm1 = gnorm1 * 0.5_p2 * inv_ncells
+
+        !Print the TE for all 5 equations.
+
+        write(*,*)
+        write(*,*)
+        write(*,*)
+        write(*,*) " -------------- Truncation error norm ------------------"
+        write(*,*) "              conti     x-mom       y-mom        z-mom        energy       ncells" 
+        write(*,'(a,5es13.5,i10)') "  L1(TE) ", norm1, ncells
+        write(*,'(a,3es13.5)') " gL1(TE) ", gnorm1(1:3)
+        write(*,*)
+        write(*,*)
+        write(*,*)
+        write(*,*)
+        write(*,*)
+
+
+    end subroutine solve_mms
 
 end module steady_solver

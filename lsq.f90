@@ -35,6 +35,7 @@ module least_squares
     type(lsq_data_type), dimension(:), pointer :: lsq  !cell-centered LSQ array
 
     ! Boundary int rankings
+    integer, parameter :: MMS_DIRICHLET = 9999
     integer, parameter :: NO_SLIP_WALL = 99
     integer, parameter :: SLIP_WALL = 98
     integer, parameter :: FREE_STREAM = 51
@@ -167,6 +168,8 @@ module least_squares
                             lsq(vk)%btype = max(lsq(vk)%btype,NO_SLIP_WALL)
                         case('outflow_subsonic')
                             lsq(vk)%btype = max(lsq(vk)%btype,PRESSURE_OUTLET)
+                        case('mms_dirichlet')
+                            lsq(vk)%btype = max(lsq(vk)%btype,MMS_DIRICHLET)
                         case default
                             write(*,*) "Boundary condition=",trim(bc_type(ib)),"  not implemented."
                             stop

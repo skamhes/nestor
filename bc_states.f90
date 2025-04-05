@@ -6,21 +6,24 @@ module bc_states
 
     contains
 
-    subroutine get_right_state(qL,njk, bc_state_type, qcB)
+    subroutine get_right_state(qL,cc,njk, bc_state_type, qcB)
 
         use common     , only : p2
 
-        use utils , only : BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
+        use utils , only : BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG, MMS_DIRICHLET
+
+        use mms , only : fMMS
 
         implicit none
 
         !Input
         real(p2), dimension(5),     intent(in) :: qL
-        real(p2), dimension(3),     intent(in) :: njk
+        real(p2), dimension(3),     intent(in) :: njk, cc
         integer ,           intent(in)         :: bc_state_type
         
         !output
         real(p2), dimension(5),    intent(out) :: qcB
+        real(p2), dimension(5) :: dummy
 
         select case(bc_state_type)
             case(BC_FARFIELD)
@@ -31,6 +34,8 @@ module bc_states
                 call no_slip_wall(qL,qcB)
             case(BC_BACK_PRESSURE)
                 call back_pressure(qL,qcB)
+            case(MMS_DIRICHLET)
+                call fMMS(cc(1),cc(2),cc(3),qcB,dummy)
             case default
                 write(*,*) "Boundary condition=", bc_state_type ,"  not implemented."
                 write(*,*) " --- Stop at get_right_state() in bc_states.f90..."

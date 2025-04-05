@@ -93,7 +93,7 @@ module viscous_flux
     end subroutine visc_flux_boundary
 
     subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+        use common                  , only : p2, half, one, zero, three_half, two_third, four_third, ix, iy, iz
 
         use solution                , only : gammamo, nq, ndim, T_inf ! w2u, nq
         
@@ -124,7 +124,7 @@ module viscous_flux
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
         C0= sutherland_constant/reference_temp
-        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+        mu =  M_inf/Re_inf * (one + C0) / (T + C0)*T**(three_half)
 
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
         if (isnan(mu)) then 
@@ -140,10 +140,10 @@ module viscous_flux
 
         ! Viscous stresses (Stokes' hypothesis is assumed)
        
-        tauxx =  mu*(four_third*grad_u(1) - two_third*grad_v(2) - two_third*grad_w(3))
-        tauyy =  mu*(four_third*grad_v(2) - two_third*grad_u(1) - two_third*grad_w(3))
-        tauzz =  mu*(four_third*grad_w(3) - two_third*grad_u(1) - two_third*grad_v(2))
-    
+        tauxx =  mu * (four_third*grad_u(ix) - two_third*grad_v(iy) - two_third*grad_w(iz))
+        tauyy =  mu * (four_third*grad_v(iy) - two_third*grad_u(ix) - two_third*grad_w(iz))
+        tauzz =  mu * (four_third*grad_w(iz) - two_third*grad_u(ix) - two_third*grad_v(iy))
+
         tauxy =  mu*(grad_u(2) + grad_v(1))
         tauxz =  mu*(grad_u(3) + grad_w(1))
         tauyz =  mu*(grad_v(3) + grad_w(2))
@@ -154,9 +154,9 @@ module viscous_flux
     
         ! Heat fluxes: q = - mu*grad(T)/(Prandtl*(gamma-1))
     
-        qx = - mu*grad_T(1)/(pr*(gammamo))
-        qy = - mu*grad_T(2)/(pr*(gammamo))
-        qz = - mu*grad_T(3)/(pr*(gammamo))
+        qx = - mu*grad_T(ix)/(pr*(gammamo))
+        qy = - mu*grad_T(iy)/(pr*(gammamo))
+        qz = - mu*grad_T(iz)/(pr*(gammamo))
 
         tauxn = tauxx*n12(1) + tauxy*n12(2) + tauxz*n12(3)
         tauyn = tauyx*n12(1) + tauyy*n12(2) + tauyz*n12(3)

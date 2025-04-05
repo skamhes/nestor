@@ -1,22 +1,22 @@
 &project
-  project_name = "quad_3d"
-  second_namelist = "grids/cylinder/final_grids/nestor.nml"
-  io_path = "grids/cylinder/final_grids/"
+  project_name = "quad1024_3d"
+  ! second_namelist = "grids/cylinder/final_grids/nestor.nml"
+  ! io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
-  generate_tec_file_b = .true.
+  generate_tec_file_b = .false.
     !drag = .true.
   area_reference = 1.0
   /
    
 &freestream   
-  M_inf = 0.2
+  M_inf = 0.5
   /
 
 &solver
   CFL = 1
-  solver_type = "gcr"
+  solver_type = "explicit"
   perturb_initial = .true.
   solver_tolerance = 1e-2
   solver_max_itr = 1000
@@ -42,7 +42,12 @@ gcr_reduction_target = 0.05
   /
 
 &turbulence
-  !turbulence_type = 'viscous'
+  turbulence_type = 'laminar'
+  Re_inf = 1
+  /
+
+&MMS
+  run_mms = .true.
   /
 
 &debug

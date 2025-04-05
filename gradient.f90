@@ -91,7 +91,7 @@ module gradient
         
         use common          , only : p2, zero
 
-        use grid            , only : ncells, nnodes, bound, cell
+        use grid            , only : ncells, nnodes, bound, cell, x, y, z
 
         use least_squares   , only : lsq, INTERNAL
 
@@ -103,10 +103,11 @@ module gradient
 
         implicit none
 
-        integer  :: i, ib, ivar, k, bound_int
+        integer  :: i, ib, ivar, k, bound_int, cib
         integer  :: attached_cell, attached_bface
         integer  :: unknowns
         real(p2) :: qi, qk          ! Node and attached cell values
+        real(p2) :: dx,dy,dz,cgx,cgy,cgz
         
         real(p2), dimension(5) :: qL, qcB              ! Values for attached bcell (for computing ghost cell values)
         real(p2), dimension(3) :: bface_nrml
@@ -116,7 +117,7 @@ module gradient
             var_loop : do ivar = 1, nq
                 if (lsq(i)%btype /= INTERNAL ) then ! boundary vertex
                     bound_int = lsq(i)%btype
-                    call boundary_value(bound_int,ivar, unknowns, qi)
+                    call boundary_value(bound_int,ivar, unknowns, qi, (/x(i),y(i),z(i)/))
                 endif
                 attach_loop : do k = 1,lsq(i)%ncells_lsq
                     ! Get q at the neighboring cell (qk)
@@ -129,8 +130,15 @@ module gradient
                         attached_cell  = bound(ib)%bcell(attached_bface) 
                         qL = q(:,attached_cell)
                         bface_nrml = bound(ib)%bface_nrml(:,attached_bface)
+                        cib = bound(ib)%bcell(attached_bface)
+                        dx = bound(ib)%bface_center(1,attached_bface) - cell(cib)%xc
+                        dy = bound(ib)%bface_center(2,attached_bface) - cell(cib)%yc
+                        dz = bound(ib)%bface_center(3,attached_bface) - cell(cib)%zc
+                        cgx = bound(ib)%bface_center(1,attached_bface) + dx
+                        cgy = bound(ib)%bface_center(2,attached_bface) + dy
+                        cgz = bound(ib)%bface_center(3,attached_bface) + dz
                         ! This is somewhat redundant.  At some point I should improve it...
-                        call get_right_state(qL,bface_nrml, ibc_type(ib), qcB)
+                        call get_right_state(qL,(/cgx,cgy,cgz/),bface_nrml, ibc_type(ib), qcB)
                         qk = qcB(ivar)
                     endif
                     if ( unknowns == 3) then
@@ -162,19 +170,24 @@ module gradient
 
     end subroutine compute_vgradient
 
-    subroutine boundary_value(boundary_type, scalar, known, value)
+    subroutine boundary_value(boundary_type, scalar, known, bvalue,cc)
         use common          , only : p2, zero
 
         use solution        , only : p_inf, u_inf, v_inf, w_inf, T_inf
 
-        use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET
+        use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET, MMS_DIRICHLET
+
+        use mms
 
         implicit none
 
         integer      ,              intent(in ) :: boundary_type
         integer      ,              intent(in ) :: scalar
         integer      ,              intent(out) :: known
-        real(p2)     ,              intent(out) :: value
+        real(p2)     ,              intent(out) :: bvalue
+
+        real(p2),dimension(3),intent(in)  :: cc
+        real(p2),dimension(5) ::qtmp, dummy
     
         
         select case(boundary_type) 
@@ -182,29 +195,33 @@ module gradient
             known = 3
             select case(scalar)
             case(1)
-                value = p_inf
+                bvalue = p_inf
             case(2)
-                value = u_inf
+                bvalue = u_inf
             case(3)
-                value = v_inf
+                bvalue = v_inf
             case(4)
-                value = w_inf
+                bvalue = w_inf
             case(5)
-                value = T_inf
+                bvalue = T_inf
             end select
         case(NO_SLIP_WALL)
             if (scalar >= 2 .AND. scalar <= 4) then
-                value = zero
+                bvalue = zero
                 known = 3
             else
                 known = 4
             endif
         case(SLIP_WALL)
-            ! For ghost values that depend on internal flow values, for now we will leave the vertex
-            ! value as unknown
+            ! For ghost bvalues that depend on internal flow bvalues, for now we will leave the vertex
+            ! bvalue as unknown
             known = 4
         case(PRESSURE_OUTLET)
             known = 4
+        case(MMS_DIRICHLET)
+            known = 3
+            call fMMS(cc(1),cc(2),cc(3),qtmp,dummy)
+            bvalue = qtmp(scalar)
         case default
             write(*,*) "Boundary condition #",boundary_type,"  not implemented."
             stop
