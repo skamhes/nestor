@@ -14,7 +14,7 @@ module mms
 
     contains
 
-    subroutine fMMS(x,y,z, Q,S, gradW)
+    subroutine fMMS(x,y,z, Q,S, gradQ)
 
         use config , only : M_inf, Pr, sutherland_constant, Re_inf, M_inf, reference_temp
 
@@ -30,7 +30,7 @@ module mms
 
         real(p2),                 intent(in)  :: x,y,z ! coordinates
         real(p2), dimension(5),   intent(out) :: Q, S  ! Solution and source terms
-        real(p2), dimension(3,5), optional, intent(inout) :: gradW
+        real(p2), dimension(3,5), optional, intent(inout) :: gradQ
 
         ! Coefficients
         real(p2) :: cr0, crs, crx, cry
@@ -56,43 +56,7 @@ module mms
         real(p2) :: rhovH, rhovHx, rhovHy
 
         real(p2) :: F2, F3, F5
-        ! real(p2) :: F2hand, F3hand, F5hand
 
-        ! ! Stress tensor
-        ! real(p2) :: txx, txy
-        ! real(p2) :: tyx, tyy
-        ! ! d(tau) (we only need some terms)
-        ! real(p2) :: txx_x, txy_x, tyx_x
-        ! real(p2) :: tyy_y, tyx_y, txy_y
-        ! real(p2) :: tvx_x, tvy_y
-
-        ! real(p2) :: t, dtdx, dtdy, dtdz ! temp
-        ! real(p2) :: dtdxx, dtdxy, dtdyx, dtdyy
-        ! real(p2) :: pxr, prx, pyr, pry
-        ! real(p2) :: pxrx, pxry, pyrx, pyry
-        ! real(p2) :: pxxr, prxx, pyyr, pryy
-        ! real(p2) :: pxyr, prxy, pyxr, pryx
-        ! real(p2) :: qxx, qyy, qzz
-
-        ! real(p2) :: dummy
-        ! real(p2) :: f, fx, fy, g, gx, gy
-
-        ! ! 2nd derivatives
-        ! ! u
-        ! real(p2) :: uxx, uxy! uxy = uyx
-        ! real(p2) :: uyx, uyy
-        ! ! v
-        ! real(p2) :: vxx, vxy! vxy = vyx
-        ! real(p2) :: vyx, vyy
-        ! ! p
-        ! real(p2) :: pxx, pxy! pxy = pyx
-        ! real(p2) :: pyx, pyy
-        ! ! rho
-        ! real(p2) :: rxx, rxy! rxy = ryx
-        ! real(p2) :: ryx, ryy
-        
-
-        ! real(p2) :: mu, mudt, mux, muy, muz
         real(p2) :: C0, xmr
 
         real(p2), dimension(5) :: wtmp
@@ -174,13 +138,15 @@ module mms
         wtmp = (/ rho, u, v, 0.0_p2, p/)
         Q = w2q(wtmp)
 
-        if (present(gradW)) then
-            gradW = 0.0_p2
-            gradW(:,1) = (/rhox, rhoy, 0.0_p2/)
-            gradW(:,2) = (/ux, uy, 0.0_p2/)
-            gradW(:,3) = (/vx, vy, 0.0_p2/)
-            gradW(:,4) = 0.0_p2
-            gradW(:,5) = (/px, py, 0.0_p2/)
+        if (present(gradQ)) then
+            gradQ = 0.0_p2
+            gradQ(:,1) = (/px, py, 0.0_p2/)
+            gradQ(:,2) = (/ux, uy, 0.0_p2/)
+            gradQ(:,3) = (/vx, vy, 0.0_p2/)
+            gradQ(:,4) = 0.0_p2
+            gradQ(:,5) = (/dTx(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
+                           dTy(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
+                           0.0_p2/)
         endif
 
         !-----------------------------------------------------------------------------
@@ -287,110 +253,6 @@ module mms
 
             C0  = sutherland_constant/reference_temp
             xmr = M_inf/Re_inf
-            ! mu  = xmr * (one + C0) / (Q(5) + C0)*Q(5)**(1.5_p2)
-            
-            ! txx = (2.0_p2/3.0_p2) * mu * (2.0_p2 * ux - vy ) ! wz = 0
-            ! txy = mu * (uy + vx)
-
-            ! tyx = txy
-            ! tyy = (2.0_p2/3.0_p2) * mu * (2.0_p2 * vy - ux ) ! wz = 0
-
-
-            ! ! Temperature
-            ! call quotient_rule(p*gamma,px*gamma,py*gamma,rho,rhox,rhoy,T,dtdx,dtdy)
-            ! dtdz = 0.0_p2
-
-            ! ! 2nd Derivatives
-            ! rxx = manufactured_sol(cr0,crs,crx,cry, 2,0,x,y)
-            ! ryy = manufactured_sol(cr0,crs,crx,cry, 0,2,x,y)
-            ! rxy = manufactured_sol(cr0,crs,crx,cry, 1,1,x,y)
-            ! ryx = rxy
-
-            ! uxx = manufactured_sol(cu0,cus,cux,cuy, 2,0,x,y)
-            ! uyy = manufactured_sol(cu0,cus,cux,cuy, 0,2,x,y)
-            ! uxy = manufactured_sol(cu0,cus,cux,cuy, 1,1,x,y)
-            ! uyx = uxy
-
-            ! vxx = manufactured_sol(cv0,cvs,cvx,cvy, 2,0,x,y)
-            ! vyy = manufactured_sol(cv0,cvs,cvx,cvy, 0,2,x,y)
-            ! vxy = manufactured_sol(cv0,cvs,cvx,cvy, 1,1,x,y)
-            ! vyx = vxy
-            
-            ! pxx = manufactured_sol(cp0,cps,cpx,cpy, 2,0,x,y)
-            ! pyy = manufactured_sol(cp0,cps,cpx,cpy, 0,2,x,y)
-            ! pxy = manufactured_sol(cp0,cps,cpx,cpy, 1,1,x,y)
-            ! pyx = pxy
-
-            ! mudt = 0.5_p2 * mu * (1.0_p2 + 3.0_p2 * C0 / T) / (T + C0)
-            ! mux = mudt * dtdx
-            ! muy = mudt * dtdy
-            ! muz = 0.0_p2
-
-            ! ! d(pr)
-            ! pxr = px * rho
-            ! pyr = py * rho
-            ! prx = p * rhox
-            ! pry = p * rhoy
-                
-            ! ! dd(pr)
-            ! pxxr = pxx * rho
-            ! pxrx = px * rhox
-            ! prxx = p  *  rxx
-
-            ! pxyr = pxy * rho
-            ! pxry = px * rhoy
-            ! pyrx = py * rhox
-            ! prxy = p *   rxy
-            
-            ! pyyr = pyy * rho
-            ! pyry = py * rhoy
-            ! pryy = p *   ryy
-
-            ! pyxr = pxyr
-            ! ! pyrx = py * rhox
-            ! ! pxry = px * rhoy
-            ! pryx = prxy
-
-            ! ! Txx and Txy
-            ! f  = gamma * (pxr - prx)
-            ! fx = gamma * (pxxr - prxx)
-            ! fy = gamma * (pxyr + pxry - pyrx - prxy)
-
-            ! g = rho * rho
-            ! gx = 2 * rho * rhox
-            ! gy = 2 * rho * rhoy
-
-            ! ! dummy is f/g which is Tx
-            ! call quotient_rule(f,fx,fy,g,gx,gy,dummy,dtdxx,dtdxy)
-
-            ! ! Tyx and Tyy
-            ! f  = gamma * (pyr - pry)
-            ! fx = gamma * (pyyr - pryy)
-            ! fy = gamma * (pyxr + pyrx - pxry - pryx)
-
-            ! ! g is the same
-            ! call quotient_rule(f,fx,fy,g,gx,gy,dummy,dtdyx,dtdyy)
-
-            ! qxx = ((-gamma)/(Pr*(gamma-1.0_p2))) * (mux * (-px/rho - p*rhox/rho**2) + &
-            !      mu * (2.0_p2 * rhox*px / rho**2 + pxx/rho + p*rhox*rhox / rho**3 - p*rxx / rho**2) ) ! Eq 4.13.14 idlCFD
-            ! qyy = ((-gamma)/(Pr*(gamma-1.0_p2))) * (muy * (-px/rho - p*rhox/rho**2) + &
-            !      mu * (2.0_p2 * rhoy*py / rho**2 + pyy/rho + p*rhoy*rhoy / rho**3 - p*ryy / rho**2) ) ! Eq 4.13.15 idlCFD
-
-            ! !d(tau)
-            ! txx_x = (2.0_p2/3.0_p2) * ( mux * (2.0_p2 * ux - vy) + mu * (2.0_p2 * uxx - vyx) )
-            ! txy_x = mux * (uy + vx) * mu * (uyx + vxx)
-            ! tyx_x = txy_x
-
-            ! tyy_y = (2.0_p2/3.0_p2) * ( muy * (2.0_p2 * vy - ux) + mu * (2.0_p2 * vyy - uxy) )
-            ! txy_y = muy * (uy + vx) * mu * (uyy + vxy)
-            ! tyx_y = txy_y
-
-            ! tvx_x = u * txx_x + v * txy_x + txx * ux + txy * vx
-            ! tvy_y = u * tyx_y + v * tyy_y + tyx * uy + tyy * vy
-
-            ! F2hand = - txx_x - txy_y
-            ! F3hand = - tyx_x - tyy_y
-            ! F5hand = - tvx_x - tvy_y + qxx + qyy
 
             f2 = myF2(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
             cuy, cvs, cvx, cvy, gamma, x, xmr, y)
@@ -547,6 +409,9 @@ module mms
 
     ! Compute the quotient rule h' = (f'g - fg')/g^2
     subroutine quotient_rule(f, fx, fy, g, gx, gy, h, hx, hy)
+        
+        implicit none
+        
         real(p2), intent(in) :: f, fx, fy
         real(p2), intent(in) :: g, gx, gy
 

@@ -177,7 +177,7 @@ module gradient
 
         use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET, MMS_DIRICHLET
 
-        use mms
+        use mms             , only : fMMS
 
         implicit none
 

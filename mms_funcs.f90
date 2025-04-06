@@ -338,36 +338,25 @@ module mms_funcs
     !*                       This file is part of 'project'                       *
     !******************************************************************************
 
+    real(p2) function dTx(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y)
+    implicit none
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: y
 
-    ! interface
-    ! real(p2) function myF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
-    ! cus, cux, cuy, cv0, cvs, cvx, cvy, gamma, gammamo, x, xmr, &
-    ! y)
-    ! implicit none
-    ! real(p2), intent(in) :: C0
-    ! real(p2), intent(in) :: Pr
-    ! real(p2), intent(in) :: cp0
-    ! real(p2), intent(in) :: cps
-    ! real(p2), intent(in) :: cpx
-    ! real(p2), intent(in) :: cpy
-    ! real(p2), intent(in) :: cr0
-    ! real(p2), intent(in) :: crs
-    ! real(p2), intent(in) :: crx
-    ! real(p2), intent(in) :: cry
-    ! real(p2), intent(in) :: cu0
-    ! real(p2), intent(in) :: cus
-    ! real(p2), intent(in) :: cux
-    ! real(p2), intent(in) :: cuy
-    ! real(p2), intent(in) :: cv0
-    ! real(p2), intent(in) :: cvs
-    ! real(p2), intent(in) :: cvx
-    ! real(p2), intent(in) :: cvy
-    ! real(p2), intent(in) :: gamma
-    ! real(p2), intent(in) :: gammamo
-    ! real(p2), intent(in) :: x
-    ! real(p2), intent(in) :: xmr
-    ! real(p2), intent(in) :: y
-    ! end function
+        dTx = cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) &
+            - crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y) &
+            /(cr0 + crs*sin(crx*x + cry*y))**2
+
+    end function dTx
 
     !******************************************************************************
     !*                      Code generated with SymPy 1.10.1                      *
@@ -377,67 +366,23 @@ module mms_funcs
     !*                       This file is part of 'project'                       *
     !******************************************************************************
 
+        real(p2) function dTy(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y)
+        implicit none
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: y
 
-    ! interface
-    ! real(p2) function myF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
-    ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
-    ! implicit none
-    ! real(p2), intent(in) :: C0
-    ! real(p2), intent(in) :: cp0
-    ! real(p2), intent(in) :: cps
-    ! real(p2), intent(in) :: cpx
-    ! real(p2), intent(in) :: cpy
-    ! real(p2), intent(in) :: cr0
-    ! real(p2), intent(in) :: crs
-    ! real(p2), intent(in) :: crx
-    ! real(p2), intent(in) :: cry
-    ! real(p2), intent(in) :: cus
-    ! real(p2), intent(in) :: cux
-    ! real(p2), intent(in) :: cuy
-    ! real(p2), intent(in) :: cvs
-    ! real(p2), intent(in) :: cvx
-    ! real(p2), intent(in) :: cvy
-    ! real(p2), intent(in) :: gamma
-    ! real(p2), intent(in) :: x
-    ! real(p2), intent(in) :: xmr
-    ! real(p2), intent(in) :: y
-    ! end function
-    ! end interface
+        dTy = cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) &
+            - crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y) &
+            /(cr0 + crs*sin(crx*x + cry*y))**2
 
-    !******************************************************************************
-    ! !*                      Code generated with SymPy 1.10.1                      *
-    ! !*                                                                            *
-    ! !*              See http://www.sympy.org/ for more information.               *
-    ! !*                                                                            *
-    ! !*                       This file is part of 'project'                       *
-    ! !******************************************************************************
-
-
-    ! interface
-    ! real(p2) function myF2(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
-    ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
-    ! implicit none
-    ! real(p2), intent(in) :: C0
-    ! real(p2), intent(in) :: cp0
-    ! real(p2), intent(in) :: cps
-    ! real(p2), intent(in) :: cpx
-    ! real(p2), intent(in) :: cpy
-    ! real(p2), intent(in) :: cr0
-    ! real(p2), intent(in) :: crs
-    ! real(p2), intent(in) :: crx
-    ! real(p2), intent(in) :: cry
-    ! real(p2), intent(in) :: cus
-    ! real(p2), intent(in) :: cux
-    ! real(p2), intent(in) :: cuy
-    ! real(p2), intent(in) :: cvs
-    ! real(p2), intent(in) :: cvx
-    ! real(p2), intent(in) :: cvy
-    ! real(p2), intent(in) :: gamma
-    ! real(p2), intent(in) :: x
-    ! real(p2), intent(in) :: xmr
-    ! real(p2), intent(in) :: y
-    ! end function
-    ! end interface
-
-
+    end function dTy
 end module mms_funcs

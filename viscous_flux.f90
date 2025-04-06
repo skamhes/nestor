@@ -4,6 +4,7 @@ module viscous_flux
 
     public :: visc_flux_internal
     public :: visc_flux_boundary
+    public :: compute_visc_num_flux
 
     private 
 

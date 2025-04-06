@@ -561,6 +561,8 @@ module steady_solver
 
         use mms
 
+        use mms_exact
+
         use residual , only : compute_residual
 
         use solution , only : q, res, inv_ncells, ccgradq
@@ -571,9 +573,9 @@ module steady_solver
 
         integer :: i, ib
         real(p2), dimension(:,:), allocatable :: S ! source term added to the residual
-        real(p2), dimension(:,:,:), allocatable :: exac_gradW
+        real(p2), dimension(:,:,:), allocatable :: exac_gradQ
         real(p2), dimension(5) :: norm1, gnorm1
-
+        integer :: int_cell ! Interior cell (in 2D)
         do ib = 1,nb
             if (ibc_type(ib) /= MMS_DIRICHLET) then
                 write(*,*) "  Dirichlet BC enforced: ", ib
@@ -582,10 +584,10 @@ module steady_solver
         end do
 
         allocate(S(5,ncells))
-        allocate(exac_gradW(3,5,ncells))
+        allocate(exac_gradQ(3,5,ncells))
 
         do i = 1,ncells
-            call fMMS(cell(i)%xc,cell(i)%yc,cell(i)%zc, q(:,i), S(:,i), gradW=exac_gradW(:,:,i))
+            call fMMS(cell(i)%xc,cell(i)%yc,cell(i)%zc, q(:,i), S(:,i), gradQ=exac_gradQ(:,:,i))
         end do
 
         call compute_residual
@@ -599,14 +601,21 @@ module steady_solver
         gnorm1= 0.0_p2
         do i = 1, ncells
             norm1 = norm1 + abs(res(:,i)/cell(i)%vol) !TE = Res/Volume.
-            gnorm1(1) = gnorm1(1) + abs(exac_gradW(1,5,i) - ccgradq(1,1,i)) + abs(exac_gradW(2,5,i) - ccgradq(2,1,i)) ! ip
-            gnorm1(2) = gnorm1(2) + abs(exac_gradW(1,2,i) - ccgradq(1,2,i)) + abs(exac_gradW(2,2,i) - ccgradq(2,2,i)) ! iu
-            gnorm1(3) = gnorm1(3) + abs(exac_gradW(1,3,i) - ccgradq(1,3,i)) + abs(exac_gradW(2,3,i) - ccgradq(2,3,i)) ! iw
-            ! iz = 0 and iT isn't calculated
+            gnorm1(1) = gnorm1(1) + abs(exac_gradQ(1,1,i) - ccgradq(1,1,i)) + abs(exac_gradQ(2,5,i) - ccgradq(2,1,i)) ! ip
+            gnorm1(2) = gnorm1(2) + abs(exac_gradQ(1,2,i) - ccgradq(1,2,i)) + abs(exac_gradQ(2,2,i) - ccgradq(2,2,i)) ! iu
+            gnorm1(3) = gnorm1(3) + abs(exac_gradQ(1,3,i) - ccgradq(1,3,i)) + abs(exac_gradQ(2,3,i) - ccgradq(2,3,i)) ! iv
+            gnorm1(4) = gnorm1(4) + abs(exac_gradQ(1,4,i) - ccgradq(1,4,i)) + abs(exac_gradQ(2,4,i) - ccgradq(2,4,i)) ! iw
+            gnorm1(5) = gnorm1(5) + abs(exac_gradQ(1,5,i) - ccgradq(1,5,i)) + abs(exac_gradQ(2,5,i) - ccgradq(2,5,i)) ! iT
         end do
 
         norm1 = norm1 * inv_ncells
         gnorm1 = gnorm1 * 0.5_p2 * inv_ncells
+
+        ! Compute the residual at an internal cell with the exact values at the face (debugging)
+        int_cell = int(sqrt(real(ncells))) ! cell is an n x n square
+        int_cell = int_cell + 2 ! 2nd cell of 2nd row
+        call manual_test_mms(cell(int_cell), int_cell)
+
 
         !Print the TE for all 5 equations.
 
@@ -616,7 +625,7 @@ module steady_solver
         write(*,*) " -------------- Truncation error norm ------------------"
         write(*,*) "              conti     x-mom       y-mom        z-mom        energy       ncells" 
         write(*,'(a,5es13.5,i10)') "  L1(TE) ", norm1, ncells
-        write(*,'(a,3es13.5)') " gL1(TE) ", gnorm1(1:3)
+        write(*,'(a,5es13.5)') " gL1(TE) ", gnorm1(1:5)
         write(*,*)
         write(*,*)
         write(*,*)
