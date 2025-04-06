@@ -39,12 +39,14 @@ module viscous_flux
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
         dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
 
+        ! write(*,'(a40,3es13.5)') " numerical (uncorrected) face gradx", half * (gradq1(:,2) + gradq2(:,2))
         ! Equation 14
         do ivar = 1,nq
             gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar))
             gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
         end do
 
+        ! write(*,'(a40,3es13.5)') " numerical (corrected) face gradx", gradq_face(:,2)
         ! This subroutine only handles computing the interface gradient.
         ! Once we have it we call the internal function
         call compute_visc_num_flux(q1,q2,gradq_face,n12,num_flux)
@@ -83,7 +85,7 @@ module viscous_flux
 
         ! Equation 14
         do ivar = 1,nq
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( half * (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
         end do
 
 
