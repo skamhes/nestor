@@ -530,5 +530,213 @@ module mms_funcs
 
     end function my_txx_y
 
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
+    real(p2) function my_qx(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, &
+    gammamo, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: Pr
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: gammamo
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        my_qx = -xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x &
+            + cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(cps*cpx*gamma*cos(cpx*x + cpy &
+            *y)/(cr0 + crs*sin(crx*x + cry*y)) - crs*crx*gamma*(cp0 + cps*sin &
+            (cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y &
+            ))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/( &
+            cr0 + crs*sin(crx*x + cry*y))))
+
+    end function my_qx
+
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
+    real(p2) function my_qy(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, &
+    gammamo, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: Pr
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: gammamo
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        my_qy = -xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x &
+            + cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(cps*cpy*gamma*cos(cpx*x + cpy &
+            *y)/(cr0 + crs*sin(crx*x + cry*y)) - crs*cry*gamma*(cp0 + cps*sin &
+            (cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y &
+            ))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/( &
+            cr0 + crs*sin(crx*x + cry*y))))
+
+    end function my_qy
+
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
+    real(p2) function my_dq(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, &
+        gammamo, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: Pr
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: gammamo
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        my_dq = -xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x &
+            + cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(-cps*cpx**2*gamma*sin(cpx*x + &
+            cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 2*cps*cpx*crs*crx*gamma* &
+            cos(cpx*x + cpy*y)*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry* &
+            y))**2 + 2*crs**2*crx**2*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos &
+            (crx*x + cry*y)**2/(cr0 + crs*sin(crx*x + cry*y))**3 + crs*crx**2 &
+            *gamma*(cp0 + cps*sin(cpx*x + cpy*y))*sin(crx*x + cry*y)/(cr0 + &
+            crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + cps* &
+            sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))) - xmr*(gamma &
+            *(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))** &
+            (3.0_p2/2.0_p2)*(C0 + 1)*(-cps*cpy**2*gamma*sin(cpx*x + cpy*y)/(cr0 &
+            + crs*sin(crx*x + cry*y)) - 2*cps*cpy*crs*cry*gamma*cos(cpx*x + &
+            cpy*y)*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2 + 2* &
+            crs**2*cry**2*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + &
+            cry*y)**2/(cr0 + crs*sin(crx*x + cry*y))**3 + crs*cry**2*gamma*( &
+            cp0 + cps*sin(cpx*x + cpy*y))*sin(crx*x + cry*y)/(cr0 + crs*sin( &
+            crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + cps*sin(cpx*x &
+            + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))) - xmr*(gamma*(cp0 + &
+            cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0_p2/ &
+            2.0_p2)*(C0 + 1)*(-cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin &
+            (crx*x + cry*y)) + crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))* &
+            cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)*(cps*cpx* &
+            gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - crs*crx &
+            *gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + &
+            crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + cps* &
+            sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2) - xmr*( &
+            gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y &
+            )))**(3.0_p2/2.0_p2)*(C0 + 1)*(-cps*cpy*gamma*cos(cpx*x + cpy*y)/( &
+            cr0 + crs*sin(crx*x + cry*y)) + crs*cry*gamma*(cp0 + cps*sin(cpx* &
+            x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2) &
+            *(cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y &
+            )) - crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry &
+            *y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*( &
+            cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2 &
+            ) - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx* &
+            x + cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y &
+            ))*(cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y &
+            )) - crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry &
+            *y)/(cr0 + crs*sin(crx*x + cry*y))**2)*((3.0_p2/2.0_p2)*cps*cpx* &
+            gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 3.0_p2/ &
+            2.0_p2*crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + &
+            cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(Pr*gamma*gammamo*(C0 + &
+            gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y &
+            )))*(cp0 + cps*sin(cpx*x + cpy*y))) - xmr*(gamma*(cp0 + cps*sin( &
+            cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0_p2/2.0_p2)*( &
+            C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(cps*cpy*gamma*cos(cpx*x + &
+            cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - crs*cry*gamma*(cp0 + cps* &
+            sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry &
+            *y))**2)*((3.0_p2/2.0_p2)*cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + &
+            crs*sin(crx*x + cry*y)) - 3.0_p2/2.0_p2*crs*cry*gamma*(cp0 + cps* &
+            sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry &
+            *y))**2)/(Pr*gamma*gammamo*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy &
+            *y))/(cr0 + crs*sin(crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y &
+            )))
+
+    end function my_dq
+
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
+    real(p2) function my_tyy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+    cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: cus
+        real(p2), intent(in) :: cux
+        real(p2), intent(in) :: cuy
+        real(p2), intent(in) :: cvs
+        real(p2), intent(in) :: cvx
+        real(p2), intent(in) :: cvy
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        my_tyy_y = (2.0_p2/3.0_p2)*xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + &
+                crs*sin(crx*x + cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(cus*cux*cuy*sin &
+                (cux*x + cuy*y) - 2*cvs*cvy**2*sin(cvx*x + cvy*y))/(C0 + gamma*( &
+                cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) + ( &
+                2.0_p2/3.0_p2)*xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs &
+                *sin(crx*x + cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(-cus*cux*cos(cux*x &
+                + cuy*y) + 2*cvs*cvy*cos(cvx*x + cvy*y))*(-cps*cpy*gamma*cos(cpx* &
+                x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) + crs*cry*gamma*(cp0 + &
+                cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + &
+                cry*y))**2)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs &
+                *sin(crx*x + cry*y)))**2 + (2.0_p2/3.0_p2)*xmr*(gamma*(cp0 + cps* &
+                sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0_p2/2.0_p2 &
+                )*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(-cus*cux*cos(cux*x + &
+                cuy*y) + 2*cvs*cvy*cos(cvx*x + cvy*y))*((3.0_p2/2.0_p2)*cps*cpy* &
+                gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 3.0_p2/ &
+                2.0_p2*crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + &
+                cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(gamma*(C0 + gamma*(cp0 &
+                + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))*(cp0 + &
+                cps*sin(cpx*x + cpy*y)))
+
+    end function my_tyy_y
 
 end module mms_funcs

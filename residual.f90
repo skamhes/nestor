@@ -35,6 +35,8 @@ module residual
 
         use viscous_flux    , only : visc_flux_boundary, visc_flux_internal
 
+        use mms
+
         implicit none
 
         ! Grid Vars
@@ -126,7 +128,7 @@ module residual
             else 
                 phi1 = one
                 phi2 = one
-            end if
+
             call interface_flux(          q1,       q2   , & !<- Left/right states
                                       gradq1,      gradq2, & !<- Left/right gradients
                                          unit_face_normal, & !<- unit face normal
@@ -137,11 +139,12 @@ module residual
                                        face_centroid(3,i), & !<- face midpoint
                                         phi1,        phi2, & !<- Limiter functions
                                      num_flux, wave_speed  ) !<- Output
- 
-            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+                                    end if
+            
+            ! res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
             wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
             
-            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+            ! res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
 
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
@@ -158,7 +161,8 @@ module residual
 
         end do loop_faces
 
-        boundary_loop : do ib = 1,nb
+        !!!!!!!!!!!!!!!!!!!!!!!!V!!!!!!!!!!!!!!!!!!!
+        boundary_loop : do ib = 3,nb
             bface_loop : do j = 1,bound(ib)%nbfaces
                 bface_centroid = bound(ib)%bface_center(:,j)
                 if (use_limiter) then
@@ -211,7 +215,7 @@ module residual
                 
                                         num_flux, wave_speed  )
 
-                res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+                ! res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
                 if ( iturb_type == TURB_INVISCID ) cycle bface_loop
@@ -227,16 +231,15 @@ module residual
 
                 call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
 
+                ! call fMMS(fxc, fyc, fzc,q2,num_flux,gradQ=gradqb)
+                ! call fMMS(xc2, yc2, zc2,qb,num_flux)
                 call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                                           xc2,yc2,zc2, &
                                                               num_flux )
 
-                continue
-
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
 
-                continue
             end do bface_loop
 
         end do boundary_loop

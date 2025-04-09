@@ -575,6 +575,7 @@ module steady_solver
         real(p2), dimension(:,:), allocatable :: S ! source term added to the residual
         real(p2), dimension(:,:,:), allocatable :: exac_gradQ
         real(p2), dimension(5) :: norm1, gnorm1
+        real(p2) :: maxerr
         integer :: int_cell ! Interior cell (in 2D)
         do ib = 1,nb
             if (ibc_type(ib) /= MMS_DIRICHLET) then
@@ -591,32 +592,34 @@ module steady_solver
         end do
 
         call compute_residual
+        int_cell = int(sqrt(real(ncells))) ! cell is an n x n square
+        int_cell = int_cell * int_cell /2 + int_cell /2
+        int_cell = 1
+        write(*,'(a25,i5,a,5es13.5)') " rE_L1(TE) int  @ icell =  ",int_cell, ":", res(:,int_cell)
 
         ! subtract the source term from the residual
         do i = 1,ncells
             res(:,i) = res(:,i) - S(:,i) * cell(i)%vol
+            ccgradq(1:2,:,i) = ccgradq(1:2,:,i) - exac_gradQ(1:2,:,i)
         end do
 
         norm1 = 0.0_p2
         gnorm1= 0.0_p2
+        write(*,*)
         do i = 1, ncells
-            norm1 = norm1 + abs(res(:,i)/cell(i)%vol) !TE = Res/Volume.
-            gnorm1(1) = gnorm1(1) + abs(exac_gradQ(1,1,i) - ccgradq(1,1,i)) + abs(exac_gradQ(2,5,i) - ccgradq(2,1,i)) ! ip
-            gnorm1(2) = gnorm1(2) + abs(exac_gradQ(1,2,i) - ccgradq(1,2,i)) + abs(exac_gradQ(2,2,i) - ccgradq(2,2,i)) ! iu
-            gnorm1(3) = gnorm1(3) + abs(exac_gradQ(1,3,i) - ccgradq(1,3,i)) + abs(exac_gradQ(2,3,i) - ccgradq(2,3,i)) ! iv
-            gnorm1(4) = gnorm1(4) + abs(exac_gradQ(1,4,i) - ccgradq(1,4,i)) + abs(exac_gradQ(2,4,i) - ccgradq(2,4,i)) ! iw
-            gnorm1(5) = gnorm1(5) + abs(exac_gradQ(1,5,i) - ccgradq(1,5,i)) + abs(exac_gradQ(2,5,i) - ccgradq(2,5,i)) ! iT
+            norm1  =  norm1 + abs(res(:,i)/cell(i)%vol) * inv_ncells !TE = Res/Volume.
+            gnorm1 = gnorm1 + abs(ccgradq(1,:,i) + ccgradq(2,:,i))
+            write(*,'(a25,i5,a,5es13.5)') " gnorm1 after =  ",i, ":", gnorm1
         end do
 
-        norm1 = norm1 * inv_ncells
+        norm1 = norm1
         gnorm1 = gnorm1 * 0.5_p2 * inv_ncells
 
         ! Compute the residual at an internal cell with the exact values at the face (debugging)
-        int_cell = int(sqrt(real(ncells))) ! cell is an n x n square
-        int_cell = int_cell + 2 ! 2nd cell of 2nd row
+
+        
         call manual_test_mms(cell(int_cell), int_cell)
-
-
+        
         !Print the TE for all 5 equations.
 
         write(*,*)
@@ -632,7 +635,21 @@ module steady_solver
         write(*,*)
         write(*,*)
 
+        ! ! int_cell = 1
+        ! write(*,'(a25,i5,a,5es13.5)') " rE_L1(TE) int  @ icell =  ",int_cell, ":", abs(res(:,int_cell))
 
+        write(*,'(a10,5es13.5,i5)') "intcell dx:", abs(ccgradq(1,:,int_cell))*inv_ncells, int_cell
+        write(*,'(a10,5es13.5,i5)') "intcell dy:", abs(ccgradq(2,:,int_cell))*inv_ncells, int_cell
+        maxerr = 0.0_p2
+        do i = 1,ncells
+            if (abs(res(2,i)) > maxerr) then
+                maxerr = abs(res(2,i))
+                int_cell = i
+            endif
+        enddo
+        write(*,'(a10,5es13.5,i5)') "intcell dx:", abs(ccgradq(1,:,int_cell))*inv_ncells, int_cell
+        write(*,'(a10,5es13.5,i5)') "intcell dy:", abs(ccgradq(2,:,int_cell))*inv_ncells, int_cell
+        
     end subroutine solve_mms
 
 end module steady_solver

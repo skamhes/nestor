@@ -5,12 +5,14 @@ module mms
     implicit none
 
     private
-    public fMMS
+    public fMMS, txx_x, tyy_y
 
     ! coefficients
     real(p2), parameter :: arx = 1.5_p2
     real(p2), parameter :: d = 0.25
     real(p2), parameter :: pi2 = 2.0_p2 * pi
+
+    real(p2) :: txx_x, tyy_y
 
     contains
 
@@ -60,6 +62,8 @@ module mms
         real(p2) :: C0, xmr
 
         real(p2), dimension(5) :: wtmp
+
+        S(:) = 0.0_p2
         
        !-----------------------------------------------------------
         ! Constants for the exact solution: c0 + cs*sin(cx*x+cy*y).
@@ -76,6 +80,9 @@ module mms
         crs =  0.15_p2
         crx =  3.12_p2*pi
         cry =  2.92_p2*pi
+        ! crx =  0.000001_p2
+        ! cry =  0.000001_p2
+        ! crs = 1.0_p2 / crx
 
         !-----------------------------------------
         ! X-velocity = cu0 + cus*sin(cux*x+cuy*y)
@@ -84,6 +91,9 @@ module mms
         cus =  0.06_p2
         cux =  2.09_p2*pi
         cuy =  3.12_p2*pi
+        ! cux =  0.000001_p2
+        ! cuy =  0.000001_p2
+        ! cus = 1.0_p2 / cux
 
         !-----------------------------------------
         ! Y-velocity = cv0 + cvs*sin(cvx*x+cvy*y)
@@ -92,6 +102,9 @@ module mms
         cvs =  0.03_p2
         cvx =  2.15_p2*pi
         cvy =  3.32_p2*pi
+        ! cvx =  0.000001_p2
+        ! cvy =  0.000001_p2
+        ! cvs = 1.0_p2 / cvx
 
         !-----------------------------------------
         ! Pressure   = cp0 + cps*sin(cpx*x+cpy*y)
@@ -100,6 +113,9 @@ module mms
         cps =  0.31_p2
         cpx =  3.79_p2*pi
         cpy =  2.98_p2*pi
+        ! cpx =  0.000001_p2
+        ! cpy =  0.000001_p2
+        ! cps = 1.0_p2 / cpx
 
         !-----------------------------------------------------------------------------
         !-----------------------------------------------------------------------------
@@ -223,44 +239,49 @@ module mms
         
         call derivatives_ab( v,vx,vy, rhoH,rhoHx,rhoHy,  rhovH,rhovHx,rhovHy)
         
-        !---------------------------------------------------------------------
-        !---------------------------------------------------------------------
+        ! !---------------------------------------------------------------------
+        ! !---------------------------------------------------------------------
 
-        !---------------------------------------------------------------------
-        ! Store the inviscid terms in the forcing term array, f(:).
-        !---------------------------------------------------------------------
+        ! !---------------------------------------------------------------------
+        ! ! Store the inviscid terms in the forcing term array, f(:).
+        ! !---------------------------------------------------------------------
 
-        !------------------------------------------------------
-        ! Continuity:         (rho*u)_x   +   (rho*v)_y
-        S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
+        ! ! ------------------------------------------------------
+        ! ! Continuity:         (rho*u)_x   +   (rho*v)_y
+        ! S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
 
-        !------------------------------------------------------
-        ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
-        S(2)   =     aux     +    buy      + px
+        ! !------------------------------------------------------
+        ! ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
+        ! S(2)   =     aux     +    buy      + px
     
-        !------------------------------------------------------
-        ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
-        S(3)   =     avx     +    bvy      + py
+        ! !------------------------------------------------------
+        ! ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
+        ! S(3)   =     avx     +    bvy      + py
     
-        !------------------------------------------------------
-        ! Momentum:     w is zero
-        S(4)   = 0.0_p2
-        !------------------------------------------------------
-        ! Energy:       (rho*u*H)_x + (rho*v*H)
-        S(5)  =    rhouHx   +   rhovHy
+        ! !------------------------------------------------------
+        ! ! Momentum:     w is zero
+        ! S(4)   = 0.0_p2
+        ! !------------------------------------------------------
+        ! ! Energy:       (rho*u*H)_x + (rho*v*H)
+        ! S(5)  =    rhouHx   +   rhovHy
     
         if (iturb_type > TURB_INVISCID) then
+
+            txx_x = mytxx_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+            tyy_y = my_tyy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
             C0  = sutherland_constant/reference_temp
             xmr = M_inf/Re_inf
 
-            f2 = myF2(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            F2 = myF2(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
             cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
-            f3 = myF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            F3 = myF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
             cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
-            f5 = myF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
+            F5 = myF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
             cus, cux, cuy, cv0, cvs, cvx, cvy, gamma, gammamo, x, xmr, y)
 
             ! S(1) = S(1) ! no change to S(1)
@@ -268,10 +289,12 @@ module mms
             !------------------------------------------------------
             ! Momentum:     - (txx)_x - (txy)_y
             S(2) = S(2) + F2
+            ! S(2) = S(2) - txx_x
 
             !------------------------------------------------------
             ! Momentum:     - (tyx)_x - (tyy)_y
             S(3) = S(3) + F3
+            ! S(3) = S(3) - tyy_y
 
             !------------------------------------------------------
             ! Momentum:    
@@ -281,6 +304,8 @@ module mms
             ! Energy:       (rho*u*H)_x + (rho*v*H)
             ! S(5)  = S(5) - tvx_x - tvy_y + qxx + qyy
             S(5)  = S(5) + F5
+            ! S(5)  = S(5) + my_dq(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, &
+            !                     gammamo, x, xmr, y)
 
         endif
         !Return f.
@@ -291,59 +316,59 @@ module mms
         !       Step 2. Subtract f: Res = Res - f.
         !
 
-
+        
     end subroutine fMMS
 
     !********************************************************************************
-!* This function computes the sine function:
-!*
-!*       f =  a0 + as*sin(ax*x+ay*y)
-!*
-!* and its derivatives:
-!*
-!*     df/dx^nx/dy^ny = d^{nx+ny}(a0+as*sin(ax*x+ay*y))/(dx^nx*dy^ny)
-!*
-!* depending on the input parameters:
-!*
-!*
-!* Input:
-!*
-!*  a0,as,ax,ay = coefficients in the function: f =  a0 + as*sin(ax*x+ay*y).
-!*            x = x-coordinate at which the function/derivative is evaluated.
-!*            y = y-coordinate at which the function/derivative is evaluated.
-!*           nx = nx-th derivative with respect to x (nx >= 0).
-!*           ny = ny-th derivative with respect to y (ny >= 0).
-!*
-!* Output: The function value.
-!*
-!*
-!* Below are some examples:
-!*
-!*     f =  a0 + as*sin(ax*x+ay*y)            !<- (nx,ny)=(0,0)
-!*
-!*    fx =  ax * as*cos(ax*x+ay*y)            !<- (nx,ny)=(1,0)
-!*    fy =  ay * as*cos(ax*x+ay*y)            !<- (nx,ny)=(0,1)
-!*
-!*   fxx = -ax**2 * as*sin(ax*x+ay*y)         !<- (nx,ny)=(2,0)
-!*   fxy = -ax*ay * as*sin(ax*x+ay*y)         !<- (nx,ny)=(1,1)
-!*   fyy = -ay**2 * as*sin(ax*x+ay*y)         !<- (nx,ny)=(0,2)
-!*
-!*  fxxx = -ax**3        * as*cos(ax*x+ay*y)  !<- (nx,ny)=(3,0)
-!*  fxxy = -ax**2 *ay    * as*cos(ax*x+ay*y)  !<- (nx,ny)=(2,1)
-!*  fxyy = -ax    *ay**2 * as*cos(ax*x+ay*y)  !<- (nx,ny)=(1,2)
-!*  fyyy = -       ay**3 * as*cos(ax*x+ay*y)  !<- (nx,ny)=(0,3)
-!*
-!* fxxxx =  ax**4        * as*sin(ax*x+ay*y)  !<- (nx,ny)=(4,0)
-!* fxxxy =  ax**3 *ay    * as*sin(ax*x+ay*y)  !<- (nx,ny)=(3,1)
-!* fxxyy =  ax**2 *ay**2 * as*sin(ax*x+ay*y)  !<- (nx,ny)=(2,2)
-!* fxyyy =  ax    *ay**3 * as*sin(ax*x+ay*y)  !<- (nx,ny)=(1,3)
-!* fyyyy =         ay**4 * as*sin(ax*x+ay*y)  !<- (nx,ny)=(0,4)
-!*
-!* and so on.
-!*
-!*
-!********************************************************************************
- function manufactured_sol(a0,as,ax,ay, nx,ny,x,y) result(fval)
+    !* This function computes the sine function:
+    !*
+    !*       f =  a0 + as*sin(ax*x+ay*y)
+    !*
+    !* and its derivatives:
+    !*
+    !*     df/dx^nx/dy^ny = d^{nx+ny}(a0+as*sin(ax*x+ay*y))/(dx^nx*dy^ny)
+    !*
+    !* depending on the input parameters:
+    !*
+    !*
+    !* Input:
+    !*
+    !*  a0,as,ax,ay = coefficients in the function: f =  a0 + as*sin(ax*x+ay*y).
+    !*            x = x-coordinate at which the function/derivative is evaluated.
+    !*            y = y-coordinate at which the function/derivative is evaluated.
+    !*           nx = nx-th derivative with respect to x (nx >= 0).
+    !*           ny = ny-th derivative with respect to y (ny >= 0).
+    !*
+    !* Output: The function value.
+    !*
+    !*
+    !* Below are some examples:
+    !*
+    !*     f =  a0 + as*sin(ax*x+ay*y)            !<- (nx,ny)=(0,0)
+    !*
+    !*    fx =  ax * as*cos(ax*x+ay*y)            !<- (nx,ny)=(1,0)
+    !*    fy =  ay * as*cos(ax*x+ay*y)            !<- (nx,ny)=(0,1)
+    !*
+    !*   fxx = -ax**2 * as*sin(ax*x+ay*y)         !<- (nx,ny)=(2,0)
+    !*   fxy = -ax*ay * as*sin(ax*x+ay*y)         !<- (nx,ny)=(1,1)
+    !*   fyy = -ay**2 * as*sin(ax*x+ay*y)         !<- (nx,ny)=(0,2)
+    !*
+    !*  fxxx = -ax**3        * as*cos(ax*x+ay*y)  !<- (nx,ny)=(3,0)
+    !*  fxxy = -ax**2 *ay    * as*cos(ax*x+ay*y)  !<- (nx,ny)=(2,1)
+    !*  fxyy = -ax    *ay**2 * as*cos(ax*x+ay*y)  !<- (nx,ny)=(1,2)
+    !*  fyyy = -       ay**3 * as*cos(ax*x+ay*y)  !<- (nx,ny)=(0,3)
+    !*
+    !* fxxxx =  ax**4        * as*sin(ax*x+ay*y)  !<- (nx,ny)=(4,0)
+    !* fxxxy =  ax**3 *ay    * as*sin(ax*x+ay*y)  !<- (nx,ny)=(3,1)
+    !* fxxyy =  ax**2 *ay**2 * as*sin(ax*x+ay*y)  !<- (nx,ny)=(2,2)
+    !* fxyyy =  ax    *ay**3 * as*sin(ax*x+ay*y)  !<- (nx,ny)=(1,3)
+    !* fyyyy =         ay**4 * as*sin(ax*x+ay*y)  !<- (nx,ny)=(0,4)
+    !*
+    !* and so on.
+    !*
+    !*
+    !********************************************************************************
+    function manufactured_sol(a0,as,ax,ay, nx,ny,x,y) result(fval)
 
     implicit none
    
