@@ -141,10 +141,10 @@ module residual
                                      num_flux, wave_speed  ) !<- Output
                                     end if
             
-            ! res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
             wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
             
-            ! res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
 
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
@@ -215,7 +215,7 @@ module residual
                 
                                         num_flux, wave_speed  )
 
-                ! res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+                res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
                 if ( iturb_type == TURB_INVISCID ) cycle bface_loop

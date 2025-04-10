@@ -239,38 +239,38 @@ module mms
         
         call derivatives_ab( v,vx,vy, rhoH,rhoHx,rhoHy,  rhovH,rhovHx,rhovHy)
         
-        ! !---------------------------------------------------------------------
-        ! !---------------------------------------------------------------------
+        !---------------------------------------------------------------------
+        !---------------------------------------------------------------------
 
-        ! !---------------------------------------------------------------------
-        ! ! Store the inviscid terms in the forcing term array, f(:).
-        ! !---------------------------------------------------------------------
+        !---------------------------------------------------------------------
+        ! Store the inviscid terms in the forcing term array, f(:).
+        !---------------------------------------------------------------------
 
-        ! ! ------------------------------------------------------
-        ! ! Continuity:         (rho*u)_x   +   (rho*v)_y
-        ! S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
+        ! ------------------------------------------------------
+        ! Continuity:         (rho*u)_x   +   (rho*v)_y
+        S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
 
-        ! !------------------------------------------------------
-        ! ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
-        ! S(2)   =     aux     +    buy      + px
+        !------------------------------------------------------
+        ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
+        S(2)   =     aux     +    buy      + px
     
-        ! !------------------------------------------------------
-        ! ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
-        ! S(3)   =     avx     +    bvy      + py
+        !------------------------------------------------------
+        ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
+        S(3)   =     avx     +    bvy      + py
     
-        ! !------------------------------------------------------
-        ! ! Momentum:     w is zero
-        ! S(4)   = 0.0_p2
-        ! !------------------------------------------------------
-        ! ! Energy:       (rho*u*H)_x + (rho*v*H)
-        ! S(5)  =    rhouHx   +   rhovHy
+        !------------------------------------------------------
+        ! Momentum:     w is zero
+        S(4)   = 0.0_p2
+        !------------------------------------------------------
+        ! Energy:       (rho*u*H)_x + (rho*v*H)
+        S(5)  =    rhouHx   +   rhovHy
     
         if (iturb_type > TURB_INVISCID) then
 
-            txx_x = mytxx_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
-            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
-            tyy_y = my_tyy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
-            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+            ! txx_x = mytxx_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+            ! tyy_y = my_tyy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
             C0  = sutherland_constant/reference_temp
             xmr = M_inf/Re_inf
