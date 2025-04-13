@@ -82,7 +82,7 @@ module viscous_flux
 
         ! Equation 14
         do ivar = 1,nq
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( half * (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
         end do
 
 
