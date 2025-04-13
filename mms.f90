@@ -5,14 +5,14 @@ module mms
     implicit none
 
     private
-    public fMMS, txx_x, tyy_y
+    public fMMS, txx_x, tyy_y, txy_x, txy_y
 
     ! coefficients
     real(p2), parameter :: arx = 1.5_p2
     real(p2), parameter :: d = 0.25
     real(p2), parameter :: pi2 = 2.0_p2 * pi
 
-    real(p2) :: txx_x, tyy_y
+    real(p2) :: txx_x, tyy_y, txy_x, txy_y
 
     contains
 
@@ -78,8 +78,8 @@ module mms
 
         cr0 =  1.12_p2
         crs =  0.15_p2
-        crx =  3.12_p2*pi
-        cry =  2.92_p2*pi
+        crx =  3.12_p2*pi !/ 1024.0_p2
+        cry =  2.92_p2*pi !/ 1024.0_p2
         ! crx =  0.000001_p2
         ! cry =  0.000001_p2
         ! crs = 1.0_p2 / crx
@@ -89,8 +89,8 @@ module mms
 
         cu0 =  1.32_p2
         cus =  0.06_p2
-        cux =  2.09_p2*pi
-        cuy =  3.12_p2*pi
+        cux =  2.09_p2*pi !/ 1024.0_p2
+        cuy =  3.12_p2*pi !/ 1024.0_p2
         ! cux =  0.000001_p2
         ! cuy =  0.000001_p2
         ! cus = 1.0_p2 / cux
@@ -100,8 +100,8 @@ module mms
 
         cv0 =  1.18_p2
         cvs =  0.03_p2
-        cvx =  2.15_p2*pi
-        cvy =  3.32_p2*pi
+        cvx =  2.15_p2*pi !/ 1024.0_p2
+        cvy =  3.32_p2*pi !/ 1024.0_p2
         ! cvx =  0.000001_p2
         ! cvy =  0.000001_p2
         ! cvs = 1.0_p2 / cvx
@@ -111,8 +111,8 @@ module mms
 
         cp0 =  1.62_p2
         cps =  0.31_p2
-        cpx =  3.79_p2*pi
-        cpy =  2.98_p2*pi
+        cpx =  3.79_p2*pi !/ 1024.0_p2
+        cpy =  2.98_p2*pi !/ 1024.0_p2
         ! cpx =  0.000001_p2
         ! cpy =  0.000001_p2
         ! cps = 1.0_p2 / cpx
@@ -246,34 +246,41 @@ module mms
         ! Store the inviscid terms in the forcing term array, f(:).
         !---------------------------------------------------------------------
 
-        ! ------------------------------------------------------
-        ! Continuity:         (rho*u)_x   +   (rho*v)_y
-        S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
+        ! ! ------------------------------------------------------
+        ! ! Continuity:         (rho*u)_x   +   (rho*v)_y
+        ! S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
 
-        !------------------------------------------------------
-        ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
-        S(2)   =     aux     +    buy      + px
+        ! !------------------------------------------------------
+        ! ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
+        ! S(2)   =     aux     +    buy      + px
     
-        !------------------------------------------------------
-        ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
-        S(3)   =     avx     +    bvy      + py
+        ! !------------------------------------------------------
+        ! ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
+        ! S(3)   =     avx     +    bvy      + py
     
-        !------------------------------------------------------
-        ! Momentum:     w is zero
-        S(4)   = 0.0_p2
-        !------------------------------------------------------
-        ! Energy:       (rho*u*H)_x + (rho*v*H)
-        S(5)  =    rhouHx   +   rhovHy
+        ! !------------------------------------------------------
+        ! ! Momentum:     w is zero
+        ! S(4)   = 0.0_p2
+        ! !------------------------------------------------------
+        ! ! Energy:       (rho*u*H)_x + (rho*v*H)
+        ! S(5)  =    rhouHx   +   rhovHy
     
         if (iturb_type > TURB_INVISCID) then
 
-            ! txx_x = mytxx_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
-            ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
-            ! tyy_y = my_tyy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
-            ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
-
             C0  = sutherland_constant/reference_temp
             xmr = M_inf/Re_inf
+
+            txx_x = mytxx_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+
+            tyy_y = my_tyy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+
+            txy_x  = my_txy_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+
+            txy_y = my_txy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
             F2 = myF2(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
             cuy, cvs, cvx, cvy, gamma, x, xmr, y)
@@ -290,11 +297,13 @@ module mms
             ! Momentum:     - (txx)_x - (txy)_y
             S(2) = S(2) + F2
             ! S(2) = S(2) - txx_x
+            ! S(2) = S(2) - txy_y
 
             !------------------------------------------------------
             ! Momentum:     - (tyx)_x - (tyy)_y
             S(3) = S(3) + F3
             ! S(3) = S(3) - tyy_y
+            ! S(3) = S(3) - txy_x
 
             !------------------------------------------------------
             ! Momentum:    
@@ -305,7 +314,7 @@ module mms
             ! S(5)  = S(5) - tvx_x - tvy_y + qxx + qyy
             S(5)  = S(5) + F5
             ! S(5)  = S(5) + my_dq(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, &
-            !                     gammamo, x, xmr, y)
+                                ! gammamo, x, xmr, y)
 
         endif
         !Return f.

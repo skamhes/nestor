@@ -20,6 +20,8 @@ module mms_exact
 
         use solution , only : ccgradq, q, inv_ncells, vgradq
 
+        use gradient , only : compute_gradient
+
         implicit none 
 
         type(cc_data_type), intent(in) :: cellin
@@ -41,6 +43,7 @@ module mms_exact
 
         real(p2) :: xc,yc,zc,fxc,fyc,fzc,dxc2,dyc2,dzc2
 
+        call compute_gradient(0)
 
         dummy35 = 0.0_p2
         resid = 0.0_p2
@@ -104,9 +107,9 @@ module mms_exact
             reside = reside + num_fluxe * fnrmlM
             
             ! nf_err = nf_err + abs(num_flux(2) - num_fluxe(2))
-        !     write(*,'(a,5es13.5,a,i5)') " nfe: ", num_fluxe(:), " face: ", iface
-        !     write(*,'(a,5es13.5,a,i5)') " nfn: ", num_flux( :), " face: ", iface
-        !     write(*,*)
+            write(*,'(a,5es13.5,a,i5)') " nfe: ", num_fluxe(:), " face: ", iface
+            write(*,'(a,5es13.5,a,i5)') " nfn: ", num_flux( :), " face: ", iface
+            write(*,*)
         end do floop
 
         ! bface
@@ -159,9 +162,9 @@ module mms_exact
                 resid = resid + num_flux * fnrmlM
                 reside = reside + num_fluxe * fnrmlM
 
-                ! write(*,'(a,5es13.5,a,2i5)') " nfe: ", num_fluxe(:), " bound, face: ", ib, iface
-                ! write(*,'(a,5es13.5,a,2i5)') " nfn: ", num_flux( :), " bound, face: ", ib, iface
-                ! write(*,*)
+                write(*,'(a,5es13.5,a,2i5)') " nfe: ", num_fluxe(:), " bound, face: ", ib, iface
+                write(*,'(a,5es13.5,a,2i5)') " nfn: ", num_flux( :), " bound, face: ", ib, iface
+                write(*,*)
             end do floop2
         end do bloop
         ! write(*,*) gradF(:,1)
@@ -178,11 +181,12 @@ module mms_exact
         ! resid = abs(resid - S_exact * cellin%vol)
         txx_xerr = abs(resid(2) - txx_x * cellin%vol) / cellin%vol * inv_ncells
 
-        ! resid = (resid - S_exact * cellin%vol) * inv_ncells / cellin%vol
+        resid = (resid - S_exact * cellin%vol) * inv_ncells / cellin%vol
+        reside = (reside - S_exact * cellin%vol) * inv_ncells / cellin%vol
 
-        ! write(*,*) " -------------- Truncation error (Manual) ------------------"
-        ! write(*,'(a25,i5,a,5es13.5)') " rnumeric_L1(TE) atuo @ icell =  ",icell, ":", abs(resid ) / cellin%vol * inv_ncells
-        ! write(*,'(a25,i5,a,5es13.5)') "   rexact_L1(TE) atuo @ icell =  ",icell, ":", abs(reside) / cellin%vol * inv_ncells
+        write(*,*) " -------------- Truncation error (Manual) ------------------"
+        write(*,'(a25,i5,a,5es13.5)') " rnumeric_L1(TE) atuo @ icell =  ",icell, ":", abs(resid )! / cellin%vol * inv_ncells
+        write(*,'(a25,i5,a,5es13.5)') "   rexact_L1(TE) atuo @ icell =  ",icell, ":", abs(reside)! / cellin%vol * inv_ncells
         ! write(*,'(a,1es13.5)',advance='no') " numeric: txx_x(TE), tyy_y(TE) ", txx_xerr
         ! txx_xerr = abs(resid(3) - tyy_y * cellin%vol) / cellin%vol * inv_ncells
         ! write(*,'(1es13.5)')  txx_xerr

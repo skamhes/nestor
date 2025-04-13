@@ -44,7 +44,7 @@ module residual
         real(p2), dimension(3)      :: unit_face_normal, bface_centroid
 
         ! Flow variables
-        real(p2), dimension(5)      :: q1, q2
+        real(p2), dimension(5)      :: q1, q2, qdummy
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5)      :: num_flux
         real(p2), dimension(5)      :: qb
@@ -141,15 +141,20 @@ module residual
                                      num_flux, wave_speed  ) !<- Output
                                     end if
             
-            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+            ! res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
             wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
             
-            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+            ! res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
 
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
 
             ! Viscous flux
+            ! fxc = face_centroid(1,i)
+            ! fyc = face_centroid(2,i)
+            ! fzc = face_centroid(3,i)
+            ! call fMMS(fxc, fyc, fzc,qdummy,num_flux,gradQ=gradq1)
+            ! gradq2 = gradq1
             call visc_flux_internal(q1,q2,gradq1,gradq2,unit_face_normal,  &
                                     cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                     cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
@@ -215,7 +220,7 @@ module residual
                 
                                         num_flux, wave_speed  )
 
-                res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+                ! res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
                 if ( iturb_type == TURB_INVISCID ) cycle bface_loop
@@ -239,7 +244,7 @@ module residual
                                                               num_flux )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
-
+                if (c1 == 1) write(*,*) num_flux, ib, j
             end do bface_loop
 
         end do boundary_loop

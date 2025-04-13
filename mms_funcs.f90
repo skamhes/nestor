@@ -739,4 +739,100 @@ module mms_funcs
 
     end function my_tyy_y
 
+    real(p2) function my_txy_y(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+                            cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: cus
+        real(p2), intent(in) :: cux
+        real(p2), intent(in) :: cuy
+        real(p2), intent(in) :: cvs
+        real(p2), intent(in) :: cvx
+        real(p2), intent(in) :: cvy
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        my_txy_y = xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+            cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(-cus*cuy**2*sin(cux*x + cuy*y) &
+            - cvs*cvx*cvy*sin(cvx*x + cvy*y))/(C0 + gamma*(cp0 + cps*sin(cpx* &
+            x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) + (cus*cuy*cos(cux*x &
+            + cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*(xmr*(gamma*(cp0 + cps*sin &
+            (cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0_p2/2.0_p2)*( &
+            C0 + 1)*(-cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + &
+            cry*y)) + crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x &
+            + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(C0 + gamma*(cp0 + &
+            cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2 + xmr* &
+            (gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry* &
+            y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(( &
+            3.0_p2/2.0_p2)*cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx* &
+            x + cry*y)) - 3.0_p2/2.0_p2*crs*cry*gamma*(cp0 + cps*sin(cpx*x + &
+            cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/( &
+            gamma*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin( &
+            crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y))))
+
+    end function my_txy_y
+
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
+    real(p2) function my_txy_x(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+                        cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: cus
+        real(p2), intent(in) :: cux
+        real(p2), intent(in) :: cuy
+        real(p2), intent(in) :: cvs
+        real(p2), intent(in) :: cvx
+        real(p2), intent(in) :: cvy
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        my_txy_x = xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+            cry*y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(-cus*cux*cuy*sin(cux*x + cuy*y &
+            ) - cvs*cvx**2*sin(cvx*x + cvy*y))/(C0 + gamma*(cp0 + cps*sin(cpx &
+            *x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) + (cus*cuy*cos(cux*x &
+            + cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*(xmr*(gamma*(cp0 + cps*sin &
+            (cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0_p2/2.0_p2)*( &
+            C0 + 1)*(-cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + &
+            cry*y)) + crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x &
+            + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(C0 + gamma*(cp0 + &
+            cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2 + xmr* &
+            (gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry* &
+            y)))**(3.0_p2/2.0_p2)*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(( &
+            3.0_p2/2.0_p2)*cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx* &
+            x + cry*y)) - 3.0_p2/2.0_p2*crs*crx*gamma*(cp0 + cps*sin(cpx*x + &
+            cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/( &
+            gamma*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin( &
+            crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y))))
+
+    end function my_txy_x
+
+
+
 end module mms_funcs

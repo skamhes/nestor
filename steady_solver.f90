@@ -576,7 +576,7 @@ module steady_solver
         real(p2), dimension(:,:,:), allocatable :: exac_gradQ
         real(p2), dimension(5) :: norm1, gnorm1
         real(p2), dimension(3,5) :: ngrad
-        real(p2), dimension(5) :: dummyq, dummyS
+        real(p2), dimension(5) :: dummyq, dummyS, corr
         real(p2) :: maxerr
         integer :: int_cell ! Interior cell (in 2D)
         do ib = 1,nb
@@ -596,29 +596,33 @@ module steady_solver
         call compute_residual
         int_cell = int(sqrt(real(ncells))) ! cell is an n x n square
         int_cell = int_cell * int_cell /2 + int_cell /2
-        int_cell = 1
+        ! int_cell = 1
         write(*,'(a25,i5,a,5es13.5)') " rE_L1(TE) int  @ icell =  ",int_cell, ":", res(:,int_cell)
 
         ! subtract the source term from the residual
         do i = 1,ncells
-            res(:,i) = res(:,i) - S(:,i) * cell(i)%vol
+            corr = S(:,i) * cell(i)%vol
+            res(:,i) = res(:,i) - corr
             ccgradq(1:2,:,i) = ccgradq(1:2,:,i) - exac_gradQ(1:2,:,i)
         end do
 
         gnorm1= 0.0_p2
-        do i = 1,nnodes
-            call fMMS(x(i),y(i),z(i), dummyq, dummyS, gradQ=ngrad)
-            vgradq(1:2,:,i) = vgradq(1:2,:,i) - ngrad(1:2,:)
-            gnorm1(:) = gnorm1(:) + abs(vgradq(1,:,i) + vgradq(2,:,i))
-        end do
+        ! do i = 1,nnodes
+        !     call fMMS(x(i),y(i),z(i), dummyq, dummyS, gradQ=ngrad)
+        !     vgradq(1:2,:,i) = vgradq(1:2,:,i) - ngrad(1:2,:)
+        !     gnorm1(:) = gnorm1(:) + abs(vgradq(1,:,i) + vgradq(2,:,i))
+        ! end do
 
         norm1 = 0.0_p2
         
         write(*,*)
+        write(*,*) "progressive norm:"
         do i = 1, ncells
             norm1  =  norm1 + abs(res(:,i)/cell(i)%vol) * inv_ncells !TE = Res/Volume.
-            ! gnorm1 = gnorm1 + abs(ccgradq(1,:,i) + ccgradq(2,:,i))
-            ! write(*,'(a25,i5,a,5es13.5)') " gnorm1 after =  ",i, ":", gnorm1
+            ! write(*,'(a25,i5,a,5es13.5)') " norm1 after =  ",i, ":", norm1
+            ! write(*,'(es11.5,4es13.5)') norm1
+            gnorm1 = gnorm1 + abs(ccgradq(1,:,i) + ccgradq(2,:,i))
+            
         end do
 
         norm1 = norm1
@@ -649,13 +653,14 @@ module steady_solver
 
         ! write(*,'(a10,5es13.5,i5)') "intcell dx:", abs(ccgradq(1,:,int_cell))*inv_ncells, int_cell
         ! write(*,'(a10,5es13.5,i5)') "intcell dy:", abs(ccgradq(2,:,int_cell))*inv_ncells, int_cell
-        ! maxerr = 0.0_p2
-        ! do i = 1,ncells
-        !     if (abs(res(2,i)) > maxerr) then
-        !         maxerr = abs(res(2,i))
-        !         int_cell = i
-        !     endif
-        ! enddo
+        maxerr = 0.0_p2
+        do i = 1,ncells
+            if (maxval(abs(res(:,i))) > maxerr) then
+                maxerr = maxval(abs(res(:,i)))
+                int_cell = i
+            endif
+        enddo
+        write(*,'(a25,i5,a,5es13.5)') " max rE_L1(TE) int  @ icell =  ",int_cell, ":", abs(res(:,int_cell))
         ! write(*,'(a10,5es13.5,i5)') "intcell dx:", abs(ccgradq(1,:,int_cell))*inv_ncells, int_cell
         ! write(*,'(a10,5es13.5,i5)') "intcell dy:", abs(ccgradq(2,:,int_cell))*inv_ncells, int_cell
         
