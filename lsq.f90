@@ -196,6 +196,10 @@ module least_squares
         
     end subroutine construct_wvertex_stencil
 
+    subroutine construct_nn_stencil
+
+    end subroutine construct_nn_stencil
+
     subroutine compute_vertex_coefficients
 
         use grid , only : cell, x, y, z, nnodes, bound, ncells
