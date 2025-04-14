@@ -83,6 +83,14 @@ module grid
     ! Boundary array for solver
     type(bgrid_type), dimension(:), pointer     :: bound            ! Boundary data
 
+    !------------------------------------------------------------------
+    ! Below are some local (temporary) variables used to construct the CCFV data.
+    !To store the list of cells around each node.
+    type node_type
+        integer                        :: nc
+        integer, dimension(:), pointer :: c
+    end type node_type
+
     !------------------------------------------
     !>> GRID STATISTICS
     real(p2) :: heffn, heffc, heffv, heffv_min, heffv_max     ! Effective mesh spacing
@@ -677,13 +685,7 @@ module grid
 
         implicit none
 
-        !------------------------------------------------------------------
-        ! Below are some local (temporary) variables used to construct the CCFV data.
-        !To store the list of cells around each node.
-        type node_type
-            integer                        :: nc
-            integer, dimension(:), pointer :: c
-        end type node_type
+
         ! Array of custom node-type data
         type(node_type), dimension(:), pointer :: node
         ! Debugging vars

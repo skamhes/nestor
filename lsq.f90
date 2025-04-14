@@ -198,7 +198,104 @@ module least_squares
 
     subroutine construct_nn_stencil
 
+        use common , only : p2
+
+        use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type
+
+        implicit none
+
+        type(node_type), dimension(nnodes) :: node
+    
+        type nn_type
+            integer                             :: n_nnghbr
+            integer, dimension(:), allocatable  :: nnghbr
+            integer, dimension(:), pointer      :: runpointer
+            integer, dimension(:), pointer      :: runlength  
+        end type nn_type
+
+        type(nn_type), dimension(ncells) :: c2nn ! Array that lists the node neighbors of each cell
+
+        integer, dimension(:), pointer :: scratch_nghbrs
+        integer                        :: dupn_nnghbr
+        
+        integer :: inode, icell
+        integer :: ni, cnvtx
+
+        integer :: start, end
+
+        do inode = 1,nnodes
+            node(inode)%nc = 0
+        end do
+
+        do icell = 1,ncells
+            do inode = 1,cell(icell)%nvtx
+                ni = cell(icell)%vtx(inode)
+                node(ni)%nc = node(ni)%nc + 1
+            end do
+        end do
+
+        do inode = 1,nnodes
+            allocate(node(inode)%c(node(inode)%nc))
+            node(inode)%nc = 0
+        end do
+
+        do icell = 1,ncells
+            do inode = 1,cell(icell)%nvtx
+                ni = cell(icell)%vtx(inode)
+                node(ni)%nc = node(ni)%nc + 1
+                node(ni)%c  = icell
+            end do
+        end do
+
+        ! At this point we have a vector of all the nodes with a list and # of attached cells
+        
+        allocate(scratch_nghbrs(8))
+        
+        do icell = 1,ncells
+
+            cnvtx = cell(icell)%nvtx
+
+            ! Count the number of node neighbors including duplicates
+            dupn_nnghbr = 0            
+            do inode = 1,cnvtx
+                ni = cell(icell)%vtx(inode)
+                dupn_nnghbr = dupn_nnghbr + node(ni)%nc 
+            end do
+
+            ! it's ok if the scratch vector is too long but we don't want an overflow
+            if (size(scratch_nghbrs) < dupn_nnghbr) then
+                deallocate(scratch_nghbrs)
+                allocate(scratch_nghbrs(dupn_nnghbr))
+            endif
+
+            ! Add the node neighbors to the scratch vetor
+            dupn_nnghbr = 0
+            allocate(c2nn(icell)%runpointer(cnvtx))
+            allocate(c2nn(icell)%runlength( cnvtx))
+            do inode = 1,cnvtx
+                ni = cell(icell)%vtx(inode)
+                start = dupn_nnghbr + 1
+                end   = dupn_nnghbr + node(ni)%nc
+                scratch_nghbrs(start:end) = node(ni)%c(:)
+                dupn_nnghbr = dupn_nnghbr + node(ni)%nc 
+                c2nn(icell)%runpointer(inode) = start ! this will be used by the reduction algorithm
+                c2nn(icell)%runlength( inode) = node(ni)%nc
+            end do
+            c2nn(icell)%n_nnghbr = 0
+        end do
+
+        deallocate(scratch_nghbrs)
     end subroutine construct_nn_stencil
+
+    subroutine reduce_nnghbrs()
+        
+        use common , only : p2
+
+        implicit none
+
+
+
+    end subroutine reduce_nnghbrs
 
     subroutine compute_vertex_coefficients
 
