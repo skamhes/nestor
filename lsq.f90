@@ -34,6 +34,17 @@ module least_squares
     !Cell data array in the custom data type.
     type(lsq_vertex_type), dimension(:), pointer :: lsqv  !cell-centered LSQ array
 
+    type lsq_cell_type
+        integer                           ::    n_nnghbrs  ! number of cells attached to lsq vertex
+        integer,  dimension(:)  , pointer ::    nghbr_lsq  ! list of neighbor cells
+        real(p2), dimension(:)  , pointer ::           cx  ! LSQ coefficient for x-derivative (4 unknowns) 
+        real(p2), dimension(:)  , pointer ::           cy  ! LSQ coefficient for y-derivative (4 unknowns) 
+        real(p2), dimension(:)  , pointer ::           cz  ! LSQ coefficient for z-derivative (4 unknowns) 
+    end type lsq_cell_type
+
+    !Cell data array in the custom data type.
+    type(lsq_cell_type), dimension(:), pointer :: lsqc  !cell-centered LSQ array
+
     ! Boundary int rankings
     integer, parameter :: NO_SLIP_WALL = 99
     integer, parameter :: SLIP_WALL = 98
@@ -283,12 +294,17 @@ module least_squares
                 dupn_nnghbr = dupn_nnghbr + node(ni)%nc 
                 c2nn(icell)%runpointer(inode + 1) = end + 1 ! this will be used by the reduction algorithm
             end do
-            
-            if (icell == 16) then
-                write(*,*)
-            end if
+
             call queued_natural_merge_sort(dupn_nnghbr,cnvtx,c2nn(icell)%runpointer, &
                                             scratch_nghbrs, icell,c2nn(icell)%n_nnghbr, c2nn(icell)%nnghbr)
+            
+            lsqc(icell)%n_nnghbrs = c2nn(icell)%n_nnghbr
+            allocate(lsqc(icell)%nghbr_lsq(c2nn(icell)%n_nnghbr))
+            lsqc(icell)%nghbr_lsq = c2nn(icell)%nnghbr
+            
+            allocate(lsqc(icell)%cx(c2nn(icell)%n_nnghbr))
+            allocate(lsqc(icell)%cy(c2nn(icell)%n_nnghbr))
+            allocate(lsqc(icell)%cz(c2nn(icell)%n_nnghbr))
 
         end do
 
@@ -580,5 +596,176 @@ module least_squares
         !--------------------------------------------------------------------------------
          
     end subroutine compute_vertex_coefficients
+
+    subroutine compute_cell_coefficients
+        
+        use grid , only : cell, ncells
+
+        use common , only : p2, zero, one, two, ix, iy, iz
+
+        use direct_solve , only : qr_factorization
+
+        use solution , only : ndim
+
+        implicit none
+
+        real(p2) :: maxdx, maxdy, maxdz
+        real(p2) :: lsq_weight_invdis_power
+        integer                           :: m, n             !Size of LSQ matrix: A(m,n).
+        real(p2), pointer, dimension(:,:) :: a                !LSQ matrix: A(m,n).
+        real(p2), pointer, dimension(:,:) :: rinvqt           !Pseudo inverse R^{-1}*Q^T
+        integer                           :: nghbr_cell
+        
+        integer :: i, k
+        integer :: icell
+        
+        real(p2) :: dx, dy, dz
+        real(p2) :: weight_k
+        logical  :: verification_error
+        real(p2) :: wx, wy, wz
+        real(p2) :: xi, yi, zi
+        real(p2) :: xk, yk, zk
+
+        real(p2), dimension(3) :: maxDeltasNZ
+
+        write(*,*)
+        write(*,*) "--------------------------------------------------"
+        write(*,*) " Computing LSQ coefficients... "
+        write(*,*)
+
+        maxdx = zero
+        maxdy = zero
+        maxdz = zero
+
+        !--------------------------------------------------------------------------------
+        !--------------------------------------------------------------------------------
+        ! The power to the inverse distance weight. The value 0.0 is used to avoid
+        ! instability known for Euler solvers. So, this is the unweighted LSQ gradient.
+        ! More accurate gradients are obtained with 1.0, and such can be used for the
+        ! viscous terms and source terms in turbulence models.
+        lsq_weight_invdis_power = 0
+
+        !--------------------------------------------------------------------------------
+        !--------------------------------------------------------------------------------
+        ! Compute the LSQ coefficients (cq,cx,cy,cz) at all cells.
+        cloop : do icell = 1,ncells
+            m = lsqc(icell)%n_nnghbrs   ! # of neighbors
+            n = ndim                    ! # of dimensions
+
+            ! Allocate LSQ matrix and the pseudo inverse, R^{-1}*Q^T
+            allocate(a(m,n)) ! note: it may produce some additional speed to switch the rows and columns here
+            ! however a is a very small matrix and this subroutine is called once so we'll leave that for another day
+            allocate(rinvqt(n,m))
+            ! Initialize a
+            a = zero
+           
+            !-------------------------------------------------------
+            ! Build the weighted-LSQ matrix A(m,n).
+            !
+            !     weight_1 * [ (x1-xi)*wxi + (y1-yi)*wyi + (z1-zi)*wzi ] = weight_1 * [ w1 - wi ]
+            !     weight_2 * [ (x2-xi)*wxi + (y2-yi)*wyi + (z2-zi)*wzi ] = weight_2 * [ w2 - wi ]
+            !                 .
+            !                 .
+            !     weight_m * [ (xm-xi)*wxi + (ym-yi)*wyi + (zm-zi)*wzi ] = weight_2 * [ wm - wi ]
+            nghbr_loop : do k = 1, m
+                nghbr_cell = lsqc(i)%nghbr_lsq(k) !Neighbor cell number
+                dx = cell(nghbr_cell)%xc - cell(i)%xc
+                dy = cell(nghbr_cell)%yc - cell(i)%yc
+                dz = cell(nghbr_cell)%zc - cell(i)%zc
+                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                a(k,1) = weight_k*dx
+                a(k,2) = weight_k*dy
+                a(k,3) = weight_k*dz
+                maxdx  = max(abs(dx),maxdx)
+                maxdy  = max(abs(dy),maxdy)
+                maxdz  = max(abs(dz),maxdz)
+            end do nghbr_loop
+            !-------------------------------------------------------
+            ! Perform QR factorization and compute R^{-1}*Q^T from A(m,n).
+            call qr_factorization(a,rinvqt,m,n)
+
+            !-------------------------------------------------------
+            ! Compute and store the LSQ coefficients: R^{-1}*Q^T*w.
+            !
+            ! (wx,wy,wz) = R^{-1}*Q^T*RHS
+            !            = sum_k (cx,cy,cz)*(wk-wi).
+
+            nghbr_loop2 : do k = 1, m
+                nghbr_cell = lsqc(i)%nghbr_lsq(k)
+                dx = cell(nghbr_cell)%xc - cell(i)%xc
+                dy = cell(nghbr_cell)%yc - cell(i)%yc
+                dz = cell(nghbr_cell)%zc - cell(i)%zc
+                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                lsqc(i)%cx(k)  = rinvqt(ix,k) * weight_k
+                lsqc(i)%cy(k)  = rinvqt(iy,k) * weight_k
+                lsqc(i)%cz(k)  = rinvqt(iz,k) * weight_k
+            end do nghbr_loop2
+            !-------------------------------------------------------
+            ! Deallocate a and rinvqt, whose size may change in the next cell. 
+            deallocate(a, rinvqt)
+        end do cloop
+
+        ! Verification
+        ! Compute the gradient of w = 2*x+y+4*z to se if we get wx = 2, wy = 1, and wz = 4 correctly
+        verification_error = .false.
+
+        do i = 1,ncells
+            ! initialize wx, wy, and wz
+            wx = zero
+            wy = zero
+            wz = zero
+            ! (xi,yi,zi) to be used to compute the function 2*x+y+4z at i
+            xi = cell(i)%xc
+            yi = cell(i)%yc
+            zi = cell(i)%zc
+
+            ! look over the vertex neighboes
+            do k = 1,lsqc(i)%n_nnghbrs
+                nghbr_cell = lsqc(i)%nghbr_lsq(k)
+                xk = cell(nghbr_cell)%xc
+                yk = cell(nghbr_cell)%yc
+                zk = cell(nghbr_cell)%zc
+                ! This is how we use the LSQ coefficients: accumulate cx*(wk-wi)
+                ! and cy*(wk-wi) and cz*(wk-wi)
+                wx = wx + lsqc(i)%cx(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wy = wy + lsqc(i)%cy(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wz = wz + lsqc(i)%cz(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+            end do
+            maxDeltasNZ = zero
+            if (maxdx > 0.001_p2) maxDeltasNZ(1) = one
+            if (maxdy > 0.001_p2) maxDeltasNZ(2) = one
+            if (maxdz > 0.001_p2) maxDeltasNZ(3) = one
+            if ( maxDeltasNZ(1)*abs(wx-two) > 1.0e-06_p2 .or. &
+                 maxDeltasNZ(2)*abs(wy-one) > 1.0e-06_p2 .or. &
+                 maxDeltasNZ(3)*abs(wz-4.0_p2) > 1.0e-06_p2) then
+                    write(*,*) " wx = ", wx, " exact ux = 2.0"!,maxDeltasNZ(1)*abs(wx-two)
+                    write(*,*) " wy = ", wy, " exact uy = 1.0"!,maxDeltasNZ(2)*abs(wy-one)
+                    write(*,*) " wz = ", wz, " exact uz = 4.0"!, maxDeltasNZ(3)*abs(wz-4.0_p2),maxDeltasNZ(3)
+                    verification_error = .true.
+            end if
+        end do
+
+
+        if (verification_error) then
+
+            write(*,*) " LSQ coefficients are not correct. See above. Stop."
+            stop
+         
+        else
+         
+            write(*,*) " Verified: LSQ coefficients are exact for a linear function."
+         
+        endif
+         
+        write(*,*)
+        write(*,*) " End of Computing LSQ coefficients... "
+        write(*,*) "--------------------------------------------------"
+        write(*,*)
+        
+        ! End of Compute the LSQ coefficients in all cells.
+        !--------------------------------------------------------------------------------
+        !--------------------------------------------------------------------------------
+         
+    end subroutine compute_cell_coefficients
 
 end module least_squares

@@ -131,6 +131,8 @@ module sort_routines
 
     subroutine copy_remaining(rh,wh,rpp1,exc,rt,wt)
 
+        ! if one header has reached the end of its run us this subroutine to copy the remaining entries in the other run.
+
         implicit none
 
         integer,                        intent(inout) :: rh     ! read header
