@@ -17,7 +17,7 @@ module least_squares
 
     public
 
-    type lsq_data_type
+    type lsq_vertex_type
         integer                           ::   ncells_lsq  ! number of cells attached to lsq vertex
         integer , dimension(:)  , pointer ::     cell_lsq  ! lsq cell
         integer , dimension(:)  , pointer ::       ib_lsq  ! boundary number for each attached cell (0 = internal cell)
@@ -29,10 +29,10 @@ module least_squares
         real(p2), dimension(:)  , pointer ::          cy3  ! LSQ coefficient for y-derivative (4 unknowns) 
         real(p2), dimension(:)  , pointer ::          cz3  ! LSQ coefficient for z-derivative (4 unknowns) 
         integer                           ::        btype  ! See below for values. 0 = internal cell
-    end type lsq_data_type
+    end type lsq_vertex_type
 
     !Cell data array in the custom data type.
-    type(lsq_data_type), dimension(:), pointer :: lsq  !cell-centered LSQ array
+    type(lsq_vertex_type), dimension(:), pointer :: lsqv  !cell-centered LSQ array
 
     ! Boundary int rankings
     integer, parameter :: NO_SLIP_WALL = 99
@@ -50,7 +50,7 @@ module least_squares
 
         ! use common , only : p2
 
-        use utils , only : ilsq_stencil, LSQ_STENCIL_WVERTEX
+        use utils , only : ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
         implicit none
 
@@ -58,6 +58,8 @@ module least_squares
         case(LSQ_STENCIL_WVERTEX)
             call construct_wvertex_stencil
             call compute_vertex_coefficients
+        case(LSQ_STENCIL_NN)
+            call construct_nn_stencil
         case default
             write(*,*) "Unsupported LSQ Stencil"
             stop
@@ -92,7 +94,7 @@ module least_squares
         write(*,*)
 
         allocate( node(nnodes) )
-        allocate( lsq(nnodes ) )
+        allocate( lsqv(nnodes ) )
 
         do i = 1,nnodes
             node(i)%nic = 0
@@ -120,10 +122,10 @@ module least_squares
 
         ! Allocate arrays in the lsq struct array
         do i = 1,nnodes
-            lsq(i)%ncells_lsq = node(i)%nic + node(i)%nbc
-            allocate( lsq(i)%cell_lsq( lsq(i)%ncells_lsq  ) )
-            allocate( lsq(i)%ib_lsq( lsq(i)%ncells_lsq ) )
-            lsq(i)%btype = 0 ! stays zero for internal cells
+            lsqv(i)%ncells_lsq = node(i)%nic + node(i)%nbc
+            allocate( lsqv(i)%cell_lsq( lsqv(i)%ncells_lsq  ) )
+            allocate( lsqv(i)%ib_lsq( lsqv(i)%ncells_lsq ) )
+            lsqv(i)%btype = 0 ! stays zero for internal cells
 
             node(i)%nic = 0
             node(i)%nbc = 0
@@ -134,8 +136,8 @@ module least_squares
             do k = 1, cell(i)%nvtx
                 vk           = cell(i)%vtx(k)
                 node(vk)%nic = node(vk)%nic + 1
-                lsq(vk)%cell_lsq(node(vk)%nic) = i
-                lsq(vk)%ib_lsq(node(vk)%nic) = INTERNAL ! Initialize the cell as internal
+                lsqv(vk)%cell_lsq(node(vk)%nic) = i
+                lsqv(vk)%ib_lsq(node(vk)%nic) = INTERNAL ! Initialize the cell as internal
             end do
         end do
 
@@ -146,27 +148,27 @@ module least_squares
                 do k = 2,(fj+1) 
                     vk           = bound(ib)%bfaces(k,j)
                     node(vk)%nbc = node(vk)%nbc + 1
-                    lsq(vk)%cell_lsq(node(vk)%nic + node(vk)%nbc) = j
+                    lsqv(vk)%cell_lsq(node(vk)%nic + node(vk)%nbc) = j
                     ! We will need face data in some cases so we will use bface# in place of cell
                     ! In the future I can sort these so the boundary faces match with their attached cell
                     ! In theory this would allow me to skip some assignmets.  Will do another time.
                     
                     ! Give boundary of attached bcell
-                    lsq(vk)%ib_lsq(node(vk)%nic + node(vk)%nbc) = ib ! internal cell
+                    lsqv(vk)%ib_lsq(node(vk)%nic + node(vk)%nbc) = ib ! internal cell
 
                     ! Assign the boundary condition based on above hierarchy
                     select case(trim(bc_type(ib))) 
                         case('freestream')
-                            lsq(vk)%btype = max(lsq(vk)%btype,FREE_STREAM)
+                            lsqv(vk)%btype = max(lsqv(vk)%btype,FREE_STREAM)
                         case('symmetry')
                             ! symmetry is treated numerically like a slip_wall
-                            lsq(vk)%btype = max(lsq(vk)%btype,SLIP_WALL)
+                            lsqv(vk)%btype = max(lsqv(vk)%btype,SLIP_WALL)
                         case('slip_wall')
-                            lsq(vk)%btype = max(lsq(vk)%btype,SLIP_WALL)
+                            lsqv(vk)%btype = max(lsqv(vk)%btype,SLIP_WALL)
                         case('no_slip_wall')
-                            lsq(vk)%btype = max(lsq(vk)%btype,NO_SLIP_WALL)
+                            lsqv(vk)%btype = max(lsqv(vk)%btype,NO_SLIP_WALL)
                         case('outflow_subsonic')
-                            lsq(vk)%btype = max(lsq(vk)%btype,PRESSURE_OUTLET)
+                            lsqv(vk)%btype = max(lsqv(vk)%btype,PRESSURE_OUTLET)
                         case default
                             write(*,*) "Boundary condition=",trim(bc_type(ib)),"  not implemented."
                             stop
@@ -180,14 +182,14 @@ module least_squares
 
         ! Allocate the cell weight values
         do i = 1,nnodes
-            allocate( lsq(i)%cx4(lsq(i)%ncells_lsq) )
-            allocate( lsq(i)%cy4(lsq(i)%ncells_lsq) )
-            allocate( lsq(i)%cz4(lsq(i)%ncells_lsq) )
-            allocate( lsq(i)%cq4(lsq(i)%ncells_lsq) )
-            if ( lsq(i)%btype > 0 ) then
-                allocate( lsq(i)%cx3(lsq(i)%ncells_lsq) )
-                allocate( lsq(i)%cy3(lsq(i)%ncells_lsq) )
-                allocate( lsq(i)%cz3(lsq(i)%ncells_lsq) )
+            allocate( lsqv(i)%cx4(lsqv(i)%ncells_lsq) )
+            allocate( lsqv(i)%cy4(lsqv(i)%ncells_lsq) )
+            allocate( lsqv(i)%cz4(lsqv(i)%ncells_lsq) )
+            allocate( lsqv(i)%cq4(lsqv(i)%ncells_lsq) )
+            if ( lsqv(i)%btype > 0 ) then
+                allocate( lsqv(i)%cx3(lsqv(i)%ncells_lsq) )
+                allocate( lsqv(i)%cy3(lsqv(i)%ncells_lsq) )
+                allocate( lsqv(i)%cz3(lsqv(i)%ncells_lsq) )
             endif
         end do
         ! I want the option to prescribe the node value at boundaries where it's known.
@@ -202,15 +204,16 @@ module least_squares
 
         use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type
 
+        use sort_routines , only : queued_natural_merge_sort
+
         implicit none
 
         type(node_type), dimension(nnodes) :: node
     
         type nn_type
             integer                             :: n_nnghbr
-            integer, dimension(:), allocatable  :: nnghbr
+            integer, dimension(:), pointer      :: nnghbr
             integer, dimension(:), pointer      :: runpointer
-            integer, dimension(:), pointer      :: runlength  
         end type nn_type
 
         type(nn_type), dimension(ncells) :: c2nn ! Array that lists the node neighbors of each cell
@@ -243,11 +246,11 @@ module least_squares
             do inode = 1,cell(icell)%nvtx
                 ni = cell(icell)%vtx(inode)
                 node(ni)%nc = node(ni)%nc + 1
-                node(ni)%c  = icell
+                node(ni)%c(node(ni)%nc)  = icell
             end do
         end do
 
-        ! At this point we have a vector of all the nodes with a list and # of attached cells
+        ! At this point we have a vector of all the nodes with a (sorted) list and # of attached cells
         
         allocate(scratch_nghbrs(8))
         
@@ -270,32 +273,27 @@ module least_squares
 
             ! Add the node neighbors to the scratch vetor
             dupn_nnghbr = 0
-            allocate(c2nn(icell)%runpointer(cnvtx))
-            allocate(c2nn(icell)%runlength( cnvtx))
+            allocate(c2nn(icell)%runpointer(cnvtx+1))
+            c2nn(icell)%runpointer(1) = 1
             do inode = 1,cnvtx
                 ni = cell(icell)%vtx(inode)
                 start = dupn_nnghbr + 1
                 end   = dupn_nnghbr + node(ni)%nc
                 scratch_nghbrs(start:end) = node(ni)%c(:)
                 dupn_nnghbr = dupn_nnghbr + node(ni)%nc 
-                c2nn(icell)%runpointer(inode) = start ! this will be used by the reduction algorithm
-                c2nn(icell)%runlength( inode) = node(ni)%nc
+                c2nn(icell)%runpointer(inode + 1) = end + 1 ! this will be used by the reduction algorithm
             end do
-            c2nn(icell)%n_nnghbr = 0
+            
+            if (icell == 16) then
+                write(*,*)
+            end if
+            call queued_natural_merge_sort(dupn_nnghbr,cnvtx,c2nn(icell)%runpointer, &
+                                            scratch_nghbrs, icell,c2nn(icell)%n_nnghbr, c2nn(icell)%nnghbr)
+
         end do
 
         deallocate(scratch_nghbrs)
     end subroutine construct_nn_stencil
-
-    subroutine reduce_nnghbrs()
-        
-        use common , only : p2
-
-        implicit none
-
-
-
-    end subroutine reduce_nnghbrs
 
     subroutine compute_vertex_coefficients
 
@@ -352,21 +350,21 @@ module least_squares
         !--------------------------------------------------------------------------------
         ! Compute the LSQ coefficients (cq,cx,cy,cz) at all nodes.
         node_loop : do i=1,nnodes
-            m = lsq(i)%ncells_lsq ! # of connected cells
+            m = lsqv(i)%ncells_lsq ! # of connected cells
             allocate( a3(m,3) )
             allocate( a4(m,4) )
             allocate( rinvqt3(3,m) )
             allocate( rinvqt4(4,m) )
 
             connect_loop : do k = 1,m
-                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
-                    connect_cell = lsq(i)%cell_lsq(k)
+                if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
+                    connect_cell = lsqv(i)%cell_lsq(k)
                     dx = cell(connect_cell)%xc - x(i)
                     dy = cell(connect_cell)%yc - y(i)
                     dz = cell(connect_cell)%zc - z(i)
                 else
-                    connect_bface = lsq(i)%cell_lsq(k)
-                    ib            = lsq(i)%ib_lsq(k)
+                    connect_bface = lsqv(i)%cell_lsq(k)
+                    ib            = lsqv(i)%ib_lsq(k)
                     connect_cell  = bound(ib)%bcell(connect_bface)
                     ! briefly use the dx, dy, znd dz for face_center - cell_center
                     dx = bound(ib)%bface_center(1,connect_bface) - cell(connect_cell)%xc
@@ -405,14 +403,14 @@ module least_squares
             ! (wx,wy,wz) = R^{-1}*Q^T*RHS
             !            = sum_k (cx,cy,cz)*(wk-wi).
             connect_loop2 : do k = 1,m
-                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
-                    connect_cell = lsq(i)%cell_lsq(k)
+                if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
+                    connect_cell = lsqv(i)%cell_lsq(k)
                     dx = cell(connect_cell)%xc - x(i)
                     dy = cell(connect_cell)%yc - y(i)
                     dz = cell(connect_cell)%zc - z(i)
                 else
-                    connect_bface = lsq(i)%cell_lsq(k)
-                    ib            = lsq(i)%ib_lsq(k)
+                    connect_bface = lsqv(i)%cell_lsq(k)
+                    ib            = lsqv(i)%ib_lsq(k)
                     connect_cell  = bound(ib)%bcell(connect_bface)
                     ! briefly use the dx, dy, znd dz for face_center - cell_center
                     dx = bound(ib)%bface_center(1,connect_bface) - cell(connect_cell)%xc
@@ -427,14 +425,14 @@ module least_squares
                 endif
                 weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
                 ! 3 unknowns
-                lsq(i)%cx3(k) = rinvqt3(1,k) * weight_k
-                lsq(i)%cy3(k) = rinvqt3(2,k) * weight_k
-                lsq(i)%cz3(k) = rinvqt3(3,k) * weight_k
+                lsqv(i)%cx3(k) = rinvqt3(1,k) * weight_k
+                lsqv(i)%cy3(k) = rinvqt3(2,k) * weight_k
+                lsqv(i)%cz3(k) = rinvqt3(3,k) * weight_k
                 ! 4 unknowns
-                lsq(i)%cq4(k) = rinvqt4(1,k) * weight_k
-                lsq(i)%cx4(k) = rinvqt4(2,k) * weight_k
-                lsq(i)%cy4(k) = rinvqt4(3,k) * weight_k
-                lsq(i)%cz4(k) = rinvqt4(4,k) * weight_k
+                lsqv(i)%cq4(k) = rinvqt4(1,k) * weight_k
+                lsqv(i)%cx4(k) = rinvqt4(2,k) * weight_k
+                lsqv(i)%cy4(k) = rinvqt4(3,k) * weight_k
+                lsqv(i)%cz4(k) = rinvqt4(4,k) * weight_k
             end do connect_loop2
 
             deallocate(a3,rinvqt3)
@@ -462,15 +460,15 @@ module least_squares
             zi = z(i)
 
             ! Loop over neighbor cells
-            do k = 1,lsq(i)%ncells_lsq
-                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
-                    connect_cell = lsq(i)%cell_lsq(k)
+            do k = 1,lsqv(i)%ncells_lsq
+                if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then
+                    connect_cell = lsqv(i)%cell_lsq(k)
                     xk = cell(connect_cell)%xc
                     yk = cell(connect_cell)%yc
                     zk = cell(connect_cell)%zc
                 else
-                    connect_bface = lsq(i)%cell_lsq(k) 
-                    ib            = lsq(i)%ib_lsq(k)
+                    connect_bface = lsqv(i)%cell_lsq(k) 
+                    ib            = lsqv(i)%ib_lsq(k)
                     connect_cell  = bound(ib)%bcell(connect_bface)
                     ! We don't store these anywhere because we only need the ghost cell center for this check.
                     ! Ordinarilly we don't need it.
@@ -484,21 +482,21 @@ module least_squares
                 ! This is how we use the LSQ coefficients: accumulate cx*(wk-wi)
                 ! and cy*(wk-wi) and cz*(wk-wi)
                 if ( unknowns_ == 4 ) then
-                    wx = wx + lsq(i)%cx4(k)*( (2.0*xk+yk+4.0*zk) )
-                    wy = wy + lsq(i)%cy4(k)*( (2.0*xk+yk+4.0*zk) )
-                    wz = wz + lsq(i)%cz4(k)*( (2.0*xk+yk+4.0*zk) )
-                    wq = wq + lsq(i)%cq4(k)*( (2.0*xk+yk+4.0*zk) )
+                    wx = wx + lsqv(i)%cx4(k)*( (2.0*xk+yk+4.0*zk) )
+                    wy = wy + lsqv(i)%cy4(k)*( (2.0*xk+yk+4.0*zk) )
+                    wz = wz + lsqv(i)%cz4(k)*( (2.0*xk+yk+4.0*zk) )
+                    wq = wq + lsqv(i)%cq4(k)*( (2.0*xk+yk+4.0*zk) )
                     ! we don't need q
                 else ! unknowns_ == 3
-                    wx = wx + lsq(i)%cx3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yk+4.0*zi) )
-                    wy = wy + lsq(i)%cy3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                    wz = wz + lsq(i)%cz3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wx = wx + lsqv(i)%cx3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yk+4.0*zi) )
+                    wy = wy + lsqv(i)%cy3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wz = wz + lsqv(i)%cz3(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
                 endif
             end do
             ! Loop through attached cells...again
-            cell_grad_loop : do k = 1,lsq(i)%ncells_lsq
-                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
-                    connect_cell = lsq(i)%cell_lsq(k)
+            cell_grad_loop : do k = 1,lsqv(i)%ncells_lsq
+                if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then
+                    connect_cell = lsqv(i)%cell_lsq(k)
                 else
                     cycle cell_grad_loop
                     ! We should be able to cycle the node loop since boundary cells are added last.

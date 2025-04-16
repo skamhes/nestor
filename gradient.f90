@@ -93,7 +93,7 @@ module gradient
 
         use grid            , only : ncells, nnodes, bound, cell
 
-        use least_squares   , only : lsq, INTERNAL
+        use least_squares   , only : lsqv, INTERNAL
 
         use solution        , only : ccgradq, vgradq, nq, q
 
@@ -114,18 +114,18 @@ module gradient
 
         vertex_loop : do i = 1, nnodes
             var_loop : do ivar = 1, nq
-                if (lsq(i)%btype /= INTERNAL ) then ! boundary vertex
-                    bound_int = lsq(i)%btype
+                if (lsqv(i)%btype /= INTERNAL ) then ! boundary vertex
+                    bound_int = lsqv(i)%btype
                     call boundary_value(bound_int,ivar, unknowns, qi)
                 endif
-                attach_loop : do k = 1,lsq(i)%ncells_lsq
+                attach_loop : do k = 1,lsqv(i)%ncells_lsq
                     ! Get q at the neighboring cell (qk)
-                    if (lsq(i)%ib_lsq(k) == INTERNAL) then
-                        attached_cell = lsq(i)%cell_lsq(k)   
+                    if (lsqv(i)%ib_lsq(k) == INTERNAL) then
+                        attached_cell = lsqv(i)%cell_lsq(k)   
                         qk = q(ivar,attached_cell)
                     else ! BVERT
-                        attached_bface = lsq(i)%cell_lsq(k)
-                        ib            = lsq(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
+                        attached_bface = lsqv(i)%cell_lsq(k)
+                        ib            = lsqv(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
                         attached_cell  = bound(ib)%bcell(attached_bface) 
                         qL = q(:,attached_cell)
                         bface_nrml = bound(ib)%bface_nrml(:,attached_bface)
@@ -134,22 +134,22 @@ module gradient
                         qk = qcB(ivar)
                     endif
                     if ( unknowns == 3) then
-                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx3(k) * (qk - qi)
-                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy3(k) * (qk - qi)
-                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz3(k) * (qk - qi)
+                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsqv(i)%cx3(k) * (qk - qi)
+                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsqv(i)%cy3(k) * (qk - qi)
+                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsqv(i)%cz3(k) * (qk - qi)
                     else
-                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx4(k) * qk
-                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy4(k) * qk
-                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz4(k) * qk
+                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsqv(i)%cx4(k) * qk
+                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsqv(i)%cy4(k) * qk
+                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsqv(i)%cz4(k) * qk
                     endif
                 end do attach_loop
 
             end do var_loop    
 
             ! Add the vertex grad to each cell
-            do k = 1,lsq(i)%ncells_lsq
-                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
-                    attached_cell = lsq(i)%cell_lsq(k)
+            do k = 1,lsqv(i)%ncells_lsq
+                if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then
+                    attached_cell = lsqv(i)%cell_lsq(k)
                     ccgradq(:,:,attached_cell) = ccgradq(:,:,attached_cell) + vgradq(:,:,i)
                 endif
             enddo
