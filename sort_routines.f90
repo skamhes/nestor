@@ -50,24 +50,11 @@ module sort_routines
                 rloop : do ! # of loops equal 
                     ! Check if we are at the end of either run
                     if (h1 >= runpointer(irun+1)) then
-                        ! call copy_remaining(h2,wh,runpointer(jrun+1),exclude,rtape,wtape)
-                        do while(h2 < runpointer(jrun+1))
-                            if (rtape(h2) /= exclude) then
-                                wh = wh + 1
-                                wtape(wh) = rtape(h2)
-                            endif
-                            h2 = h2 + 1
-                        end do
+                        call copy_remaining(h2,wh,runpointer(jrun+1),exclude,rtape,wtape)
                         exit rloop
                     end if
                     if (h2 >= runpointer(jrun+1)) then
-                        do while(h1 < runpointer(irun+1))
-                            if (rtape(h1) /= exclude) then
-                                wh = wh + 1
-                                wtape(wh) = rtape(h1)
-                            endif
-                            h1 = h1 + 1
-                        end do
+                        call copy_remaining(h1,wh,runpointer(irun+1),exclude,rtape,wtape)
                         exit rloop
                     end if
 
@@ -75,26 +62,14 @@ module sort_routines
                     if (rtape(h1) == exclude) then 
                         h1 = h1 + 1
                         if (h1 >= runpointer(irun+1)) then
-                            lh1 : do while(h2 < runpointer(jrun+1))
-                                if (rtape(h2) /= exclude) then
-                                    wh = wh + 1
-                                    wtape(wh) = rtape(h2)
-                                endif
-                                h2 = h2 + 1
-                            end do lh1
+                            call copy_remaining(h2,wh,runpointer(jrun+1),exclude,rtape,wtape)
                             exit rloop
                         end if
                     endif
                     if (rtape(h2) == exclude) then 
                         h2 = h2 + 1
                         if (h2 >= runpointer(jrun+1)) then
-                            lh2 : do while(h1 < runpointer(irun+1))
-                                if (rtape(h1) /= exclude) then
-                                    wh = wh + 1
-                                    wtape(wh) = rtape(h1)
-                                end if
-                                h1 = h1 + 1
-                            end do lh2
+                            call copy_remaining(h1,wh,runpointer(irun+1),exclude,rtape,wtape)
                             exit rloop
                         end if
                     endif
@@ -125,13 +100,7 @@ module sort_routines
                      exit gloop ! all
                 elseif (irun == nr) then
                     h1 = runpointer(irun)
-                    do while(h1 < runpointer(irun+1))
-                        if (rtape(h1) /= exclude) then
-                            wh = wh + 1
-                            wtape(wh) = rtape(h1)
-                        end if
-                        h1 = h1 + 1
-                    end do
+                    call copy_remaining(h1,wh,runpointer(irun+1),exclude,rtape,wtape)
                     wpointer(ngloops + 1) = wh + 1
                     exit gloop
                 endif
