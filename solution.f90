@@ -110,6 +110,16 @@ module solution
 
     contains
 
+    subroutine define_problem
+
+        ! This just avoids some circular dependencies for now.  But later on we can use it to define additional solvers that we may 
+        ! need.
+
+        nq = 5
+        ndim = 3
+
+    end subroutine define_problem
+
     subroutine allocate_solution_vars
 
         use common , only : p2, pi
@@ -123,9 +133,6 @@ module solution
                             igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         implicit none
-
-        nq = 5
-        ndim = 3
 
         ! initialize
         allocate( q(nq,ncells) )
