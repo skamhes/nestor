@@ -35,15 +35,27 @@ module least_squares
     type(lsq_vertex_type), dimension(:), pointer :: lsqv  !cell-centered LSQ array
 
     type lsq_cell_type
-        integer                           ::    n_nnghbrs  ! number of cells attached to lsq vertex
-        integer,  dimension(:)  , pointer ::    nghbr_lsq  ! list of neighbor cells
-        real(p2), dimension(:)  , pointer ::           cx  ! LSQ coefficient for x-derivative (4 unknowns) 
-        real(p2), dimension(:)  , pointer ::           cy  ! LSQ coefficient for y-derivative (4 unknowns) 
-        real(p2), dimension(:)  , pointer ::           cz  ! LSQ coefficient for z-derivative (4 unknowns) 
+        integer                                 ::    n_nnghbrs  ! number of cells attached to lsq vertex
+        integer,  dimension(:)  , pointer       ::    nghbr_lsq  ! list of neighbor cells  
+        real(p2), dimension(:)  , pointer       ::           cx  ! LSQ coefficient for x-derivative (3 unknowns) 
+        real(p2), dimension(:)  , pointer       ::           cy  ! LSQ coefficient for y-derivative (3 unknowns) 
+        real(p2), dimension(:)  , pointer       ::           cz  ! LSQ coefficient for z-derivative (3 unknowns) 
+        integer                                 ::          nbf  ! number of boundary faces attached to the cell
+        integer,  dimension(:,:), pointer       ::       gcells  ! list of ghost cells (ibcell,ib) length 2xnbf
+        real(p2), dimension(:)  , pointer       ::          gcx  ! LSQ coefficient for x-derivative (3 unknowns) 
+        real(p2), dimension(:)  , pointer       ::          gcy  ! LSQ coefficient for y-derivative (3 unknowns) 
+        real(p2), dimension(:)  , pointer       ::          gcz  ! LSQ coefficient for z-derivative (3 unknowns) 
     end type lsq_cell_type
 
     !Cell data array in the custom data type.
     type(lsq_cell_type), dimension(:), pointer :: lsqc  !cell-centered LSQ array
+
+    type glsq_type 
+        type(lsq_cell_type), dimension(:), pointer :: lsq ! this type is just variable length arrays of lsq cell types
+    end type glsq_type
+
+    type(glsq_type), dimension(:), pointer :: lsqg
+
 
     ! Boundary int rankings
     integer, parameter :: NO_SLIP_WALL = 99
@@ -71,6 +83,7 @@ module least_squares
             call compute_vertex_coefficients
         case(LSQ_STENCIL_NN)
             call construct_nn_stencil
+            call compute_cell_coefficients
         case default
             write(*,*) "Unsupported LSQ Stencil"
             stop
@@ -213,29 +226,41 @@ module least_squares
 
         use common , only : p2
 
-        use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type
+        use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type, nb
 
         use sort_routines , only : queued_natural_merge_sort
 
         implicit none
 
         type(node_type), dimension(nnodes) :: node
+
+        type bnode_type
+            type(node_type), dimension(:), pointer :: node
+        end type bnode_type
+
+        type(bnode_type), dimension(nb) :: bnode
     
         type nn_type
             integer                             :: n_nnghbr
-            integer, dimension(:), pointer      :: nnghbr
-            integer, dimension(:), pointer      :: runpointer
+            integer, dimension(:)  , pointer    :: nnghbr
         end type nn_type
 
         type(nn_type), dimension(ncells) :: c2nn ! Array that lists the node neighbors of each cell
+        integer, dimension(ncells) :: c2bf ! pointer from cell to bface
 
         integer, dimension(:), pointer :: scratch_nghbrs
         integer                        :: dupn_nnghbr
+
+        integer, dimension(:), pointer :: runpointer
         
-        integer :: inode, icell
-        integer :: ni, cnvtx
+        integer :: inode, icell, ib
+        integer :: jcell, cj
+        integer :: ni, cnvtx, ci, cn, nbfn
 
         integer :: start, end
+
+        allocate(lsqc(ncells))
+        c2bf = 0
 
         do inode = 1,nnodes
             node(inode)%nc = 0
@@ -264,6 +289,7 @@ module least_squares
         ! At this point we have a vector of all the nodes with a (sorted) list and # of attached cells
         
         allocate(scratch_nghbrs(8))
+        allocate(runpointer(8))
         
         do icell = 1,ncells
 
@@ -284,27 +310,85 @@ module least_squares
 
             ! Add the node neighbors to the scratch vetor
             dupn_nnghbr = 0
-            allocate(c2nn(icell)%runpointer(cnvtx+1))
-            c2nn(icell)%runpointer(1) = 1
+            if (cnvtx >= size(runpointer)) then ! this should be cnvtx + 1 > rp but for ints n+1>x <=> n>=x
+                deallocate(runpointer)
+                allocate(runpointer(cnvtx+1))
+            endif
+            runpointer(1) = 1
             do inode = 1,cnvtx
                 ni = cell(icell)%vtx(inode)
                 start = dupn_nnghbr + 1
                 end   = dupn_nnghbr + node(ni)%nc
                 scratch_nghbrs(start:end) = node(ni)%c(:)
                 dupn_nnghbr = dupn_nnghbr + node(ni)%nc 
-                c2nn(icell)%runpointer(inode + 1) = end + 1 ! this will be used by the reduction algorithm
+                runpointer(inode + 1) = end + 1 ! this will be used by the reduction algorithm
             end do
 
-            call queued_natural_merge_sort(dupn_nnghbr,cnvtx,c2nn(icell)%runpointer, &
+            call queued_natural_merge_sort(dupn_nnghbr,cnvtx,runpointer, &
                                             scratch_nghbrs, icell,c2nn(icell)%n_nnghbr, c2nn(icell)%nnghbr)
             
-            lsqc(icell)%n_nnghbrs = c2nn(icell)%n_nnghbr
+            lsqc(icell)%n_nnghbrs = c2nn(icell)%n_nnghbr ! Not sure why I included this step...
             allocate(lsqc(icell)%nghbr_lsq(c2nn(icell)%n_nnghbr))
             lsqc(icell)%nghbr_lsq = c2nn(icell)%nnghbr
             
             allocate(lsqc(icell)%cx(c2nn(icell)%n_nnghbr))
             allocate(lsqc(icell)%cy(c2nn(icell)%n_nnghbr))
             allocate(lsqc(icell)%cz(c2nn(icell)%n_nnghbr))
+
+            lsqc(icell)%nbf = 0
+        end do
+
+        
+
+        ! Now we need to add the ghost cells
+        allocate(lsqg(nb))
+        do ib = 1,nb
+            allocate(lsqg(ib)%lsq(bound(ib)%nbfaces))
+            do icell = 1,bound(ib)%nbfaces
+                ci = bound(ib)%bcell(icell)
+                c2bf(ci) = icell ! pointer maps cell index to bcell index
+            end do
+            do icell = 1,bound(ib)%nbfaces
+                ci = bound(ib)%bcell(icell)
+                if (size(scratch_nghbrs) < lsqc(ci)%n_nnghbrs) then
+                    deallocate(scratch_nghbrs)
+                    allocate(scratch_nghbrs(lsqc(ci)%n_nnghbrs))
+                endif
+                lsqg(ib)%lsq(icell)%n_nnghbrs = 1 ! bcell's mirror is 1
+                scratch_nghbrs(1) = icell
+                do jcell = 1,lsqc(ci)%n_nnghbrs ! loop through the internal neighbors to ci
+                    cj = lsqc(ci)%nghbr_lsq(jcell)
+                    if (c2bf(cj) > 0) then ! if the map is nonzero for that cell it is also on the given boundary
+                        lsqg(ib)%lsq(icell)%n_nnghbrs = lsqg(ib)%lsq(icell)%n_nnghbrs + 1 ! increment
+                        scratch_nghbrs(lsqg(ib)%lsq(icell)%n_nnghbrs) = c2bf(cj) ! add it to the list of node neighbors
+                        ! because we're looping over the merged list we don't need to merge again
+                    endif
+                end do
+                allocate(lsqg(ib)%lsq(icell)%nghbr_lsq(lsqg(ib)%lsq(icell)%n_nnghbrs))
+                lsqg(ib)%lsq(icell)%nghbr_lsq = scratch_nghbrs(1:lsqg(ib)%lsq(icell)%n_nnghbrs)
+                lsqc(ci)%nbf = lsqc(ci)%nbf + 1
+            end do
+            do icell = 1,bound(ib)%nbfaces
+                ! reset the c2bf array to 0
+                ci = bound(ib)%bcell(icell)
+                c2bf(ci) = 0
+            end do
+        end do
+
+        do ib = 1,nb
+            do icell = 1,bound(ib)%nbfaces
+                ci = bound(ib)%bcell(icell)
+                if (.not.associated(lsqc(ci)%gcells)) then 
+                    allocate(lsqc(ci)%gcells(2,lsqc(ci)%nbf))
+                    allocate(lsqc(ci)%gcx(lsqc(ci)%nbf))
+                    allocate(lsqc(ci)%gcy(lsqc(ci)%nbf))
+                    allocate(lsqc(ci)%gcz(lsqc(ci)%nbf))
+                    lsqc(ci)%nbf = 0
+                end if
+                lsqc(ci)%nbf = lsqc(ci)%nbf + 1
+                lsqc(ci)%gcells(:,lsqc(ci)%nbf) = (/ icell , ib /)
+
+            end do
 
         end do
 
@@ -599,7 +683,7 @@ module least_squares
 
     subroutine compute_cell_coefficients
         
-        use grid , only : cell, ncells
+        use grid , only : cell, ncells, gcell, nb
 
         use common , only : p2, zero, one, two, ix, iy, iz
 
@@ -607,6 +691,8 @@ module least_squares
 
         use solution , only : ndim
 
+        use utils    , only : ilsq_stencil, LSQ_STENCIL_NN
+        
         implicit none
 
         real(p2) :: maxdx, maxdy, maxdz
@@ -616,8 +702,9 @@ module least_squares
         real(p2), pointer, dimension(:,:) :: rinvqt           !Pseudo inverse R^{-1}*Q^T
         integer                           :: nghbr_cell
         
-        integer :: i, k
+        integer :: k, ib
         integer :: icell
+        integer :: ci
         
         real(p2) :: dx, dy, dz
         real(p2) :: weight_k
@@ -653,9 +740,9 @@ module least_squares
             n = ndim                    ! # of dimensions
 
             ! Allocate LSQ matrix and the pseudo inverse, R^{-1}*Q^T
-            allocate(a(m,n)) ! note: it may produce some additional speed to switch the rows and columns here
+            allocate(a(m + lsqc(icell)%nbf,n)) ! note: it may produce some additional speed to switch the rows and columns here
             ! however a is a very small matrix and this subroutine is called once so we'll leave that for another day
-            allocate(rinvqt(n,m))
+            allocate(rinvqt(n,m + lsqc(icell)%nbf))
             ! Initialize a
             a = zero
            
@@ -667,11 +754,11 @@ module least_squares
             !                 .
             !                 .
             !     weight_m * [ (xm-xi)*wxi + (ym-yi)*wyi + (zm-zi)*wzi ] = weight_2 * [ wm - wi ]
-            nghbr_loop : do k = 1, m
-                nghbr_cell = lsqc(i)%nghbr_lsq(k) !Neighbor cell number
-                dx = cell(nghbr_cell)%xc - cell(i)%xc
-                dy = cell(nghbr_cell)%yc - cell(i)%yc
-                dz = cell(nghbr_cell)%zc - cell(i)%zc
+            nghbr_loop : do k = 1, lsqc(icell)%n_nnghbrs
+                nghbr_cell = lsqc(icell)%nghbr_lsq(k) !Neighbor cell number
+                dx = cell(nghbr_cell)%xc - cell(icell)%xc
+                dy = cell(nghbr_cell)%yc - cell(icell)%yc
+                dz = cell(nghbr_cell)%zc - cell(icell)%zc
                 weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
                 a(k,1) = weight_k*dx
                 a(k,2) = weight_k*dy
@@ -680,9 +767,25 @@ module least_squares
                 maxdy  = max(abs(dy),maxdy)
                 maxdz  = max(abs(dz),maxdz)
             end do nghbr_loop
+
+            ! Do ghost cells if any
+            nghbr_loop2 : do k = 1, lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,k)
+                ib = lsqc(icell)%gcells(2,k)
+                dx = gcell(ib)%xc(ci) - cell(icell)%xc
+                dy = gcell(ib)%yc(ci) - cell(icell)%yc
+                dz = gcell(ib)%zc(ci) - cell(icell)%zc
+                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                a(k+lsqc(icell)%n_nnghbrs,1) = weight_k*dx
+                a(k+lsqc(icell)%n_nnghbrs,2) = weight_k*dy
+                a(k+lsqc(icell)%n_nnghbrs,3) = weight_k*dz
+                maxdx  = max(abs(dx),maxdx)
+                maxdy  = max(abs(dy),maxdy)
+                maxdz  = max(abs(dz),maxdz)
+            end do nghbr_loop2
             !-------------------------------------------------------
             ! Perform QR factorization and compute R^{-1}*Q^T from A(m,n).
-            call qr_factorization(a,rinvqt,m,n)
+            call qr_factorization(a,rinvqt,m + lsqc(icell)%nbf,n)
 
             !-------------------------------------------------------
             ! Compute and store the LSQ coefficients: R^{-1}*Q^T*w.
@@ -690,16 +793,29 @@ module least_squares
             ! (wx,wy,wz) = R^{-1}*Q^T*RHS
             !            = sum_k (cx,cy,cz)*(wk-wi).
 
-            nghbr_loop2 : do k = 1, m
-                nghbr_cell = lsqc(i)%nghbr_lsq(k)
-                dx = cell(nghbr_cell)%xc - cell(i)%xc
-                dy = cell(nghbr_cell)%yc - cell(i)%yc
-                dz = cell(nghbr_cell)%zc - cell(i)%zc
+            nghbr_loop3 : do k = 1, m
+                nghbr_cell = lsqc(icell)%nghbr_lsq(k)
+                dx = cell(nghbr_cell)%xc - cell(icell)%xc
+                dy = cell(nghbr_cell)%yc - cell(icell)%yc
+                dz = cell(nghbr_cell)%zc - cell(icell)%zc
                 weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
-                lsqc(i)%cx(k)  = rinvqt(ix,k) * weight_k
-                lsqc(i)%cy(k)  = rinvqt(iy,k) * weight_k
-                lsqc(i)%cz(k)  = rinvqt(iz,k) * weight_k
-            end do nghbr_loop2
+                lsqc(icell)%cx(k)  = rinvqt(ix,k) * weight_k
+                lsqc(icell)%cy(k)  = rinvqt(iy,k) * weight_k
+                lsqc(icell)%cz(k)  = rinvqt(iz,k) * weight_k
+            end do nghbr_loop3
+
+            ! Do ghost cells if any
+            nghbr_loop4 : do k = m+1, m + lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,k - m)
+                ib = lsqc(icell)%gcells(2,k - m)
+                dx = gcell(ib)%xc(ci) - cell(icell)%xc
+                dy = gcell(ib)%yc(ci) - cell(icell)%yc
+                dz = gcell(ib)%zc(ci) - cell(icell)%zc
+                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                lsqc(icell)%gcx(k - m)  = rinvqt(ix,k) * weight_k
+                lsqc(icell)%gcy(k - m)  = rinvqt(iy,k) * weight_k
+                lsqc(icell)%gcz(k - m)  = rinvqt(iz,k) * weight_k
+            end do nghbr_loop4
             !-------------------------------------------------------
             ! Deallocate a and rinvqt, whose size may change in the next cell. 
             deallocate(a, rinvqt)
@@ -709,28 +825,39 @@ module least_squares
         ! Compute the gradient of w = 2*x+y+4*z to se if we get wx = 2, wy = 1, and wz = 4 correctly
         verification_error = .false.
 
-        do i = 1,ncells
+        do icell = 1,ncells
             ! initialize wx, wy, and wz
             wx = zero
             wy = zero
             wz = zero
             ! (xi,yi,zi) to be used to compute the function 2*x+y+4z at i
-            xi = cell(i)%xc
-            yi = cell(i)%yc
-            zi = cell(i)%zc
+            xi = cell(icell)%xc
+            yi = cell(icell)%yc
+            zi = cell(icell)%zc
 
             ! look over the vertex neighboes
-            do k = 1,lsqc(i)%n_nnghbrs
-                nghbr_cell = lsqc(i)%nghbr_lsq(k)
+            do k = 1,lsqc(icell)%n_nnghbrs
+                nghbr_cell = lsqc(icell)%nghbr_lsq(k)
                 xk = cell(nghbr_cell)%xc
                 yk = cell(nghbr_cell)%yc
                 zk = cell(nghbr_cell)%zc
                 ! This is how we use the LSQ coefficients: accumulate cx*(wk-wi)
                 ! and cy*(wk-wi) and cz*(wk-wi)
-                wx = wx + lsqc(i)%cx(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                wy = wy + lsqc(i)%cy(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                wz = wz + lsqc(i)%cz(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wx = wx + lsqc(icell)%cx(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wy = wy + lsqc(icell)%cy(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wz = wz + lsqc(icell)%cz(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
             end do
+            do k = 1,lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,k)
+                ib = lsqc(icell)%gcells(2,k)
+                xk = gcell(ib)%xc(ci)
+                yk = gcell(ib)%yc(ci)
+                zk = gcell(ib)%zc(ci)
+                wx = wx + lsqc(icell)%gcx(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wy = wy + lsqc(icell)%gcy(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                wz = wz + lsqc(icell)%gcz(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+            end do
+
             maxDeltasNZ = zero
             if (maxdx > 0.001_p2) maxDeltasNZ(1) = one
             if (maxdy > 0.001_p2) maxDeltasNZ(2) = one

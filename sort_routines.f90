@@ -17,7 +17,7 @@ module sort_routines
         integer,                        intent(in)    :: exclude    ! number to be skipped in the merge (index of the host cell)
 
         integer,                        intent(out)   :: n_nnghbr ! number of unique neighbors
-        integer, dimension(:), pointer, intent(out)   :: nnghbr
+        integer, dimension(:), pointer, intent(out)   :: nnghbr   ! vector of unique neighbors
 
         ! Local vars
         integer, dimension(:), pointer  :: wtape        ! write tape
