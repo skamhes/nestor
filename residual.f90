@@ -12,7 +12,7 @@ module residual
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
 
-        use utils           , only : iturb_type, TURB_INVISCID
+        use utils           , only : iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -204,13 +204,17 @@ module residual
                 
                 face_sides = bound(ib)%bfaces(1,j)
 
-                gradqb = zero
-                do k = 1,face_sides
-                    nk = bound(ib)%bfaces(k + 1,j)
-                    gradqb = gradqb + vgradq(:,:,nk)
-                end do
-                gradqb = gradqb / real(face_sides, p2)
-
+                if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                    gradqb = zero
+                    do k = 1,face_sides
+                        nk = bound(ib)%bfaces(k + 1,j)
+                        gradqb = gradqb + vgradq(:,:,nk)
+                    end do
+                    gradqb = gradqb / real(face_sides, p2)
+                else ! ilsq_stencil == LSQ_STENCIL_NN
+                    gradqb = ccgradq(1:3,1:5,c1)
+                endif
+                
                 call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                 bface_centroid(1),bface_centroid(2),bface_centroid(3), &
