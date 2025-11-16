@@ -391,6 +391,8 @@ module config
       select case(trim(lsq_stencil))
       case('w_vertex')
         ilsq_stencil = LSQ_STENCIL_WVERTEX
+      case('nn')
+        ilsq_stencil = LSQ_STENCIL_NN
       case default
         write(*,*) ' lsq_stencil input "', trim(jacobian_method),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'

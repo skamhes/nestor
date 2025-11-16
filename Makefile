@@ -42,6 +42,7 @@ SDIR = .
 OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
+		$(SDIR)/sort_routines.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/grid_statistics.o\

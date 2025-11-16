@@ -15,7 +15,7 @@ module jacobian
 
         use common              , only : p2, zero, half, one
 
-        use utils               , only : iturb_type, TURB_INVISCID, ibc_type
+        use utils               , only : iturb_type, TURB_INVISCID, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
@@ -121,13 +121,17 @@ module jacobian
 
                 face_sides = bound(ib)%bfaces(1,i)
 
-                gradqb = zero
-                do k = 1,face_sides
-                    nk = bound(ib)%bfaces(k + 1,i)
-                    gradqb = gradqb + vgradq(:,:,nk)
-                end do
-                gradqb = gradqb / real(face_sides, p2)
-
+                if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                    gradqb = zero
+                    do k = 1,face_sides
+                        nk = bound(ib)%bfaces(k + 1,i)
+                        gradqb = gradqb + vgradq(:,:,nk)
+                    end do
+                    gradqb = gradqb / real(face_sides, p2)
+                else ! ilsq_stencil == LSQ_STENCIL_NN
+                    gradqb = ccgradq(1:3,1:5,c1)
+                endif
+                
                 call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
                                   cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                   bface_centroid(1),bface_centroid(2),bface_centroid(3), &

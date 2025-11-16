@@ -63,6 +63,19 @@ module grid
     type(cc_data_type), dimension(:), pointer :: cell
 
     !------------------------------------------
+    !>> GHOST CELL STRUCTURES TO BE USED AT BOUNDARY INTERFACE
+    type ghost_cell_type
+        ! integer, dimension(:), pointer      :: bcell        ! Attached internal cell
+        real(p2), dimension(:), pointer     :: xc, yc, zc   ! Cell center of ghost cell (cc + 2(cc-fc))
+        ! integer                             ::    nvtx      ! Number of vertices, this is equal to the number of vtx on the bface
+        ! integer, dimension(:), pointer      ::     vtx      ! list of face vertices
+        real(p2), dimension(:,:), pointer   :: q            ! flow variables in the ghost cell (weak BC)
+    end type ghost_cell_type
+
+    type(ghost_cell_type), dimension(:), pointer :: gcell
+    
+
+    !------------------------------------------
     !>> FACE ARRAYS TO BE USED BY SOLVERS
     integer                           :: nfaces             ! Number of interior faces
     integer, dimension(:,:),  pointer :: face               ! Interior face data (L&R cells and nodes)
@@ -82,6 +95,14 @@ module grid
     end type bgrid_type
     ! Boundary array for solver
     type(bgrid_type), dimension(:), pointer     :: bound            ! Boundary data
+
+    !------------------------------------------------------------------
+    ! Below are some local (temporary) variables used to construct the CCFV data.
+    !To store the list of cells around each node.
+    type node_type
+        integer                        :: nc
+        integer, dimension(:), pointer :: c
+    end type node_type
 
     !------------------------------------------
     !>> GRID STATISTICS
@@ -677,13 +698,7 @@ module grid
 
         implicit none
 
-        !------------------------------------------------------------------
-        ! Below are some local (temporary) variables used to construct the CCFV data.
-        !To store the list of cells around each node.
-        type node_type
-            integer                        :: nc
-            integer, dimension(:), pointer :: c
-        end type node_type
+
         ! Array of custom node-type data
         type(node_type), dimension(:), pointer :: node
         ! Debugging vars
@@ -1697,6 +1712,8 @@ module grid
 
         deallocate(sum_face_normal)
 
+        if (need_ghost_cells) call build_ghost_cells
+
         !Any other check?
 
         write(*,*)
@@ -2073,5 +2090,41 @@ module grid
 
     end subroutine bc_convert_c_to_i
 
-    
+    logical function need_ghost_cells() 
+
+        ! For now we'll just always return this as true.  I'm not sure how extensively I'll use this yet.
+        need_ghost_cells = .true.
+
+    end function
+
+    subroutine build_ghost_cells
+
+        use solution , only : nq
+        implicit none
+
+        integer :: ib, icell, inode
+        integer :: ci
+        real(p2) :: dx, dy, dz
+
+        allocate(gcell(nb))
+
+        do ib = 1,nb
+            allocate(gcell(ib)%xc( bound(ib)%nbfaces))
+            allocate(gcell(ib)%yc( bound(ib)%nbfaces))
+            allocate(gcell(ib)%zc( bound(ib)%nbfaces))
+            allocate(gcell(ib)%q(nq,bound(ib)%nbfaces))
+
+            do icell = 1,bound(ib)%nbfaces
+                ! Calc gcell center as reflection through bface center
+                ci = bound(ib)%bcell(icell)
+                dx = bound(ib)%bface_center(1,icell) - cell(ci)%xc
+                dy = bound(ib)%bface_center(2,icell) - cell(ci)%yc
+                dz = bound(ib)%bface_center(3,icell) - cell(ci)%zc
+                gcell(ib)%xc(icell) = bound(ib)%bface_center(1,icell) + dx
+                gcell(ib)%yc(icell) = bound(ib)%bface_center(2,icell) + dy
+                gcell(ib)%zc(icell) = bound(ib)%bface_center(3,icell) + dz
+            end do
+        end do
+
+    end subroutine build_ghost_cells
 end module grid

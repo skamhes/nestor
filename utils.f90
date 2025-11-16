@@ -14,7 +14,7 @@ module utils
     public IFLUX_ROE, IJAC_ROE, SOLVER_RK, SOLVER_EXPLICIT, SOLVER_IMPLICIT, SOLVER_GCR, JAC_ANALYTIC
     public IJAC_RHLL, IJAC_HLL, IJAC_RUSANOV
     public ismoother, SMOOTH_GS
-    public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
+    public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
     public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS
     public ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG, MMS_DIRICHLET
 
@@ -57,6 +57,7 @@ module utils
     integer, parameter :: GRAD_LSQ = 0
 
     integer, parameter :: LSQ_STENCIL_WVERTEX = 0
+    integer, parameter :: LSQ_STENCIL_NN      = 1
 
     ! Turbulence settings
     integer :: iturb_type
