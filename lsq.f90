@@ -683,7 +683,7 @@ module least_squares
 
     subroutine compute_cell_coefficients
         
-        use grid , only : cell, ncells, gcell, nb
+        use grid , only : cell, ncells, gcell
 
         use common , only : p2, zero, one, two, ix, iy, iz
 
@@ -691,8 +691,6 @@ module least_squares
 
         use solution , only : ndim
 
-        use utils    , only : ilsq_stencil, LSQ_STENCIL_NN
-        
         implicit none
 
         real(p2) :: maxdx, maxdy, maxdz

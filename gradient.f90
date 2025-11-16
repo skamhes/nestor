@@ -56,7 +56,7 @@ module gradient
 
         use config          , only : grad_method, lsq_stencil
         
-        use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
+        use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
         use solution        , only : ccgradq, vgradq
 
@@ -72,11 +72,17 @@ module gradient
 
         select case(igrad_method)
         case(GRAD_LSQ)
-            if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+            lsq : select case(ilsq_stencil)
+            case(LSQ_STENCIL_WVERTEX) lsq
                 vgradq = zero
-
                 call compute_vgradient
-            end if
+            case(LSQ_STENCIL_NN) lsq
+                call compute_cgradient
+            case default lsq
+                write(*,*) 'Unsupported gradient methodstencil.'
+                write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
+                stop    
+            end select lsq
         case default
             write(*,*) 'Unsupported gradient method.'
             write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
@@ -161,6 +167,68 @@ module gradient
         end do
 
     end subroutine compute_vgradient
+
+    subroutine compute_cgradient
+
+        use common , only : p2, ix, iy, iz
+
+        use bc_states , only : get_right_state
+
+        use grid , only : nb, gcell, bound, ncells
+
+        use solution , only : q, ccgradq, nq
+
+        use utils , only : ibc_type
+
+        use least_squares , only : lsqc
+        
+        implicit none
+
+        integer :: ib, j, icell, kcell, jvar
+        integer :: c1
+        integer :: ck
+
+        real(p2), dimension(3) :: unit_face_normal
+        real(p2), dimension(5) :: q1, qb
+        real(p2), dimension(5) :: qk, qi
+        real(p2)               :: qk_j
+
+        ! First update the ghost cell values
+        do ib = 1,nb
+            do j=1,bound(ib)%nbfaces
+                c1 = bound(ib)%bcell(j)
+                unit_face_normal = bound(ib)%bface_nrml(:,j)
+                q1 = q(:,c1)
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                gcell(ib)%q(:,j) = qb
+            end do
+        end do
+
+
+        do icell=1,ncells
+            ! loop over the vertex neighboes
+            qi = q(:,icell)
+            do jvar = 1,nq
+                do kcell = 1,lsqc(icell)%n_nnghbrs
+                    ck = lsqc(icell)%nghbr_lsq(kcell)
+                    qk_j = q(jvar,ck)
+                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%cx(kcell) * (qk_j - qi(jvar))
+                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%cy(kcell) * (qk_j - qi(jvar))
+                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%cz(kcell) * (qk_j - qi(jvar))
+                end do
+                do kcell = 1,lsqc(icell)%nbf
+                    ib = lsqc(icell)%gcells(2,kcell)
+                    qk_j = gcell(ib)%q(jvar,kcell)
+                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%gcx(kcell) * (qk_j - qi(jvar))
+                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%gcy(kcell) * (qk_j - qi(jvar))
+                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%gcz(kcell) * (qk_j - qi(jvar))
+                end do
+            end do
+
+        end do
+
+
+    end subroutine compute_cgradient
 
     subroutine boundary_value(boundary_type, scalar, known, value)
         use common          , only : p2, zero
