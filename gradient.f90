@@ -194,7 +194,7 @@ module gradient
 
         integer :: ib, j, icell, kcell, jvar
         integer :: c1
-        integer :: ck
+        integer :: ck, ci
 
         real(p2), dimension(3) :: unit_face_normal
         real(p2), dimension(5) :: q1, qb
@@ -243,8 +243,9 @@ module gradient
                     ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%cz(kcell) * (qk_j - qi(jvar))
                 end do
                 do kcell = 1,lsqc(icell)%nbf
+                    ci = lsqc(icell)%gcells(1,kcell)
                     ib = lsqc(icell)%gcells(2,kcell)
-                    qk_j = gcell(ib)%q(jvar,kcell)
+                    qk_j = gcell(ib)%q(jvar,ci)
                     ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%gcx(kcell) * (qk_j - qi(jvar))
                     ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%gcy(kcell) * (qk_j - qi(jvar))
                     ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%gcz(kcell) * (qk_j - qi(jvar))
