@@ -193,12 +193,6 @@ module residual
                 fxc  = bound(ib)%bface_center(1,j)
                 fyc  = bound(ib)%bface_center(2,j)
                 fzc  = bound(ib)%bface_center(3,j)
-                dxc2 = fxc - xc
-                dyc2 = fyc - yc
-                dzc2 = fzc - zc
-                xc2  = fxc + dxc2
-                yc2  = fyc + dyc2
-                zc2  = fzc + dzc2
                 call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
