@@ -344,19 +344,20 @@ module least_squares
         allocate(lsqg(nb))
         do ib = 1,nb
             allocate(lsqg(ib)%lsq(bound(ib)%nbfaces))
+            ! Create a pointer that maps a cell to its bound(ib)%bcell() index.
             do icell = 1,bound(ib)%nbfaces
                 ci = bound(ib)%bcell(icell)
                 c2bf(ci) = icell ! pointer maps cell index to bcell index
             end do
-            do icell = 1,bound(ib)%nbfaces
+            do icell = 1,bound(ib)%nbfaces ! loop through the bcells
                 ci = bound(ib)%bcell(icell)
                 if (size(scratch_nghbrs) < lsqc(ci)%n_nnghbrs) then
                     deallocate(scratch_nghbrs)
                     allocate(scratch_nghbrs(lsqc(ci)%n_nnghbrs))
                 endif
-                lsqg(ib)%lsq(icell)%n_nnghbrs = 1 ! bcell's mirror is 1
+                lsqg(ib)%lsq(icell)%n_nnghbrs = 1 ! the ghost attached to bface(ci) counts as 1
                 scratch_nghbrs(1) = icell
-                do jcell = 1,lsqc(ci)%n_nnghbrs ! loop through the internal neighbors to ci
+                do jcell = 1,lsqc(ci)%n_nnghbrs ! loop through the internal neighbors to ci which we already know
                     cj = lsqc(ci)%nghbr_lsq(jcell)
                     if (c2bf(cj) > 0) then ! if the map is nonzero for that cell it is also on the given boundary
                         lsqg(ib)%lsq(icell)%n_nnghbrs = lsqg(ib)%lsq(icell)%n_nnghbrs + 1 ! increment
@@ -366,7 +367,7 @@ module least_squares
                 end do
                 allocate(lsqg(ib)%lsq(icell)%nghbr_lsq(lsqg(ib)%lsq(icell)%n_nnghbrs))
                 lsqg(ib)%lsq(icell)%nghbr_lsq = scratch_nghbrs(1:lsqg(ib)%lsq(icell)%n_nnghbrs)
-                lsqc(ci)%nbf = lsqc(ci)%nbf + 1
+                lsqc(ci)%nbf = lsqc(ci)%nbf + lsqg(ib)%lsq(icell)%n_nnghbrs
             end do
             do icell = 1,bound(ib)%nbfaces
                 ! reset the c2bf array to 0
@@ -385,13 +386,16 @@ module least_squares
                     allocate(lsqc(ci)%gcz(lsqc(ci)%nbf))
                     lsqc(ci)%nbf = 0
                 end if
-                lsqc(ci)%nbf = lsqc(ci)%nbf + 1
-                lsqc(ci)%gcells(:,lsqc(ci)%nbf) = (/ icell , ib /)
-
+                
+                do jcell = 1,lsqg(ib)%lsq(icell)%n_nnghbrs
+                    lsqc(ci)%nbf = lsqc(ci)%nbf + 1
+                    lsqc(ci)%gcells(:,lsqc(ci)%nbf) = (/ lsqg(ib)%lsq(icell)%nghbr_lsq(jcell) , ib /)    
+                end do
+                deallocate(lsqg(ib)%lsq(icell)%nghbr_lsq)
             end do
-
+            deallocate(lsqg(ib)%lsq)
         end do
-
+        deallocate(lsqg)
         deallocate(scratch_nghbrs)
     end subroutine construct_nn_stencil
 
