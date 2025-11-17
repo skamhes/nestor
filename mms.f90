@@ -68,7 +68,7 @@ module mms
        !-----------------------------------------------------------
         ! Constants for the exact solution: c0 + cs*sin(cx*x+cy*y).
         !
-        ! Note: Make sure the density and pressure are positive.
+        ! Note: Make sure the density and pressure are positive (c0 > cs).
         ! Note: These values are passed to the subroutine:
         !         manufactured_sol(c0,cs,cx,cy, nx,ny,x,y),
         !       whcih returns the solution value or derivatives.
@@ -126,7 +126,7 @@ module mms
         !------------------------------------------------------------------------
         ! rho: Density and its 1st derivatives
 
-        rho = manufactured_sol(cr0,crs,crx,cry, 0,0,x,y)
+        rho  = manufactured_sol(cr0,crs,crx,cry, 0,0,x,y)
         rhox = manufactured_sol(cr0,crs,crx,cry, 1,0,x,y)
         rhoy = manufactured_sol(cr0,crs,crx,cry, 0,1,x,y)
  
@@ -246,24 +246,24 @@ module mms
         ! Store the inviscid terms in the forcing term array, f(:).
         !---------------------------------------------------------------------
 
-        ! ! ------------------------------------------------------
-        ! ! Continuity:         (rho*u)_x   +   (rho*v)_y
-        ! S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
+        ! ------------------------------------------------------
+        ! Continuity:         (rho*u)_x   +   (rho*v)_y
+        S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
 
-        ! !------------------------------------------------------
-        ! ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
-        ! S(2)   =     aux     +    buy      + px
+        !------------------------------------------------------
+        ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
+        S(2)   =     aux     +    buy      + px
     
-        ! !------------------------------------------------------
-        ! ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
-        ! S(3)   =     avx     +    bvy      + py
+        !------------------------------------------------------
+        ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
+        S(3)   =     avx     +    bvy      + py
     
-        ! !------------------------------------------------------
-        ! ! Momentum:     w is zero
-        ! S(4)   = 0.0_p2
-        ! !------------------------------------------------------
-        ! ! Energy:       (rho*u*H)_x + (rho*v*H)
-        ! S(5)  =    rhouHx   +   rhovHy
+        !------------------------------------------------------
+        ! Momentum:     w is zero
+        S(4)   = 0.0_p2
+        !------------------------------------------------------
+        ! Energy:       (rho*u*H)_x + (rho*v*H)
+        S(5)  =    rhouHx   +   rhovHy
     
         if (iturb_type > TURB_INVISCID) then
 

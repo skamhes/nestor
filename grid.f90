@@ -1712,7 +1712,9 @@ module grid
 
         deallocate(sum_face_normal)
 
-        if (need_ghost_cells) call build_ghost_cells
+        if (need_ghost_cells()) then
+            call build_ghost_cells
+        endif
 
         !Any other check?
 
@@ -2099,7 +2101,7 @@ module grid
 
     subroutine build_ghost_cells
 
-        use solution , only : nq
+        ! use solution , only : nq don't want to deal with the circular dependency right now.
         implicit none
 
         integer :: ib, icell, inode
@@ -2112,7 +2114,7 @@ module grid
             allocate(gcell(ib)%xc( bound(ib)%nbfaces))
             allocate(gcell(ib)%yc( bound(ib)%nbfaces))
             allocate(gcell(ib)%zc( bound(ib)%nbfaces))
-            allocate(gcell(ib)%q(nq,bound(ib)%nbfaces))
+            allocate(gcell(ib)%q(5,bound(ib)%nbfaces))
 
             do icell = 1,bound(ib)%nbfaces
                 ! Calc gcell center as reflection through bface center

@@ -182,7 +182,7 @@ module gradient
 
         use bc_states , only : get_right_state
 
-        use grid , only : nb, gcell, bound, ncells
+        use grid , only : nb, gcell, bound, ncells, cell
 
         use solution , only : q, ccgradq, nq
 
@@ -201,67 +201,11 @@ module gradient
         real(p2), dimension(5) :: qk, qi
         real(p2)               :: qk_j
 
-        ! First update the ghost cell values
-        do ib = 1,nb
-            do j=1,bound(ib)%nbfaces
-                c1 = bound(ib)%bcell(j)
-                unit_face_normal = bound(ib)%bface_nrml(:,j)
-                q1 = q(:,c1)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
-                gcell(ib)%q(:,j) = qb
-            end do
-        end do
-
-
-        do icell=1,ncells
-            ! loop over the vertex neighboes
-            qi = q(:,icell)
-            do jvar = 1,nq
-                do kcell = 1,lsqc(icell)%n_nnghbrs
-                    ck = lsqc(icell)%nghbr_lsq(kcell)
-                    qk_j = q(jvar,ck)
-                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%cx(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%cy(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%cz(kcell) * (qk_j - qi(jvar))
-                end do
-                do kcell = 1,lsqc(icell)%nbf
-                    ib = lsqc(icell)%gcells(2,kcell)
-                    qk_j = gcell(ib)%q(jvar,kcell)
-                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%gcx(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%gcy(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%gcz(kcell) * (qk_j - qi(jvar))
-                end do
-            end do
-
-        end do
-
-
-    end subroutine compute_cgradient
-
-    subroutine compute_cgradient
-
-        use common , only : p2, ix, iy, iz
-
-        use bc_states , only : get_right_state
-
-        use grid , only : nb, gcell, bound, ncells
-
-        use solution , only : q, ccgradq, nq
-
-        use utils , only : ibc_type
-
-        use least_squares , only : lsqc
+        real(p2)                :: xc, yc, zc
+        real(p2)                :: fxc, fyc, fzc
+        real(p2)                :: dxc2, dyc2, dzc2
+        real(p2)                :: xc2, yc2, zc2
         
-        implicit none
-
-        integer :: ib, j, icell, kcell, jvar
-        integer :: c1
-        integer :: ck
-
-        real(p2), dimension(3) :: unit_face_normal
-        real(p2), dimension(5) :: q1, qb
-        real(p2), dimension(5) :: qk, qi
-        real(p2)               :: qk_j
 
         ! First update the ghost cell values
         do ib = 1,nb
@@ -269,7 +213,19 @@ module gradient
                 c1 = bound(ib)%bcell(j)
                 unit_face_normal = bound(ib)%bface_nrml(:,j)
                 q1 = q(:,c1)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                xc   = cell(c1)%xc
+                yc   = cell(c1)%yc
+                zc   = cell(c1)%zc
+                fxc  = bound(ib)%bface_center(1,j)
+                fyc  = bound(ib)%bface_center(2,j)
+                fzc  = bound(ib)%bface_center(3,j)
+                dxc2 = fxc - xc
+                dyc2 = fyc - yc
+                dzc2 = fzc - zc
+                xc2  = fxc + dxc2
+                yc2  = fyc + dyc2
+                zc2  = fzc + dzc2
+                call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
                 gcell(ib)%q(:,j) = qb
             end do
         end do

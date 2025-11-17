@@ -106,7 +106,7 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID ) then
+        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID .OR. run_mms ) then
             call init_gradients
         endif    
 
@@ -559,17 +559,21 @@ module steady_solver
 
         use common , only : p2
 
+        use gradient , only : compute_gradient
+
         use mms
 
         use mms_exact
 
         use residual , only : compute_residual
 
+        use config   , only : accuracy_order
+
         use solution , only : q, res, inv_ncells, ccgradq, vgradq
 
         use grid , only : nb, ncells, cell, nnodes, x, y, z
 
-        use utils , only : ibc_type, MMS_DIRICHLET
+        use utils , only : ibc_type, MMS_DIRICHLET, iturb_type, TURB_INVISCID
 
         integer :: i, ib
         real(p2), dimension(:,:), allocatable :: S ! source term added to the residual
@@ -593,11 +597,13 @@ module steady_solver
             call fMMS(cell(i)%xc,cell(i)%yc,cell(i)%zc, q(:,i), S(:,i), gradQ=exac_gradQ(:,:,i))
         end do
 
+        ! always compute gradient
+        if (accuracy_order == 1 .and. iturb_type == TURB_INVISCID) call compute_gradient(0)
         call compute_residual
         int_cell = int(sqrt(real(ncells))) ! cell is an n x n square
         int_cell = int_cell * int_cell /2 + int_cell /2
         ! int_cell = 1
-        write(*,'(a25,i5,a,5es13.5)') " rE_L1(TE) int  @ icell =  ",int_cell, ":", res(:,int_cell)
+        ! write(*,'(a25,i5,a,5es13.5)') " rE_L1(TE) int  @ icell =  ",int_cell, ":", res(:,int_cell)
 
         ! subtract the source term from the residual
         do i = 1,ncells
@@ -631,7 +637,7 @@ module steady_solver
         ! Compute the residual at an internal cell with the exact values at the face (debugging)
 
         
-        call manual_test_mms(cell(int_cell), int_cell)
+        ! call manual_test_mms(cell(int_cell), int_cell)
         
         !Print the TE for all 5 equations.
 
@@ -653,14 +659,14 @@ module steady_solver
 
         ! write(*,'(a10,5es13.5,i5)') "intcell dx:", abs(ccgradq(1,:,int_cell))*inv_ncells, int_cell
         ! write(*,'(a10,5es13.5,i5)') "intcell dy:", abs(ccgradq(2,:,int_cell))*inv_ncells, int_cell
-        maxerr = 0.0_p2
-        do i = 1,ncells
-            if (maxval(abs(res(:,i))) > maxerr) then
-                maxerr = maxval(abs(res(:,i)))
-                int_cell = i
-            endif
-        enddo
-        write(*,'(a25,i5,a,5es13.5)') " max rE_L1(TE) int  @ icell =  ",int_cell, ":", abs(res(:,int_cell))
+        ! maxerr = 0.0_p2
+        ! do i = 1,ncells
+        !     if (maxval(abs(res(:,i))) > maxerr) then
+        !         maxerr = maxval(abs(res(:,i)))
+        !         int_cell = i
+        !     endif
+        ! enddo
+        ! write(*,'(a25,i5,a,5es13.5)') " max rE_L1(TE) int  @ icell =  ",int_cell, ":", abs(res(:,int_cell))
         ! write(*,'(a10,5es13.5,i5)') "intcell dx:", abs(ccgradq(1,:,int_cell))*inv_ncells, int_cell
         ! write(*,'(a10,5es13.5,i5)') "intcell dy:", abs(ccgradq(2,:,int_cell))*inv_ncells, int_cell
         
