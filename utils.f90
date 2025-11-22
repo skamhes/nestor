@@ -17,6 +17,7 @@ module utils
     public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
     public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS
     public ibc_type, BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG, MMS_DIRICHLET
+    public imms_type, MMS_LIN, MMS_QUAD, MMS_SIN
 
     public initialize_isettings
 
@@ -77,6 +78,13 @@ module utils
     integer, parameter :: BC_BACK_PRESSURE = 5051
     integer, parameter :: MMS_DIRICHLET    = -1   ! MMS bcs will be -1*the normal BC value (ie viscous mms wall is -4000)
 
+    ! MMS Types.
+    integer :: imms_type
+
+    integer, parameter :: MMS_SIN = 0
+    integer, parameter :: MMS_LIN = 1
+    integer, parameter :: MMS_QUAD= 2
+
     contains
 
     subroutine initialize_isettings
@@ -92,6 +100,7 @@ module utils
         igrad_method     = 0
         ilsq_stencil     = 0
         iturb_type       = 0
+        imms_type        = 0
 
     end subroutine initialize_isettings
 

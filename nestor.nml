@@ -1,5 +1,5 @@
 &project
-  project_name = "quad256_3d"
+  project_name = "quad64_3d"
   ! second_namelist = "grids/cylinder/final_grids/nestor.nml"
   ! io_path = "grids/cylinder/final_grids/"
   /
@@ -50,6 +50,7 @@ gcr_reduction_target = 0.05
 
 &MMS
   run_mms = .true.
+  mms_equation_type = 'linear'
   /
 
 &debug

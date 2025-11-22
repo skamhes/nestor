@@ -328,6 +328,32 @@ module mms
         
     end subroutine fMMS
 
+    function manufactured_sol(a0,as,ax,ay, nx,ny,x,y) result(fval)
+        
+        use utils , only : imms_type, MMS_LIN, MMS_QUAD, MMS_SIN 
+        implicit none
+
+        !Input
+        real(p2), intent(in) :: a0, as, ax, ay, x, y
+        integer , intent(in) :: nx, ny
+
+        !Output
+        real(p2)             :: fval
+
+        select case(imms_type)
+        case(MMS_LIN)
+            fval = manufactured_sol_linear(a0,as,ax,ay, nx,ny,x,y)
+        case(MMS_QUAD)
+            fval = manufactured_sol_quadratic(a0,as,ax,ay, nx,ny,x,y)
+        case(MMS_SIN)
+            fval = manufactured_sol_sin(a0,as,ax,ay, nx,ny,x,y)
+        case default
+            write(*,*) 'imms_type: ', imms_type , 'invalid. Stopping.'
+            stop
+        end select
+
+    end function manufactured_sol
+
     !********************************************************************************
     !* This function computes the sine function:
     !*
@@ -377,7 +403,7 @@ module mms
     !*
     !*
     !********************************************************************************
-    function manufactured_sol(a0,as,ax,ay, nx,ny,x,y) result(fval)
+    function manufactured_sol_sin(a0,as,ax,ay, nx,ny,x,y) result(fval)
 
     implicit none
    
@@ -410,7 +436,148 @@ module mms
      endif
    
    
-    end function manufactured_sol
+    end function manufactured_sol_sin
+
+     !********************************************************************************
+    !* This function computes the linear function (this should be exact):
+    !*
+    !*       f =  a0 + ax*x+ay*y (as is not used)
+    !*
+    !* and its derivatives:
+    !*
+    !*     df/dx  = ax
+    !*     df/dy  = ay
+    !*     d2/dn2 = 0
+    !*
+    !* depending on the input parameters:
+    !*
+    !*
+    !* Input:
+    !*
+    !*     a0,ax,ay = coefficients in the function: f =  a0 + as*sin(ax*x+ay*y).
+    !*            x = x-coordinate at which the function/derivative is evaluated.
+    !*            y = y-coordinate at which the function/derivative is evaluated.
+    !*           nx = nx-th derivative with respect to x (nx >= 0).
+    !*           ny = ny-th derivative with respect to y (ny >= 0).
+    !*
+    !* Output: The function value.
+    !*
+    !*
+    !********************************************************************************
+   
+    function manufactured_sol_linear(a0,as,ax,ay, nx,ny,x,y) result(fval)
+
+    implicit none
+   
+   !Input
+    real(p2), intent(in) :: a0, as, ax, ay, x, y
+    integer , intent(in) :: nx, ny
+   
+   !Output
+    real(p2)             :: fval
+   
+     if (nx < 0 .or. ny < 0) then
+      write(*,*) " Invalid input: nx and ny must be greater or equal to zero... Try again."
+      stop
+     endif
+   
+     if ( nx+ny == 0 ) then
+   
+      fval = a0 + ax*x + ay*y
+   
+     elseif ( nx+ny > 1 ) then
+   
+      fval = 0
+      
+     elseif (nx == 1) then
+   
+      fval = ax
+
+     else
+      fval = ay
+     endif
+   
+   
+    end function manufactured_sol_linear
+    
+
+    !********************************************************************************
+    !* This function computes the quadratic function:
+    !*
+    !*       f =  a0 + ax*x*x+ay*y*y + as*x*y (as is not used)
+    !*
+    !* and its derivatives:
+    !*
+    !*     df/dx  = 2*ax*x + as*y
+    !*     df/dy  = 2*ay*y + as*x
+    !*     df/dx2 = 2ax
+    !*     df/dy2 = 2ay
+    !*     df/dxy = as
+    !*
+    !* depending on the input parameters:
+    !*
+    !*
+    !* Input:
+    !*
+    !*     a0,ax,ay = coefficients in the function: f =  a0 + as*sin(ax*x+ay*y).
+    !*            x = x-coordinate at which the function/derivative is evaluated.
+    !*            y = y-coordinate at which the function/derivative is evaluated.
+    !*           nx = nx-th derivative with respect to x (nx >= 0).
+    !*           ny = ny-th derivative with respect to y (ny >= 0).
+    !*
+    !* Output: The function value.
+    !*
+    !*
+    !********************************************************************************
+   
+    function manufactured_sol_quadratic(a0,as,ax,ay, nx,ny,x,y) result(fval)
+
+    implicit none
+   
+   !Input
+    real(p2), intent(in) :: a0, as, ax, ay, x, y
+    integer , intent(in) :: nx, ny
+   
+   !Output
+    real(p2)             :: fval
+   
+     if (nx < 0 .or. ny < 0) then
+      write(*,*) " Invalid input: nx and ny must be greater or equal to zero... Try again."
+      stop
+     endif
+   
+     if ( nx+ny == 0 ) then
+   
+      fval = a0 + ax*x*x + ay*y*y + as*x*y
+   
+     elseif ( nx+ny > 2 ) then
+   
+      fval = 0
+     
+     elseif (nx == 1 .and. ny == 0) then
+   
+      fval = 2.0_p2 * ax * x + as * y
+
+     elseif (nx == 0 .and. ny == 1) then
+   
+      fval = 2.0_p2 * ay * y + as * x
+
+     elseif (nx == 1 .and. ny == 1) then
+   
+      fval = as
+
+     elseif (nx == 2) then
+   
+      fval = 2.0_p2 * ax
+
+     else ! (nx == 2) then
+   
+      fval = 2.0_p2 * ay
+
+     endif
+   
+   
+    end function manufactured_sol_quadratic
     
     !********************************************************************************
 

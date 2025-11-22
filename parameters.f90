@@ -152,9 +152,10 @@ module config
     !-------------------------------------------------------------------------
     ! MMS SETTINGS (&debug)
       logical :: run_mms = .false.
+      character(80) :: mms_equation_type = 'sine'
 
     namelist / mms / &
-      run_mms
+      run_mms, mms_equation_type
 
     !-------------------------------------------------------------------------
     ! DEBUG SETTINGS (&debug)
@@ -411,7 +412,19 @@ module config
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
         stop
       end select
-      
+
+      select case(trim(mms_equation_type))
+      case('sine')
+        imms_type = MMS_SIN
+      case('linear')
+        imms_type = MMS_LIN
+      case('quadratic')
+        imms_type = MMS_QUAD
+      case default
+        write(*,*) ' mms_equation_type input "', trim(mms_equation_type),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
     end subroutine update_isettings
 
 end module config
