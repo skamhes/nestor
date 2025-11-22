@@ -225,7 +225,7 @@ module gradient
                 xc2  = fxc + dxc2
                 yc2  = fyc + dyc2
                 zc2  = fzc + dzc2
-                call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
+                call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
                 gcell(ib)%q(:,j) = qb
             end do
         end do
