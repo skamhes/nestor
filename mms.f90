@@ -59,7 +59,7 @@ module mms
 
         real(p2) :: F2, F3, F5
 
-        real(p2) :: C0, xmr
+        real(p2) :: C0, xmr, a2
 
         real(p2), dimension(5) :: wtmp
 
@@ -160,9 +160,13 @@ module mms
             gradQ(:,2) = (/ux, uy, 0.0_p2/)
             gradQ(:,3) = (/vx, vy, 0.0_p2/)
             gradQ(:,4) = 0.0_p2
+            
+            a2 = gamma*p/rho
+            
+            gradQ(:,5)    = ( gamma*gradQ(:,1) - a2*(/rhox, rhoy, 0.0_p2/) )/rho
             gradQ(:,5) = (/dTx(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
-                           dTy(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
-                           0.0_p2/)
+                          dTy(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
+                          0.0_p2/)
         endif
 
         !-----------------------------------------------------------------------------
@@ -461,6 +465,10 @@ module mms
     !*           ny = ny-th derivative with respect to y (ny >= 0).
     !*
     !* Output: The function value.
+    !*
+    !* Note: While the functions for P, Rho, U, and V are linear, the resulting function for 
+    !*       T will not be.  Instead T = P*gamma/Rho.  As a result, the gradient for T will 
+    !*       not be exact.
     !*
     !*
     !********************************************************************************
