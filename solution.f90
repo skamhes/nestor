@@ -198,7 +198,7 @@ module solution
     ! Compute Q from W
     !
     ! ------------------------------------------------------------------------------
-    !  Input:  u = conservative variables (rho, u, v, w, p)
+    !  Input:  w = conservative variables (rho, u, v, w, p)
     ! Output:  q =    primitive variables (  p, u, v, w, T)
     ! ------------------------------------------------------------------------------
     !
