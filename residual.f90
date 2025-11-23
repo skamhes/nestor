@@ -73,6 +73,10 @@ module residual
             call compute_gradient(0) ! For now we are just using unweighted gradients
         endif
 
+        ! Only needs to be set once.
+        gradq1 = zero
+        gradq2 = zero
+        
         if (use_limiter) call compute_limiter
 
         !--------------------------------------------------------------------------------
@@ -111,9 +115,6 @@ module residual
             if (accuracy_order == 2 ) then
                 gradq1 = ccgradq(1:3,1:5,c1)
                 gradq2 = ccgradq(1:3,1:5,c2)
-            else
-                gradq1 = zero
-                gradq2 = zero
             endif
             ! Face normal
             unit_face_normal = face_nrml(1:3,i)
@@ -145,7 +146,8 @@ module residual
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
 
             ! Viscous flux
-            call visc_flux_internal(q1,q2,gradq1,gradq2,unit_face_normal,  &
+            call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
+                                                         unit_face_normal, &
                                     cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                     cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
                                                                    num_flux)
@@ -159,29 +161,27 @@ module residual
         boundary_loop : do ib = 1,nb
             bface_loop : do j = 1,bound(ib)%nbfaces
                 bface_centroid = bound(ib)%bface_center(:,j)
+                
+                c1 = bound(ib)%bcell(j)
+
                 if (use_limiter) then
                     phi1 = phi(c1)
-                    phi2 = one
+                    phi2 = phi(c1)
                 else 
                     phi1 = one
                     phi2 = one
                 end if
-
-                c1 = bound(ib)%bcell(j)
-                                
+                
                 unit_face_normal = bound(ib)%bface_nrml(:,j)
                 
-                gradq2 = zero ! won't matter since boundary cell center will be at face center
 
                 q1 = q(:,c1)
                 
-                ! Get the right hand state (weak BC!)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
-                else
-                    gradq1 = zero
                 endif
+                ! Get the right hand state (weak BC!)
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), gradq1, qb, gradq2)
                 
                 call interface_flux(          q1,      qb, & !<- Left/right states
                                          gradq1,   gradq2, & !<- Left/right gradients

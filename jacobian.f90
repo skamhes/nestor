@@ -42,6 +42,8 @@ module jacobian
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
         real(p2)                    :: face_mag
 
+        real(p2), dimension(3,5) :: dummy1, dummy2
+
         real(p2), dimension(5,5)    :: preconditioner
         
         integer                     :: face_sides
@@ -109,7 +111,7 @@ module jacobian
 
                 q1 = q(:,c1)
                 
-                call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
+                call get_right_state(q1, unit_face_nrml, ibc_type(ib), dummy1, qb, dummy2)
 
                 call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
                 
