@@ -6,7 +6,7 @@ module bc_states
 
     contains
 
-    subroutine get_right_state(qL,njk, bc_state_type, gradqL, qcB, gradqB)
+    subroutine get_right_state(qL,njk, bc_state_type, qcB)
 
         use common     , only : p2, zero
 
@@ -18,24 +18,18 @@ module bc_states
         real(p2), dimension(5),     intent(in) :: qL
         real(p2), dimension(3),     intent(in) :: njk
         integer ,           intent(in)         :: bc_state_type
-        real(p2), dimension(3,5),   intent(in) :: gradqL
         !output
         real(p2), dimension(5),    intent(out) :: qcB
-        real(p2), dimension(3,5),  intent(out) :: gradqB ! THIS TERM IS ONLY FOR FACE RECONSTRUCTION.  NOT FOR VISCOUS FLUX.
-        ! The purpose of the gradient terms is because the boundary value is created before the reconstruction. As a result it 
-        ! doesn't properly "match" the reconstructed LHS value.
 
         select case(bc_state_type)
             case(BC_FARFIELD)
                 call freestream(qcB)
-                gradqB = zero
             case(BC_TANGENT)
-                call slip_wall(qL,njk,gradqL,qcB,gradqB)
+                call slip_wall(qL,njk,qcB)
             case(BC_VISC_STRONG) ! Adiabatic
-                call no_slip_wall(qL,gradqL,qcB,gradqB)
+                call no_slip_wall(qL,qcB)
             case(BC_BACK_PRESSURE)
                 call back_pressure(qL,qcB)
-                gradqB = zero
             case default
                 write(*,*) "Boundary condition=", bc_state_type ,"  not implemented."
                 write(*,*) " --- Stop at get_right_state() in bc_states.f90..."
@@ -72,15 +66,13 @@ module bc_states
         
     end subroutine back_pressure
 
-    subroutine slip_wall(qL,njk,gradqL,qcB,gradqB)
+    subroutine slip_wall(qL,njk,qcB)
         use common      , only : p2, two
         implicit none
 
         real(p2), dimension(5),     intent( in) :: qL
         real(p2), dimension(3),     intent( in) :: njk
-        real(p2), dimension(3,5),   intent( in) :: gradqL
         real(p2), dimension(5),     intent(out) :: qcB
-        real(p2), dimension(3,5),   intent(out) :: gradqB
 
         real(p2) :: un
         
@@ -90,19 +82,15 @@ module bc_states
         qcB(2) = qL(2) - two*un*njk(1)
         qcB(3) = qL(3) - two*un*njk(2)
         qcB(4) = qL(4) - two*un*njk(3)
-        
-        gradqB(:,:)     = gradqL(:,:)
     end subroutine slip_wall
 
-    subroutine no_slip_wall(qL,gradqL,qcB,gradqB)
+    subroutine no_slip_wall(qL,qcB)
         ! no slip wall with zero heat flux (adiabatic condition)
         use common      ,   only : p2, zero, one
         implicit none
 
         real(p2), dimension(5),     intent( in) :: qL
-        real(p2), dimension(3,5),   intent( in) :: gradqL
         real(p2), dimension(5),     intent(out) :: qcB
-        real(p2), dimension(3,5),   intent(out) :: gradqB
         
         ! un = wL(2)*njk(1) + wL(3)*njk(2) + wL(4)*njk(3)
         
@@ -110,9 +98,5 @@ module bc_states
         qcB(2:4) = -qL(2:4) ! half * (qL + qcB) = zero
         qcB(5) = qL(5)
 
-        ! This probably needs some more thurough analysis to confirm this is valid.
-        gradqB(:,1)     =   gradqL(:,1)
-        gradqB(:,2:4)   = - gradqL(:,2:4)
-        gradqB(:,5)     =   gradqL(:,5)
     end subroutine no_slip_wall
 end module bc_states

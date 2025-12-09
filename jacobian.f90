@@ -111,7 +111,7 @@ module jacobian
 
                 q1 = q(:,c1)
                 
-                call get_right_state(q1, unit_face_nrml, ibc_type(ib), dummy1, qb, dummy2)
+                call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
 
                 call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
                 
