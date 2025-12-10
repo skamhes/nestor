@@ -111,7 +111,7 @@ module jacobian
 
                 q1 = q(:,c1)
                 
-                ! mms doesn't get called here.
+                ! We don't make it here while running MMS.  This is just so it compiles...
                 call get_right_state(q1,(/0.0_p2,0.0_p2,0.0_p2/), unit_face_nrml, ibc_type(ib), qb)
 
                 call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
