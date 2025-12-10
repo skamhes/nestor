@@ -89,8 +89,7 @@ module mms_exact
             xc2 = cell(c2)%xc
             yc2 = cell(c2)%yc
             zc2 = cell(c2)%zc
-            call interface_flux(q1,q2,gradq1,gradq2, n12,xc1,yc1,zc1,xc2,yc2,zc2,fx,fy,fz, 1.0_p2, 1.0_p2, &
-                                num_flux, dummy1)
+            call interface_flux(q1,q2, n12, num_flux, dummy1)
             if (icell == c2) num_flux = - num_flux
             
             ! resid = resid + num_flux * fnrmlM

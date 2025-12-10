@@ -143,7 +143,6 @@ module residual
             call interface_flux(          qL,       qR   , & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal
                                      num_flux, wave_speed  ) !<- Output
-            end if
             
             res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
             wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
@@ -178,14 +177,7 @@ module residual
 
                 q1 = q(:,c1)
                 
-                ! Get the right hand state (weak BC!)
-                xc   = cell(c1)%xc
-                yc   = cell(c1)%yc
-                zc   = cell(c1)%zc
-                fxc  = bound(ib)%bface_center(1,j)
-                fyc  = bound(ib)%bface_center(2,j)
-                fzc  = bound(ib)%bface_center(3,j)
-                call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
+
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
                     if (use_limiter) then
@@ -199,8 +191,12 @@ module residual
                     qL = q1
                     qR = q2
                 endif
+
                 ! Get the right hand state (weak BC!)
-                call get_right_state(qL, unit_face_normal, ibc_type(ib), qb)
+                fxc  = bound(ib)%bface_center(1,j)
+                fyc  = bound(ib)%bface_center(2,j)
+                fzc  = bound(ib)%bface_center(3,j)
+                call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
                 
                 call interface_flux(          qL,      qb, & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal

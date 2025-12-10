@@ -23,6 +23,8 @@ module bc_states
         !output
         real(p2), dimension(5),    intent(out) :: qcB
 
+        real(p2), dimension(5)                 :: dummy
+
         select case(bc_state_type)
             case(BC_FARFIELD)
                 call freestream(qcB)
@@ -33,7 +35,7 @@ module bc_states
             case(BC_BACK_PRESSURE)
                 call back_pressure(qL,qcB)
             case(MMS_DIRICHLET)
-                call fMMS(cc(1),cc(2),cc(3),qcB,dummy)
+                call fMMS(cc(1),cc(2),cc(3),qcB, dummy)
             case default
                 write(*,*) "Boundary condition=", bc_state_type ,"  not implemented."
                 write(*,*) " --- Stop at get_right_state() in bc_states.f90..."
