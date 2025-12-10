@@ -81,8 +81,8 @@ module residual
         gradq1 = zero
         gradq2 = zero
 
-        phi1 = zero
-        phi2 = zero
+        phi1 = one
+        phi2 = one
         
         if (use_limiter) call compute_limiter
 
@@ -173,11 +173,10 @@ module residual
                 c1 = bound(ib)%bcell(j)
 
                 unit_face_normal = bound(ib)%bface_nrml(:,j)
-                
 
                 q1 = q(:,c1)
                 
-
+                ! Get the right hand state (weak BC!)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
                     if (use_limiter) then
@@ -192,12 +191,11 @@ module residual
                     qR = q2
                 endif
 
-                ! Get the right hand state (weak BC!)
                 fxc  = bound(ib)%bface_center(1,j)
                 fyc  = bound(ib)%bface_center(2,j)
                 fzc  = bound(ib)%bface_center(3,j)
-                call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
-                
+                call get_right_state(qL, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
+
                 call interface_flux(          qL,      qb, & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal
                                         num_flux, wave_speed  )

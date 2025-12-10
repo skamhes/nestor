@@ -66,12 +66,14 @@ module interface
         real(p2), dimension(5),   intent(out) :: qf       ! Reconstructed face variables
         
         real(p2), dimension(3)                :: dx
+        real(p2), dimension(5)                :: dq
 
         dx = xf - xc
 
-        qf = q1 + phi * matmul(dx,gradq) 
-        !qf = q1 + phi * ( gradq(1,:)*(xf(1)-xc(1)) + gradq(2,:)*(xf(2)-xc(2)) + gradq(3,:)*(xf(3)-xc(3)) )
-        ! The second thing is the same just (presumably) slower. (Godbolt says yes!)
+        dq = phi * matmul(dx,gradq) 
+        qf = q1 + dq
+        qf = q1 + phi * ( gradq(1,:)*(xf(1)-xc(1)) + gradq(2,:)*(xf(2)-xc(2)) + gradq(3,:)*(xf(3)-xc(3)) )
+        ! The second thing is the same just (presumably) slower. (Godbolt says yes!e)
     end subroutine reconstruct_flow
 
 end module interface

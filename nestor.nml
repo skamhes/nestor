@@ -1,5 +1,5 @@
 &project
-  project_name = "quad1024_3d"
+  project_name = "quad128_3d"
   ! second_namelist = "grids/cylinder/final_grids/nestor.nml"
   ! io_path = "grids/cylinder/final_grids/"
   /
