@@ -118,8 +118,6 @@ module gradient
         real(p2), dimension(5) :: qL, qcB              ! Values for attached bcell (for computing ghost cell values)
         real(p2), dimension(3) :: bface_nrml
 
-        real(p2), dimension(3,5) :: dummy1, dummy2
-
 
         vertex_loop : do i = 1, nnodes
             var_loop : do ivar = 1, nq
@@ -146,7 +144,7 @@ module gradient
                         cgy = bound(ib)%bface_center(2,attached_bface) + dy
                         cgz = bound(ib)%bface_center(3,attached_bface) + dz
                         ! This is somewhat redundant.  At some point I should improve it...
-                        call get_right_state(qL,(/cgx,cgy,cgz/),bface_nrml, ibc_type(ib),dummy1,qcB,dummy2)
+                        call get_right_state(qL,(/cgx,cgy,cgz/),bface_nrml, ibc_type(ib),qcB)
                         qk = qcB(ivar)
                     endif
                     if ( unknowns == 3) then
@@ -202,9 +200,6 @@ module gradient
         real(p2), dimension(5) :: q1, qb
         real(p2), dimension(5) :: qk, qi
         real(p2)               :: qk_j
-        
-        real(p2), dimension(3,5) :: dummy1, dummy2
-
         real(p2)                :: xc, yc, zc
         real(p2)                :: fxc, fyc, fzc
         real(p2)                :: dxc2, dyc2, dzc2
@@ -229,7 +224,7 @@ module gradient
                 xc2  = fxc + dxc2
                 yc2  = fyc + dyc2
                 zc2  = fzc + dzc2
-                call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), dummy1, qb, dummy2)
+                call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
                 gcell(ib)%q(:,j) = qb
             end do
         end do
@@ -319,4 +314,6 @@ module gradient
     end select
         
     end subroutine boundary_value
+
+
 end module gradient

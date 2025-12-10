@@ -25,7 +25,7 @@ module residual
         
         use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi
 
-        use interface       , only : interface_flux
+        use interface       , only : interface_flux, reconstruct_flow
 
         use limiter         , only : compute_limiter
 
@@ -44,7 +44,7 @@ module residual
         real(p2), dimension(3)      :: unit_face_normal, bface_centroid
 
         ! Flow variables
-        real(p2), dimension(5)      :: q1, q2, qdummy
+        real(p2), dimension(5)      :: q1, q2, qL, qR
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5)      :: num_flux
         real(p2), dimension(5)      :: qb
@@ -80,6 +80,9 @@ module residual
         ! Only needs to be set once.
         gradq1 = zero
         gradq2 = zero
+
+        phi1 = zero
+        phi2 = zero
         
         if (use_limiter) call compute_limiter
 
@@ -119,26 +122,26 @@ module residual
             if (accuracy_order == 2 ) then
                 gradq1 = ccgradq(1:3,1:5,c1)
                 gradq2 = ccgradq(1:3,1:5,c2)
+                ! Limiters
+                if (use_limiter) then
+                    phi1 = phi(c1)
+                    phi2 = phi(c2)
+                endif
+                call reconstruct_flow((/cell(c1)%xc, cell(c1)%yc, cell(c1)%zc/)    , &
+                    (/face_centroid(1,i), face_centroid(2,i), face_centroid(3,i) /), &
+                                                                phi1, q1, gradq1, qL )
+                call reconstruct_flow((/cell(c2)%xc, cell(c2)%yc, cell(c2)%zc/)    , &
+                    (/face_centroid(1,i), face_centroid(2,i), face_centroid(3,i) /), &
+                                                                phi2, q2, gradq2, qR )
+            else
+                qL = q1
+                qR = q2
             endif
             ! Face normal
             unit_face_normal = face_nrml(1:3,i)
-            ! Limiters
-            if (use_limiter) then
-                phi1 = phi(c1)
-                phi2 = phi(c2)
-            else 
-                phi1 = one
-                phi2 = one
-
-            call interface_flux(          q1,       q2   , & !<- Left/right states
-                                      gradq1,      gradq2, & !<- Left/right gradients
+            
+            call interface_flux(          qL,       qR   , & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal
-                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, & !<- Left  cell centroid
-                    cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, & !<- Right cell centroid
-                                       face_centroid(1,i), &
-                                       face_centroid(2,i), &
-                                       face_centroid(3,i), & !<- face midpoint
-                                        phi1,        phi2, & !<- Limiter functions
                                      num_flux, wave_speed  ) !<- Output
             end if
             
@@ -170,14 +173,6 @@ module residual
                 
                 c1 = bound(ib)%bcell(j)
 
-                if (use_limiter) then
-                    phi1 = phi(c1)
-                    phi2 = phi(c1)
-                else 
-                    phi1 = one
-                    phi2 = one
-                end if
-                
                 unit_face_normal = bound(ib)%bface_nrml(:,j)
                 
 
@@ -193,22 +188,22 @@ module residual
                 call get_right_state(q1, (/fxc,fyc,fzc/), unit_face_normal, ibc_type(ib), qb)
                 if ( accuracy_order == 2 ) then
                     gradq1 = ccgradq(1:3,1:5,c1)
+                    if (use_limiter) then
+                        phi1 = phi(c1)
+                        phi2 = phi(c2)
+                    endif
+                    call reconstruct_flow((/cell(c1)%xc, cell(c1)%yc, cell(c1)%zc/)    , &
+                           (/bface_centroid(1), bface_centroid(2), bface_centroid(3) /), &
+                                                                    phi1, q1, gradq1, qL )
+                else
+                    qL = q1
+                    qR = q2
                 endif
                 ! Get the right hand state (weak BC!)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), gradq1, qb, gradq2)
+                call get_right_state(qL, unit_face_normal, ibc_type(ib), qb)
                 
-                call interface_flux(          q1,      qb, & !<- Left/right states
-                                         gradq1,   gradq2, & !<- Left/right gradients
+                call interface_flux(          qL,      qb, & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal
-                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, & !<- Left  cell centroid
-                                        bface_centroid(1), &
-                                        bface_centroid(2), &
-                                        bface_centroid(3), & !<- Right cell centroid
-                                        bface_centroid(1), &
-                                        bface_centroid(2), &
-                                        bface_centroid(3), & !<- boundary ghost cell "center"
-                                        phi1,        phi2, & !<- Limiter functions
-                
                                         num_flux, wave_speed  )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
