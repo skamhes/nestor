@@ -70,8 +70,8 @@ module interface
         dx = xf - xc
 
         qf = q1 + phi * matmul(dx,gradq) 
-        qf = q1 + phi * ( gradq(1,:)*(xf(1)-xc(1)) + gradq(2,:)*(xf(2)-xc(2)) + gradq(3,:)*(xf(3)-xc(3)) )
-        
+        !qf = q1 + phi * ( gradq(1,:)*(xf(1)-xc(1)) + gradq(2,:)*(xf(2)-xc(2)) + gradq(3,:)*(xf(3)-xc(3)) )
+        ! The second thing is the same just (presumably) slower. (Godbolt says yes!)
     end subroutine reconstruct_flow
 
 end module interface
