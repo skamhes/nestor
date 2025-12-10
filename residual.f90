@@ -77,8 +77,8 @@ module residual
         gradq1 = zero
         gradq2 = zero
 
-        phi1 = zero
-        phi2 = zero
+        phi1 = one
+        phi2 = one
         
         if (use_limiter) call compute_limiter
 
