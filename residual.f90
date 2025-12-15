@@ -8,9 +8,10 @@ module residual
 
     subroutine compute_residual
 
-        use common          , only : p2, zero, half, one, two
+        use common          , only : p2, zero, half, one, two, three_half, three, ix, iy, iz
 
-        use config          , only : method_inv_flux, accuracy_order, use_limiter
+        use config          , only : method_inv_flux, accuracy_order, use_limiter, mms_include, sutherland_constant, &
+                                     reference_temp, M_inf, Re_inf, pr
 
         use utils           , only : iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
@@ -23,7 +24,7 @@ module residual
 
         use utils           , only : ibc_type
         
-        use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi
+        use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi, iu, iv, iw, iT, gamma
 
         use interface       , only : interface_flux, reconstruct_flow
 
@@ -52,6 +53,13 @@ module residual
         real(p2)                    :: phi1, phi2
         real(p2)                    :: xc,yc,zc, xc2, yc2,zc2
         real(p2)                    :: fxc,fyc,fzc, dxc2, dyc2,dzc2
+        real(p2)                    :: C0, T, mu
+        real(p2)                    :: tau_xx, tau_xy, tau_xz
+        real(p2)                    :: tau_yx, tau_yy, tau_yz
+        real(p2)                    :: tau_zx, tau_zy, tau_zz
+        real(p2)                    :: tau_nx, tau_ny, tau_nz
+        real(p2)                    :: tau_nV, qx, qy, qz, qn
+        real(p2)                    :: ux, uy, uz, vx, vy, vz, wx, wy, wz
 
         ! Misc int/counters
         integer                     :: i
@@ -144,25 +152,88 @@ module residual
                                          unit_face_normal, & !<- unit face normal
                                      num_flux, wave_speed  ) !<- Output
             
-            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
-            wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
-            
-            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
-            wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
+            if (mms_include(1)) then
+                res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+                wsn(c1)   = wsn(c1) + wave_speed * face_nrml_mag(i)
+                
+                res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+                wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
+            endif
 
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
+            if (mms_include(2)) then
+                ! Viscous flux
+                ! fxc = face_centroid(1,i)
+                ! fyc = face_centroid(2,i)
+                ! fzc = face_centroid(3,i)
+                ! call fMMS(fxc, fyc, fzc, qb, qL, gradqb)
+                call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
+                                                             unit_face_normal, &
+                                        cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                        cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                                                                    num_flux)
+                ! call visc_flux_internal(q1,q2,gradqb,gradqb, &
+                !                                             unit_face_normal, &
+                !                         cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                !                         cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                !                                                     num_flux)
+                res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
 
-            ! Viscous flux
-            call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
-                                                         unit_face_normal, &
-                                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                                    cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
-                                                                   num_flux)
+                res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+            endif
+            if(mms_include(3)) then
+                fxc = face_centroid(1,i)
+                fyc = face_centroid(2,i)
+                fzc = face_centroid(3,i)
+                call fMMS(fxc, fyc, fzc, qb, q2, gradqb)
+                C0= sutherland_constant/reference_temp
+                T = qb(5)
+                mu =  M_inf/Re_inf * (one + C0) / (T + C0)*T**(three_half)
+                ux = gradqb(ix,iu); vx = gradqb(ix,iv); wx = gradqb(ix,iw);
+                uy = gradqb(iy,iu); vy = gradqb(iy,iv); wy = gradqb(iy,iw);
+                uz = gradqb(iz,iu); vz = gradqb(iz,iv); wz = gradqb(iz,iw);
 
-            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+                tau_xx = (two/three) * mu * ( two*ux - vy - wz)
+                tau_yy = (two/three) * mu * (-ux + two*vy - wz)
+                tau_zz = (two/three) * mu * (-ux - vy + two*wz)
+                
+                tau_xy = mu * (uy + vx); tau_yx = tau_xy;
+                tau_xz = mu * (wx + uz); tau_zx = tau_xz;
+                tau_yz = mu * (wy + wz); tau_zy = tau_yz;
 
-            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+                tau_nx = -( tau_xx * unit_face_normal(ix) + &
+                            tau_xy * unit_face_normal(iy) + &
+                            tau_xz * unit_face_normal(iz) )
 
+                tau_ny = -( tau_yx * unit_face_normal(ix) + &
+                            tau_yy * unit_face_normal(iy) + &
+                            tau_yz * unit_face_normal(iz) )
+
+                tau_nz = -( tau_zx * unit_face_normal(ix) + &
+                            tau_zy * unit_face_normal(iy) + &
+                            tau_zz * unit_face_normal(iz) )
+
+                tau_nV = tau_nx * qb(iu) + tau_ny * qb(iv) + tau_nz * qb(iw)
+
+                qx     = - mu*gradqb(ix,iT)/(pr*(gamma-one))
+                qy     = - mu*gradqb(iy,iT)/(pr*(gamma-one))
+                qz     = - mu*gradqb(iz,iT)/(pr*(gamma-one))
+                qn     = qx * unit_face_normal(ix) + &
+                         qy * unit_face_normal(iy) + &
+                         qz * unit_face_normal(iz) 
+
+                num_flux(1) = zero
+                num_flux(iu) = tau_nx
+                num_flux(iv) = tau_ny
+                num_flux(iw) = tau_nz
+                
+                ! note: + tau_nV because the negative is already baked into the tau_nx/y/z lines
+                num_flux(iT) = tau_nV + qn
+
+                res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+
+                res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+            endif
         end do loop_faces
 
         !!!!!!!!!!!!!!!!!!!!!!!!V!!!!!!!!!!!!!!!!!!!
@@ -199,45 +270,93 @@ module residual
                 call interface_flux(          qL,      qb, & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal
                                         num_flux, wave_speed  )
-
-                res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
-                wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
+                if (mms_include(1)) then
+                    res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+                    wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
+                endif
 
                 if ( iturb_type == TURB_INVISCID ) cycle bface_loop
-                
-                face_sides = bound(ib)%bfaces(1,j)
+                if (mms_include(2)) then
 
-                if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
-                    gradqb = zero
-                    do k = 1,face_sides
-                        nk = bound(ib)%bfaces(k + 1,j)
-                        gradqb = gradqb + vgradq(:,:,nk)
-                    end do
-                    gradqb = gradqb / real(face_sides, p2)
-                else ! ilsq_stencil == LSQ_STENCIL_NN
-                    gradqb = ccgradq(1:3,1:5,c1)
-                endif
-                
-                xc   = cell(c1)%xc
-                yc   = cell(c1)%yc
-                zc   = cell(c1)%zc
-                dxc2 = fxc - xc
-                dyc2 = fyc - yc
-                dzc2 = fzc - zc
-                xc2  = fxc + dxc2
-                yc2  = fyc + dyc2
-                zc2  = fzc + dzc2
-                call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
+                    if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                        face_sides = bound(ib)%bfaces(1,j)
+                        gradqb = zero
+                        do k = 1,face_sides
+                            nk = bound(ib)%bfaces(k + 1,j)
+                            gradqb = gradqb + vgradq(:,:,nk)
+                        end do
+                        gradqb = gradqb / real(face_sides, p2)
+                    else ! ilsq_stencil == LSQ_STENCIL_NN
+                        gradqb = ccgradq(1:3,1:5,c1)
+                    endif
+                    
+                    xc   = cell(c1)%xc
+                    yc   = cell(c1)%yc
+                    zc   = cell(c1)%zc
+                    dxc2 = fxc - xc
+                    dyc2 = fyc - yc
+                    dzc2 = fzc - zc
+                    xc2  = fxc + dxc2
+                    yc2  = fyc + dyc2
+                    zc2  = fzc + dzc2
+                    call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
 
-                ! call fMMS(fxc, fyc, fzc,q2,num_flux,gradQ=gradqb)
-                ! call fMMS(xc2, yc2, zc2,qb,num_flux)
-                call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
-                                cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                                                          xc2,yc2,zc2, &
-                                                              num_flux )
+                    ! call fMMS(fxc, fyc, fzc, qb, q2, gradqb)
+                    ! q1 = qb
+                    call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
+                                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                                            xc2,yc2,zc2, &
+                                                                num_flux )
 
-                res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
-                if (c1 == 1) write(*,*) num_flux, ib, j
+                    res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+                end if
+                if(mms_include(3)) then
+                    call fMMS(fxc, fyc, fzc, qb, q2, gradqb)
+                    C0= sutherland_constant/reference_temp
+                    T = qb(5)
+                    mu =  M_inf/Re_inf * (one + C0) / (T + C0)*T**(three_half)
+                    ux = gradqb(ix,iu); vx = gradqb(ix,iv); wx = gradqb(ix,iw);
+                    uy = gradqb(iy,iu); vy = gradqb(iy,iv); wy = gradqb(iy,iw);
+                    uz = gradqb(iz,iu); vz = gradqb(iz,iv); wz = gradqb(iz,iw);
+
+                    tau_xx = (two/three) * mu * ( two*ux - vy - wz)
+                    tau_yy = (two/three) * mu * (-ux + two*vy - wz)
+                    tau_zz = (two/three) * mu * (-ux - vy + two*wz)
+                    
+                    tau_xy = mu * (uy + vx); tau_yx = tau_xy;
+                    tau_xz = mu * (wx + uz); tau_zx = tau_xz;
+                    tau_yz = mu * (wy + wz); tau_zy = tau_yz;
+
+                    tau_nx = -( tau_xx * unit_face_normal(ix) + &
+                                      tau_xy * unit_face_normal(iy) + &
+                                      tau_xz * unit_face_normal(iz) )
+                    tau_ny = -( tau_yx * unit_face_normal(ix) + &
+                                      tau_yy * unit_face_normal(iy) + &
+                                      tau_yz * unit_face_normal(iz) )
+                    tau_nz = -( tau_zx * unit_face_normal(ix) + &
+                                      tau_zy * unit_face_normal(iy) + &
+                                      tau_zz * unit_face_normal(iz) )
+
+                    tau_nV = tau_nx * qb(iu) + tau_ny * qb(iv) + tau_nz * qb(iw)
+
+                    qx     = - mu*gradqb(ix,iT)/(pr*(gamma-one))
+                    qy     = - mu*gradqb(iy,iT)/(pr*(gamma-one))
+                    qz     = - mu*gradqb(iz,iT)/(pr*(gamma-one))
+                    qn     = qx * unit_face_normal(ix) + &
+                             qy * unit_face_normal(iy) + &
+                             qz * unit_face_normal(iz) 
+
+                    num_flux(1) = zero
+                    num_flux(iu) = tau_nx
+                    num_flux(iv) = tau_ny
+                    num_flux(iw) = tau_nz
+
+                    ! note: + tau_nV because the negative is already baked into the tau_nx/y/z lines
+                    num_flux(iT) = tau_nV + qn
+
+                            
+                    res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
+                end if
             end do bface_loop
 
         end do boundary_loop

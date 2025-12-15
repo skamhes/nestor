@@ -1,2 +1,23 @@
 Allocate jacobian in a jacobian module (was in the construct grid data which doesn't make sense now)
 Poetentially add weighting to the cell gradient average step.
+
+
+
+MMS trouble shooting:
+1) mms_include(3) = .true. gets second orter convergence (for momentum).
+    this bypasses the flux functions and hand calculates the momentum flux.
+    The method of adding the flux to the residual is good.!
+2) mms_include(3) = .true. with exact face gradients (and no even-odd decoupling) is identical to 1).
+    This implies that if the face gradient is correct, the flux function is correct.
+    So the issue lies with the face gradient that is being calculated.
+
+Possible problems:
+    Incorrect implementation of the decoupling (seems unlikely)
+    Correct implementation but it's not O(h**2). (seems unlikely)
+    Need a better method for the boundary gradient (maybe?)
+    other?
+
+
+OK ya it seems like it's just O(h)?  I dunno, anyways, the energy equation seems to be converging.  It may have been a bug in how I computed F5 that was small but significant.  I've tested it with the numerical flux values at internal cells and it's good.  Boundary faces are next to test.
+
+OK we get second order convergence of the energy viscous terms but not the momentum terms.  Not really sure why.  I suppose the next step would be to run this on an irregular grid and see how things behave...

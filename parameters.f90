@@ -153,9 +153,10 @@ module config
     ! MMS SETTINGS (&debug)
       logical :: run_mms = .false.
       character(80) :: mms_equation_type = 'sine'
+      logical, dimension(3) :: mms_include = (/ .true., .true., .false./)
 
     namelist / mms / &
-      run_mms, mms_equation_type
+      run_mms, mms_equation_type, mms_include
 
     !-------------------------------------------------------------------------
     ! DEBUG SETTINGS (&debug)

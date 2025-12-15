@@ -36,38 +36,25 @@ module viscous_flux
         real(p2), dimension(nq)      :: qL, qR
         
         integer                      :: ivar
-
+        
+        
         ! Calculate the face gradients
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
         magds = dot_product(ds,ds)
         dsds2 = ds/magds ! ds(:)/ds**2
         magds = sqrt(magds)
 
-
-        ! write(*,'(a40,3es13.5)') " numerical (uncorrected) face gradx", half * (gradq1(:,2) + gradq2(:,2))
         ! Equation 14
         do ivar = 1,nq
-            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar))
-            ! gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar)) ! arithemetic mean at the face
+            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+            ! ^ eliminates odd-even decoupling by replacing the normal part of the mean face gradient with a central difference.
         end do
 
-        ! write(*,'(a40,3es13.5)') " numerical (corrected) face gradx", gradq_face(:,2)
-        ! This subroutine only handles computing the interface gradient.
-        ! Once we have it we call the internal function
-        
-        ! We need the reconstructed face values
-        ! do ivar = 1,nq
-        !     qL(ivar) = q1(ivar) + half * dot_product(gradq1(:,ivar),ds(:))
-        !     qR(ivar) = q2(ivar) + half * dot_product(gradq2(:,ivar),ds(:))
-        ! end do
-        ! ds    = ds / magds
-        ! call viscous_alpha_ddt(qL,qR,gradq1,gradq2, n12, ds,magds, num_flux)
-
-        ! write(*,*)
-        ! write(*,'(a15,5es13.5)') " alpha_num_flux: ", num_flux
         call compute_visc_num_flux(q1,q2,gradq_face,n12,num_flux)
-        ! write(*,'(a15,5es13.5)') " old_num_flux: ", num_flux
-        ! write(*,*)
+        ! call compute_visc_num_flux(q1,q2,gradq1,n12,num_flux)
+        ! call viscous_alpha(q1,q2, gradq1, gradq2, n12, ds, magds, num_flux)
+
     end subroutine visc_flux_internal
 
     subroutine visc_flux_boundary(q1,qb,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
@@ -100,8 +87,10 @@ module viscous_flux
 
         ! Calculate the face gradients
         ds = (/xf2-xc1, yf2-yc1, zf2-zc1/) ! vector pointing from center of cell 1 to cell 2
-        
-        dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
+        magds = dot_product(ds,ds)
+        dsds2 = ds/magds ! ds(:)/ds**2
+        magds = sqrt(magds)
+        ! dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
         
         ! Equation 14
         do ivar = 1,nq
@@ -111,15 +100,8 @@ module viscous_flux
 
         ! This is just a wrapper function since we already have the interface gradient computed.
         call compute_visc_num_flux(q1,qb,gradq_face,n12,num_flux)
-        ! ds = ds * 2.0_p2
-        ! do ivar = 1,nq
-        !     qL(ivar) = q1(ivar) + half * dot_product(face_gradient(:,ivar),ds(:))
-        !     qR(ivar) = qb(ivar) + half * dot_product(face_gradient(:,ivar),ds(:))
-        ! end do
-        ! magds = dot_product(ds,ds)
-        ! magds = sqrt(magds)
-        ! ds = ds / magds
-        ! call viscous_alpha_ddt(qL,qR,face_gradient,face_gradient, n12, ds,magds, num_flux)
+        ! call compute_visc_num_flux(q1,qb,face_gradient,n12,num_flux) !tmp
+        
     end subroutine visc_flux_boundary
 
     subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
@@ -300,11 +282,11 @@ module viscous_flux
 !*
 !* Katate Masatsuka, December 2012. http://www.cfdbooks.com
 !********************************************************************************
-subroutine viscous_alpha_ddt(qcL,qcR,gradqL,gradqR, njk,ejk,mag_ejk, numerical_flux)
+subroutine viscous_alpha(qcL,qcR,gradqL,gradqR, njk,ejk,mag_ejk, numerical_flux)
 
     use common , only : p2, zero, half, two_third, one, four_third, three, ix, iy, iz
 
-    use config , only : sutherland_constant, pr, Re_inf, M_inf
+    use config , only : sutherland_constant, pr, Re_inf, M_inf, reference_temp
 
     use solution , only : gamma, T_inf, ip, iu, iv, iw, iT
 
@@ -352,7 +334,7 @@ subroutine viscous_alpha_ddt(qcL,qcR,gradqL,gradqR, njk,ejk,mag_ejk, numerical_f
 
     real(p2) :: rho, a2   !Interface values for density and (speed of sound)^2
 
-    C = sutherland_constant
+    C = sutherland_constant/reference_temp
     Prandtl = pr
     
 
@@ -396,7 +378,7 @@ subroutine viscous_alpha_ddt(qcL,qcR,gradqL,gradqR, njk,ejk,mag_ejk, numerical_f
     ! Sutherland's law in the nondimensional form.
     ! Note: The factor, M_inf/Re_inf, comes from nondimensionalization.
 
-    mu = (one+C/T_inf)/(T+C/T_inf)*T**(three*half) * M_inf/Re_inf
+    mu = (one+C)/(T+C)*T**(three*half) * M_inf/Re_inf
 
     ! Damping coefficient, alpha:
     !  (1)alpha=1   gives the central-difference formula in 1D.
@@ -458,7 +440,7 @@ subroutine viscous_alpha_ddt(qcL,qcR,gradqL,gradqR, njk,ejk,mag_ejk, numerical_f
     tauxn = tauxx*njk(ix) + tauxy*njk(iy) + tauxz*njk(iz)
     tauyn = tauyx*njk(ix) + tauyy*njk(iy) + tauyz*njk(iz)
     tauzn = tauzx*njk(ix) + tauzy*njk(iy) + tauzz*njk(iz)
-    qn    = qx*njk(ix)    + qy*njk(iy)    + qz*njk(iz)
+    qn    = qx *  njk(ix) + qy *  njk(iy) + qz *  njk(iz)
 
     ! Evaluate the viscous flux at the interface
 
@@ -471,7 +453,7 @@ subroutine viscous_alpha_ddt(qcL,qcR,gradqL,gradqR, njk,ejk,mag_ejk, numerical_f
     ! Normal max wave speed
     !    wsn = alpha*(mu/rho*gamma/Prandtl)/Lr
 
-end subroutine viscous_alpha_ddt
+end subroutine viscous_alpha
 !--------------------------------------------------------------------------------
 
 end module viscous_flux

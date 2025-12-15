@@ -18,7 +18,7 @@ module mms
 
     subroutine fMMS(x,y,z, Q,S, gradQ)
 
-        use config , only : M_inf, Pr, sutherland_constant, Re_inf, M_inf, reference_temp
+        use config , only : M_inf, Pr, sutherland_constant, Re_inf, M_inf, reference_temp, mms_include
 
         use utils , only : iturb_type, TURB_INVISCID
 
@@ -63,7 +63,7 @@ module mms
 
         real(p2), dimension(5) :: wtmp
 
-        S(:) = 0.0_p2
+        S(:) = 0.0_p2 ! avoid undefined behavior if mms_include(1) = .false.
         
        !-----------------------------------------------------------
         ! Constants for the exact solution: c0 + cs*sin(cx*x+cy*y).
@@ -163,7 +163,7 @@ module mms
             
             a2 = gamma*p/rho
             
-            gradQ(:,5)    = ( gamma*gradQ(:,1) - a2*(/rhox, rhoy, 0.0_p2/) )/rho
+            ! gradQ(:,5)    = ( gamma*gradQ(:,1) - a2*(/rhox, rhoy, 0.0_p2/) )/rho
             gradQ(:,5) = (/dTx(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
                           dTy(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y), &
                           0.0_p2/)
@@ -250,26 +250,28 @@ module mms
         ! Store the inviscid terms in the forcing term array, f(:).
         !---------------------------------------------------------------------
 
-        ! ------------------------------------------------------
-        ! Continuity:         (rho*u)_x   +   (rho*v)_y
-        S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
+        if (mms_include(1)) then
+            ! ------------------------------------------------------
+            ! Continuity:         (rho*u)_x   +   (rho*v)_y
+            S(1)  = (rhox*u + rho*ux) + (rhoy*v + rho*vy)
 
-        !------------------------------------------------------
-        ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
-        S(2)   =     aux     +    buy      + px
-    
-        !------------------------------------------------------
-        ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
-        S(3)   =     avx     +    bvy      + py
-    
-        !------------------------------------------------------
-        ! Momentum:     w is zero
-        S(4)   = 0.0_p2
-        !------------------------------------------------------
-        ! Energy:       (rho*u*H)_x + (rho*v*H)
-        S(5)  =    rhouHx   +   rhovHy
-    
-        if (iturb_type > TURB_INVISCID) then
+            !------------------------------------------------------
+            ! Momentum:     (rho*u*u)_x + (rho*u*v)_y + px
+            S(2)   =     aux     +    buy      + px
+        
+            !------------------------------------------------------
+            ! Momentum:     (rho*u*v)_x + (rho*v*v)_y + px
+            S(3)   =     avx     +    bvy      + py
+        
+            !------------------------------------------------------
+            ! Momentum:     w is zero
+            S(4)   = 0.0_p2
+            !------------------------------------------------------
+            ! Energy:       (rho*u*H)_x + (rho*v*H)
+            S(5)  =    rhouHx   +   rhovHy
+        endif
+            
+        if ((iturb_type > TURB_INVISCID) .and. (mms_include(2).or.mms_include(3)) ) then
 
             C0  = sutherland_constant/reference_temp
             xmr = M_inf/Re_inf
@@ -289,10 +291,16 @@ module mms
             F2 = myF2(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
             cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
-            F3 = myF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            ! F3 = myF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
+            ! cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+            
+            F3 = myNewF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, cux, &
             cuy, cvs, cvx, cvy, gamma, x, xmr, y)
 
-            F5 = myF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
+            ! F5 = myF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
+            ! cus, cux, cuy, cv0, cvs, cvx, cvy, gamma, gammamo, x, xmr, y)
+
+            F5 = mynewF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
             cus, cux, cuy, cv0, cvs, cvx, cvy, gamma, gammamo, x, xmr, y)
 
             ! S(1) = S(1) ! no change to S(1)

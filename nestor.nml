@@ -1,5 +1,5 @@
 &project
-  project_name = "quad128_3d"
+  project_name = "quad8_3d"
   ! second_namelist = "grids/cylinder/final_grids/nestor.nml"
   ! io_path = "grids/cylinder/final_grids/"
   /
@@ -43,14 +43,17 @@ gcr_reduction_target = 0.05
   /
 
 &turbulence
-  ! turbulence_type = 'laminar'
-  turbulence_type = 'inviscid'
+  turbulence_type = 'laminar'
+  ! turbulence_type = 'inviscid'
   Re_inf = 1
   /
 
 &MMS
   run_mms = .true.
   ! mms_equation_type = 'linear'
+  mms_include(1) = .false. ! inviscid
+  mms_include(2) = .true. ! viscous
+  mms_include(3) = .false.  ! some weird other viscous shit
   /
 
 &debug

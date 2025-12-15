@@ -338,6 +338,194 @@ module mms_funcs
     !*                       This file is part of 'project'                       *
     !******************************************************************************
 
+    real(p2) function mynewF5(C0, Pr, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cu0, &
+        cus, cux, cuy, cv0, cvs, cvx, cvy, gamma, gammamo, x, xmr, &
+        y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: Pr
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: cu0
+        real(p2), intent(in) :: cus
+        real(p2), intent(in) :: cux
+        real(p2), intent(in) :: cuy
+        real(p2), intent(in) :: cv0
+        real(p2), intent(in) :: cvs
+        real(p2), intent(in) :: cvx
+        real(p2), intent(in) :: cvy
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: gammamo
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        mynewF5 = -2.0d0/3.0d0*cus*cux*xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/ &
+        (cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(2*cus* &
+        cux*cos(cux*x + cuy*y) - cvs*cvy*cos(cvx*x + cvy*y))*cos(cux*x + &
+        cuy*y)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin( &
+        crx*x + cry*y))) - cus*cuy*xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy* &
+        y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cus* &
+        cuy*cos(cux*x + cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*cos(cux*x + &
+        cuy*y)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin( &
+        crx*x + cry*y))) - cvs*cvx*xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy* &
+        y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cus* &
+        cuy*cos(cux*x + cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*cos(cvx*x + &
+        cvy*y)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin( &
+        crx*x + cry*y))) - 2.0d0/3.0d0*cvs*cvy*xmr*(gamma*(cp0 + cps*sin( &
+        cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*( &
+        C0 + 1)*(-cus*cux*cos(cux*x + cuy*y) + 2*cvs*cvy*cos(cvx*x + cvy* &
+        y))*cos(cvx*x + cvy*y)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y)) &
+        /(cr0 + crs*sin(crx*x + cry*y))) - 2.0d0/3.0d0*xmr*(gamma*(cp0 + &
+        cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/ &
+        2.0d0)*(C0 + 1)*(cu0 + cus*sin(cux*x + cuy*y))*(-2*cus*cux**2*sin &
+        (cux*x + cuy*y) + cvs*cvx*cvy*sin(cvx*x + cvy*y))/(C0 + gamma*( &
+        cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) - &
+        xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+        cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cu0 + cus*sin(cux*x + cuy*y))*( &
+        -cus*cuy**2*sin(cux*x + cuy*y) - cvs*cvx*cvy*sin(cvx*x + cvy*y))/ &
+        (C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+        cry*y))) - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs* &
+        sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cv0 + cvs*sin(cvx*x &
+        + cvy*y))*(-cus*cux*cuy*sin(cux*x + cuy*y) - cvs*cvx**2*sin(cvx*x &
+        + cvy*y))/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs* &
+        sin(crx*x + cry*y))) - 2.0d0/3.0d0*xmr*(gamma*(cp0 + cps*sin(cpx* &
+        x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + &
+        1)*(cv0 + cvs*sin(cvx*x + cvy*y))*(cus*cux*cuy*sin(cux*x + cuy*y &
+        ) - 2*cvs*cvy**2*sin(cvx*x + cvy*y))/(C0 + gamma*(cp0 + cps*sin( &
+        cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) - 2.0d0/3.0d0*xmr &
+        *(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry &
+        *y)))**(3.0d0/2.0d0)*(C0 + 1)*(cu0 + cus*sin(cux*x + cuy*y))*(2* &
+        cus*cux*cos(cux*x + cuy*y) - cvs*cvy*cos(cvx*x + cvy*y))*(-cps* &
+        cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) + crs &
+        *crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 &
+        + crs*sin(crx*x + cry*y))**2)/(C0 + gamma*(cp0 + cps*sin(cpx*x + &
+        cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2 - xmr*(gamma*(cp0 + &
+        cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/ &
+        2.0d0)*(C0 + 1)*(cu0 + cus*sin(cux*x + cuy*y))*(cus*cuy*cos(cux*x &
+        + cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*(-cps*cpy*gamma*cos(cpx*x &
+        + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) + crs*cry*gamma*(cp0 + &
+        cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + &
+        cry*y))**2)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs &
+        *sin(crx*x + cry*y)))**2 - 2.0d0/3.0d0*xmr*(gamma*(cp0 + cps*sin( &
+        cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*( &
+        C0 + 1)*(cv0 + cvs*sin(cvx*x + cvy*y))*(-cus*cux*cos(cux*x + cuy* &
+        y) + 2*cvs*cvy*cos(cvx*x + cvy*y))*(-cps*cpy*gamma*cos(cpx*x + &
+        cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) + crs*cry*gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry &
+        *y))**2)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs* &
+        sin(crx*x + cry*y)))**2 - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y &
+        ))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cv0 + &
+        cvs*sin(cvx*x + cvy*y))*(cus*cuy*cos(cux*x + cuy*y) + cvs*cvx*cos &
+        (cvx*x + cvy*y))*(-cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs* &
+        sin(crx*x + cry*y)) + crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y &
+        ))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(C0 + &
+        gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y &
+        )))**2 - 2.0d0/3.0d0*xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/( &
+        cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cr0 + crs &
+        *sin(crx*x + cry*y))*(cu0 + cus*sin(cux*x + cuy*y))*(2*cus*cux* &
+        cos(cux*x + cuy*y) - cvs*cvy*cos(cvx*x + cvy*y))*((3.0d0/2.0d0)* &
+        cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - &
+        3.0d0/2.0d0*crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx* &
+        x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(gamma*(C0 + gamma* &
+        (cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))*( &
+        cp0 + cps*sin(cpx*x + cpy*y))) - xmr*(gamma*(cp0 + cps*sin(cpx*x &
+        + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1) &
+        *(cr0 + crs*sin(crx*x + cry*y))*(cu0 + cus*sin(cux*x + cuy*y))*( &
+        cus*cuy*cos(cux*x + cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*((3.0d0/ &
+        2.0d0)*cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + &
+        cry*y)) - 3.0d0/2.0d0*crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y &
+        ))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(gamma*( &
+        C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+        cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y))) - 2.0d0/3.0d0*xmr*(gamma &
+        *(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))** &
+        (3.0d0/2.0d0)*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(cv0 + cvs* &
+        sin(cvx*x + cvy*y))*(-cus*cux*cos(cux*x + cuy*y) + 2*cvs*cvy*cos( &
+        cvx*x + cvy*y))*((3.0d0/2.0d0)*cps*cpy*gamma*cos(cpx*x + cpy*y)/( &
+        cr0 + crs*sin(crx*x + cry*y)) - 3.0d0/2.0d0*crs*cry*gamma*(cp0 + &
+        cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + &
+        cry*y))**2)/(gamma*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/( &
+        cr0 + crs*sin(crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y))) - &
+        xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+        cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*( &
+        cv0 + cvs*sin(cvx*x + cvy*y))*(cus*cuy*cos(cux*x + cuy*y) + cvs* &
+        cvx*cos(cvx*x + cvy*y))*((3.0d0/2.0d0)*cps*cpx*gamma*cos(cpx*x + &
+        cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 3.0d0/2.0d0*crs*crx*gamma &
+        *(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin &
+        (crx*x + cry*y))**2)/(gamma*(C0 + gamma*(cp0 + cps*sin(cpx*x + &
+        cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + &
+        cpy*y))) - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs* &
+        sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(-cps*cpx**2*gamma* &
+        sin(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 2*cps*cpx*crs &
+        *crx*gamma*cos(cpx*x + cpy*y)*cos(crx*x + cry*y)/(cr0 + crs*sin( &
+        crx*x + cry*y))**2 + 2*crs**2*crx**2*gamma*(cp0 + cps*sin(cpx*x + &
+        cpy*y))*cos(crx*x + cry*y)**2/(cr0 + crs*sin(crx*x + cry*y))**3 + &
+        crs*crx**2*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*sin(crx*x + cry*y &
+        )/(cr0 + crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*(cp0 &
+        + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))) - xmr* &
+        (gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry* &
+        y)))**(3.0d0/2.0d0)*(C0 + 1)*(-cps*cpy**2*gamma*sin(cpx*x + cpy*y &
+        )/(cr0 + crs*sin(crx*x + cry*y)) - 2*cps*cpy*crs*cry*gamma*cos( &
+        cpx*x + cpy*y)*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y)) &
+        **2 + 2*crs**2*cry**2*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos( &
+        crx*x + cry*y)**2/(cr0 + crs*sin(crx*x + cry*y))**3 + crs*cry**2* &
+        gamma*(cp0 + cps*sin(cpx*x + cpy*y))*sin(crx*x + cry*y)/(cr0 + &
+        crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))) - xmr*(gamma &
+        *(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))** &
+        (3.0d0/2.0d0)*(C0 + 1)*(-cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + &
+        crs*sin(crx*x + cry*y)) + crs*crx*gamma*(cp0 + cps*sin(cpx*x + &
+        cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)*( &
+        cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - &
+        crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/( &
+        cr0 + crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*(cp0 + &
+        cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2) - xmr &
+        *(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry &
+        *y)))**(3.0d0/2.0d0)*(C0 + 1)*(-cps*cpy*gamma*cos(cpx*x + cpy*y)/ &
+        (cr0 + crs*sin(crx*x + cry*y)) + crs*cry*gamma*(cp0 + cps*sin(cpx &
+        *x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2 &
+        )*(cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y &
+        )) - crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry &
+        *y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(Pr*gammamo*(C0 + gamma*( &
+        cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**2 &
+        ) - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx* &
+        x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cr0 + crs*sin(crx*x + cry*y &
+        ))*(cps*cpx*gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y &
+        )) - crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry &
+        *y)/(cr0 + crs*sin(crx*x + cry*y))**2)*((3.0d0/2.0d0)*cps*cpx* &
+        gamma*cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 3.0d0/ &
+        2.0d0*crs*crx*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + &
+        cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(Pr*gamma*gammamo*(C0 + &
+        gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y &
+        )))*(cp0 + cps*sin(cpx*x + cpy*y))) - xmr*(gamma*(cp0 + cps*sin( &
+        cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*( &
+        C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(cps*cpy*gamma*cos(cpx*x + &
+        cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - crs*cry*gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry &
+        *y))**2)*((3.0d0/2.0d0)*cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + &
+        crs*sin(crx*x + cry*y)) - 3.0d0/2.0d0*crs*cry*gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry &
+        *y))**2)/(Pr*gamma*gammamo*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy &
+        *y))/(cr0 + crs*sin(crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y &
+        )))
+
+    end function
+
+
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
     real(p2) function dTx(cp0, cps, cpx, cpy, cr0, crs, crx, cry, gamma, x, y)
     implicit none
         real(p2), intent(in) :: cp0
@@ -833,6 +1021,75 @@ module mms_funcs
 
     end function my_txy_x
 
+    !******************************************************************************
+    !*                      Code generated with SymPy 1.10.1                      *
+    !*                                                                            *
+    !*              See http://www.sympy.org/ for more information.               *
+    !*                                                                            *
+    !*                       This file is part of 'project'                       *
+    !******************************************************************************
+
+    real(p2) function myNewF3(C0, cp0, cps, cpx, cpy, cr0, crs, crx, cry, cus, &
+        cux, cuy, cvs, cvx, cvy, gamma, x, xmr, y)
+        implicit none
+        real(p2), intent(in) :: C0
+        real(p2), intent(in) :: cp0
+        real(p2), intent(in) :: cps
+        real(p2), intent(in) :: cpx
+        real(p2), intent(in) :: cpy
+        real(p2), intent(in) :: cr0
+        real(p2), intent(in) :: crs
+        real(p2), intent(in) :: crx
+        real(p2), intent(in) :: cry
+        real(p2), intent(in) :: cus
+        real(p2), intent(in) :: cux
+        real(p2), intent(in) :: cuy
+        real(p2), intent(in) :: cvs
+        real(p2), intent(in) :: cvx
+        real(p2), intent(in) :: cvy
+        real(p2), intent(in) :: gamma
+        real(p2), intent(in) :: x
+        real(p2), intent(in) :: xmr
+        real(p2), intent(in) :: y
+
+        myNewF3 = -xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx* &
+        x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(-cus*cux*cuy*sin(cux*x + &
+        cuy*y) - cvs*cvx**2*sin(cvx*x + cvy*y))/(C0 + gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) - 2.0d0/3.0d0 &
+        *xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + &
+        cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cus*cux*cuy*sin(cux*x + cuy*y) &
+        - 2*cvs*cvy**2*sin(cvx*x + cvy*y))/(C0 + gamma*(cp0 + cps*sin(cpx &
+        *x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y))) - 2.0d0/3.0d0*xmr*( &
+        gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y &
+        )))**(3.0d0/2.0d0)*(C0 + 1)*(-cus*cux*cos(cux*x + cuy*y) + 2*cvs* &
+        cvy*cos(cvx*x + cvy*y))*(-cps*cpy*gamma*cos(cpx*x + cpy*y)/(cr0 + &
+        crs*sin(crx*x + cry*y)) + crs*cry*gamma*(cp0 + cps*sin(cpx*x + &
+        cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry*y))**2)/(C0 &
+        + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry &
+        *y)))**2 - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs* &
+        sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cus*cuy*cos(cux*x + &
+        cuy*y) + cvs*cvx*cos(cvx*x + cvy*y))*(-cps*cpx*gamma*cos(cpx*x + &
+        cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) + crs*crx*gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + cry &
+        *y))**2)/(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/(cr0 + crs* &
+        sin(crx*x + cry*y)))**2 - 2.0d0/3.0d0*xmr*(gamma*(cp0 + cps*sin( &
+        cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*( &
+        C0 + 1)*(cr0 + crs*sin(crx*x + cry*y))*(-cus*cux*cos(cux*x + cuy* &
+        y) + 2*cvs*cvy*cos(cvx*x + cvy*y))*((3.0d0/2.0d0)*cps*cpy*gamma* &
+        cos(cpx*x + cpy*y)/(cr0 + crs*sin(crx*x + cry*y)) - 3.0d0/2.0d0* &
+        crs*cry*gamma*(cp0 + cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/( &
+        cr0 + crs*sin(crx*x + cry*y))**2)/(gamma*(C0 + gamma*(cp0 + cps* &
+        sin(cpx*x + cpy*y))/(cr0 + crs*sin(crx*x + cry*y)))*(cp0 + cps* &
+        sin(cpx*x + cpy*y))) - xmr*(gamma*(cp0 + cps*sin(cpx*x + cpy*y))/ &
+        (cr0 + crs*sin(crx*x + cry*y)))**(3.0d0/2.0d0)*(C0 + 1)*(cr0 + &
+        crs*sin(crx*x + cry*y))*(cus*cuy*cos(cux*x + cuy*y) + cvs*cvx*cos &
+        (cvx*x + cvy*y))*((3.0d0/2.0d0)*cps*cpx*gamma*cos(cpx*x + cpy*y)/ &
+        (cr0 + crs*sin(crx*x + cry*y)) - 3.0d0/2.0d0*crs*crx*gamma*(cp0 + &
+        cps*sin(cpx*x + cpy*y))*cos(crx*x + cry*y)/(cr0 + crs*sin(crx*x + &
+        cry*y))**2)/(gamma*(C0 + gamma*(cp0 + cps*sin(cpx*x + cpy*y))/( &
+        cr0 + crs*sin(crx*x + cry*y)))*(cp0 + cps*sin(cpx*x + cpy*y)))
+
+    end function
 
 
 end module mms_funcs
