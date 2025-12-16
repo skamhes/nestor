@@ -48,6 +48,11 @@ module residual
         real(p2), dimension(5)      :: qb
         real(p2)                    :: wave_speed
         real(p2)                    :: phi1, phi2
+        real(p2)                    :: xc,   yc,   zc
+        real(p2)                    :: fxc,  fyc,  fzc
+        real(p2)                    :: dxc2, dyc2, dzc2
+        real(p2)                    :: xc2,  yc2,  zc2
+        
 
         ! Misc int/counters
         integer                     :: i
@@ -209,10 +214,19 @@ module residual
                 else ! ilsq_stencil == LSQ_STENCIL_NN
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
-                
+                xc   = cell(c1)%xc
+                yc   = cell(c1)%yc
+                zc   = cell(c1)%zc
+                dxc2 = fxc - xc
+                dyc2 = fyc - yc
+                dzc2 = fzc - zc
+                xc2  = fxc + dxc2
+                yc2  = fyc + dyc2
+                zc2  = fzc + dzc2
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
                 call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                bface_centroid(1),bface_centroid(2),bface_centroid(3), &
+                                                          xc2,yc2,zc2, &
                                                               num_flux )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
