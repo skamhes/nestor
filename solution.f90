@@ -20,6 +20,7 @@ module solution
     real(p2), dimension(:,:,:), pointer :: ccgradw  ! gradients of w at cell center.
     real(p2), dimension(:,:,:), pointer :: vgradw   ! gradients of w at vertices (nodes).
     real(p2), dimension(:,:,:), pointer :: ccgradq  ! gradients of q at cell center.
+    real(p2), dimension(:,:,:), pointer :: fcgradq  ! gradients of q at face center.
     real(p2), dimension(:,:,:), pointer :: vgradq   ! gradients of q at vertices (nodes).
     real(p2), dimension(:)    , pointer :: phi      ! limiter of ccgradq
 
@@ -124,7 +125,7 @@ module solution
 
         use common , only : p2, pi
 
-        use grid , only : ncells, nnodes
+        use grid , only : ncells, nnodes, nfaces
 
         use config , only : accuracy_order, grad_method, lsq_stencil, lift, drag, aoa, sideslip, &
                             gcr_max_projections, CFL, run_mms
@@ -148,6 +149,7 @@ module solution
             if (igrad_method == GRAD_LSQ .and. ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 allocate(  vgradq(ndim,nq,nnodes) )
             endif
+            allocate( fcgradq(ndim,nq,nfaces))
         endif
 
         allocate( res(nq,ncells) )

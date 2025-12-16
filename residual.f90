@@ -24,7 +24,7 @@ module residual
 
         use utils           , only : ibc_type
         
-        use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi, iu, iv, iw, iT, gamma
+        use solution        , only : res, q, ccgradq, vgradq, wsn, q2u, phi, iu, iv, iw, iT, gamma, fcgradq
 
         use interface       , only : interface_flux, reconstruct_flow
 
@@ -163,15 +163,16 @@ module residual
             if ( iturb_type == TURB_INVISCID) cycle loop_faces
             if (mms_include(2)) then
                 ! Viscous flux
-                ! fxc = face_centroid(1,i)
-                ! fyc = face_centroid(2,i)
-                ! fzc = face_centroid(3,i)
-                ! call fMMS(fxc, fyc, fzc, qb, qL, gradqb)
+                fxc = face_centroid(1,i)
+                fyc = face_centroid(2,i)
+                fzc = face_centroid(3,i)
+                call fMMS(fxc, fyc, fzc, qb, qL, gradqb)
                 call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
                                                              unit_face_normal, &
                                         cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                         cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
-                                                                    num_flux)
+                                                        fcgradq(:,:,i),num_flux)
+                fcgradq(1:2,:,i) = fcgradq(1:2,:,i) - gradqb(1:2,:)
                 ! call visc_flux_internal(q1,q2,gradqb,gradqb, &
                 !                                             unit_face_normal, &
                 !                         cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
@@ -301,13 +302,14 @@ module residual
                     zc2  = fzc + dzc2
                     call get_right_state(q1, (/xc2,yc2,zc2/), unit_face_normal, ibc_type(ib), qb)
 
-                    ! call fMMS(fxc, fyc, fzc, qb, q2, gradqb)
+                    call fMMS(fxc, fyc, fzc, qL, qR, gradq1)
                     ! q1 = qb
                     call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                     cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                                             xc2,yc2,zc2, &
-                                                                num_flux )
-
+                                                            gradq2, num_flux )
+                    
+                    fcgradq(1:2,:,1) = fcgradq(1:2,:,1) - gradq1(1:2,:)
                     res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 end if
                 if(mms_include(3)) then

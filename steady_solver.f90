@@ -569,16 +569,16 @@ module steady_solver
 
         use config   , only : accuracy_order
 
-        use solution , only : q, res, inv_ncells, ccgradq, vgradq
+        use solution , only : q, res, inv_ncells, ccgradq, vgradq, fcgradq
 
-        use grid , only : nb, ncells, cell, nnodes, x, y, z
+        use grid , only : nb, ncells, cell, nnodes, x, y, z, nfaces, face_centroid, bound
 
         use utils , only : ibc_type, MMS_DIRICHLET, iturb_type, TURB_INVISCID
 
         integer :: i, ib
         real(p2), dimension(:,:), allocatable :: S ! source term added to the residual
         real(p2), dimension(:,:,:), allocatable :: exac_gradQ
-        real(p2), dimension(5) :: norm1, gnorm1
+        real(p2), dimension(5) :: norm1, gnorm1, fnorm1
         real(p2), dimension(3,5) :: ngrad
         real(p2), dimension(5) :: dummyq, dummyS, corr
         real(p2) :: maxerr
@@ -612,6 +612,16 @@ module steady_solver
             ccgradq(1:2,:,i) = ccgradq(1:2,:,i) - exac_gradQ(1:2,:,i)
         end do
 
+        deallocate(exac_gradQ)
+        allocate(exac_gradQ(3,5,1))
+        fnorm1 = 0.0_p2
+        do i = 1,nfaces
+            ! call fMMS(face_centroid(1,i), face_centroid(2,i), face_centroid(3,i),q(:,1),S(:,1),gradQ=exac_gradQ(:,:,1))
+            ! fcgradq(1:2,:,i) = fcgradq(1:2,:,i) - exac_gradQ(1:2,:,1)
+            fnorm1 = fnorm1 + abs(fcgradq(1,:,i)) + abs(fcgradq(2,:,i))            
+            ! fnorm1 = abs( fcgradq(1,:,i) - exac_gradQ(1,:,1) ) !+ abs( fcgradq(2,:,i) - exac_gradQ(2,:,1) )
+        end do
+
         gnorm1= 0.0_p2
         ! do i = 1,nnodes
         !     call fMMS(x(i),y(i),z(i), dummyq, dummyS, gradQ=ngrad)
@@ -627,13 +637,16 @@ module steady_solver
             norm1  =  norm1 + abs(res(:,i)/cell(i)%vol) * inv_ncells !TE = Res/Volume.
             ! write(*,'(a25,i5,a,5es13.5)') " norm1 after =  ",i, ":", norm1
             ! write(*,'(es11.5,4es13.5)') norm1
-            gnorm1 = gnorm1 + abs(ccgradq(1,:,i) + ccgradq(2,:,i))
+            gnorm1 = gnorm1 + abs(ccgradq(1,:,i)) + abs(ccgradq(2,:,i))
             
         end do
 
+        do ib = 3, nb
+            nfaces = nfaces + bound(ib)%nbfaces
+        end do
         norm1 = norm1
-        gnorm1 = gnorm1 * 0.5_p2 / real(nnodes,p2)
-
+        gnorm1 = gnorm1 / real(ncells,p2)
+        fnorm1 = fnorm1 / real(nfaces,p2)
         ! Compute the residual at an internal cell with the exact values at the face (debugging)
 
         
@@ -645,9 +658,10 @@ module steady_solver
         write(*,*)
         write(*,*)
         write(*,*) " -------------- Truncation error norm ------------------"
-        write(*,*) "              conti     x-mom       y-mom        z-mom        energy       ncells" 
+        write(*,*) "          conti        x-mom         y-mom         z-mom        energy        ncells" 
         write(*,'(a,5es13.5,i10)') "  L1(TE) ", norm1, ncells
         write(*,'(a,5es13.5)') " gL1(TE) ", gnorm1(1:5)
+        write(*,'(a,5es13.5)') "fgL1(TE) ", fnorm1(1:5)
         write(*,*)
         write(*,*)
         write(*,*)

@@ -10,7 +10,7 @@ module viscous_flux
 
     contains
 
-    subroutine visc_flux_internal(q1,q2,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2, num_flux)
+    subroutine visc_flux_internal(q1,q2,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2,fgrad,num_flux)
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
@@ -28,7 +28,7 @@ module viscous_flux
         real(p2),                     intent(in) :: xc1, yc1, zc1     ! Left cell centroid
         real(p2),                     intent(in) :: xc2, yc2, zc2     ! Right cell centroid
         real(p2), dimension(nq),      INTENT(OUT):: num_flux
-
+        real(p2), dimension(ndim,nq), intent(out):: fgrad
         ! Local Vars
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
@@ -54,10 +54,10 @@ module viscous_flux
         call compute_visc_num_flux(q1,q2,gradq_face,n12,num_flux)
         ! call compute_visc_num_flux(q1,q2,gradq1,n12,num_flux)
         ! call viscous_alpha(q1,q2, gradq1, gradq2, n12, ds, magds, num_flux)
-
+        fgrad = gradq_face
     end subroutine visc_flux_internal
 
-    subroutine visc_flux_boundary(q1,qb,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
+    subroutine visc_flux_boundary(q1,qb,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,fgrad,num_flux)
 
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third
 
@@ -73,7 +73,8 @@ module viscous_flux
         real(p2),                     intent(in)    :: xc1, yc1, zc1     ! Left cell centroid
         real(p2),                     intent(in)    :: xf2, yf2, zf2     ! Boundary face centroid
         real(p2), dimension(nq),      intent(out)   :: num_flux
-
+        real(p2), dimension(ndim,nq), intent(out)   :: fgrad     ! Grad at bound interface computed using avg face's vgrad
+        
 
         ! Local Vars
         real(p2), dimension(ndim,nq) :: gradq_face
@@ -101,7 +102,7 @@ module viscous_flux
         ! This is just a wrapper function since we already have the interface gradient computed.
         call compute_visc_num_flux(q1,qb,gradq_face,n12,num_flux)
         ! call compute_visc_num_flux(q1,qb,face_gradient,n12,num_flux) !tmp
-        
+        fgrad = gradq_face
     end subroutine visc_flux_boundary
 
     subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)

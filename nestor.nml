@@ -1,5 +1,5 @@
 &project
-  project_name = "quad8_3d"
+  project_name = "quad1024_3d"
   ! second_namelist = "grids/cylinder/final_grids/nestor.nml"
   ! io_path = "grids/cylinder/final_grids/"
   /
@@ -51,7 +51,7 @@ gcr_reduction_target = 0.05
 &MMS
   run_mms = .true.
   ! mms_equation_type = 'linear'
-  mms_include(1) = .false. ! inviscid
+  mms_include(1) = .true. ! inviscid
   mms_include(2) = .true. ! viscous
   mms_include(3) = .false.  ! some weird other viscous shit
   /
