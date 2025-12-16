@@ -31,6 +31,7 @@ module viscous_flux
         ! Local Vars
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
+        real(p2)                     :: magds
         
         integer                      :: ivar
 
@@ -102,7 +103,7 @@ module viscous_flux
     subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third, ix, iy, iz
 
-        use solution                , only : gammamo, nq, ndim, T_inf, iu, iw, iz, iT ! w2u, nq
+        use solution                , only : gammamo, nq, ndim, T_inf, iu, iv, iw, iT ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
