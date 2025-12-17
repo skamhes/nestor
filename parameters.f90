@@ -129,7 +129,7 @@ module config
     ! GRADIENT SETTINGS (&gradient)
     character(80)           :: grad_method               = "lsq"
     integer                 :: accuracy_order       = 1
-    character(80)           :: lsq_stencil          = "w_vertex"
+    character(80)           :: lsq_stencil          = "nn" ! node neighbor, calculated at the cell center: alt w_vertex
     real(p2)                :: lsq_weight           = zero
     logical                 :: use_limiter          = .false.
 
