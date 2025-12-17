@@ -40,6 +40,8 @@ module solution
     real(p2)                            :: force_lift
     real(p2), dimension(3)              :: vector_drag
     real(p2), dimension(3)              :: vector_lift
+
+    integer                             :: nlsq ! number of sets of lsq coefficients with different weighting
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.

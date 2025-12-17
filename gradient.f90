@@ -77,7 +77,7 @@ module gradient
                 vgradq = zero
                 call compute_vgradient
             case(LSQ_STENCIL_NN) lsq
-                call compute_cgradient
+                call compute_cgradient(weight)
             case default lsq
                 write(*,*) 'Unsupported gradient methodstencil.'
                 write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
@@ -168,7 +168,7 @@ module gradient
 
     end subroutine compute_vgradient
 
-    subroutine compute_cgradient
+    subroutine compute_cgradient(weight)
 
         use common , only : p2, ix, iy, iz
 
@@ -176,13 +176,15 @@ module gradient
 
         use grid , only : nb, gcell, bound, ncells
 
-        use solution , only : q, ccgradq, nq
+        use solution , only : q, ccgradq, nq, nlsq
 
         use utils , only : ibc_type
 
         use least_squares , only : lsqc
         
         implicit none
+
+        integer, intent(in) :: weight
 
         integer :: ib, j, icell, kcell, jvar
         integer :: c1
@@ -212,17 +214,17 @@ module gradient
                 do kcell = 1,lsqc(icell)%n_nnghbrs
                     ck = lsqc(icell)%nghbr_lsq(kcell)
                     qk_j = q(jvar,ck)
-                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%cx(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%cy(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%cz(kcell) * (qk_j - qi(jvar))
+                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%cx(kcell,weight) * (qk_j - qi(jvar))
+                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%cy(kcell,weight) * (qk_j - qi(jvar))
+                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%cz(kcell,weight) * (qk_j - qi(jvar))
                 end do
                 do kcell = 1,lsqc(icell)%nbf
                     ci = lsqc(icell)%gcells(1,kcell)
                     ib = lsqc(icell)%gcells(2,kcell)
                     qk_j = gcell(ib)%q(jvar,ci)
-                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%gcx(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%gcy(kcell) * (qk_j - qi(jvar))
-                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%gcz(kcell) * (qk_j - qi(jvar))
+                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%gcx(kcell,weight) * (qk_j - qi(jvar))
+                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%gcy(kcell,weight) * (qk_j - qi(jvar))
+                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%gcz(kcell,weight) * (qk_j - qi(jvar))
                 end do
             end do
 

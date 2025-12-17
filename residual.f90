@@ -19,7 +19,7 @@ module residual
                                      nb,     bound, &
                                      face_nrml,     &
                                      face_nrml_mag, &
-                                     face_centroid
+                                     face_centroid, gcell
 
         use utils           , only : ibc_type
         
@@ -75,7 +75,7 @@ module residual
         ! Compute gradients at cells.
         !
         if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID) then
-            call compute_gradient(0) ! For now we are just using unweighted gradients
+            call compute_gradient(1) ! For now we are just using unweighted gradients
         endif
 
         ! Only needs to be set once.
@@ -114,7 +114,9 @@ module residual
         ! 3. Add it to the residual for 1, and subtract it from the residual for 2.
         !
         !--------------------------------------------------------------------------------
-        loop_faces : do i = 1,nfaces
+
+        ! First compute inviscid flux terms
+        iloop_faces : do i = 1,nfaces
             ! Left and right cell values
             c1 = face(1,i)
             c2 = face(2,i)
@@ -151,23 +153,10 @@ module residual
             res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
             wsn(c2)   = wsn(c2) + wave_speed * face_nrml_mag(i)
 
-            if ( iturb_type == TURB_INVISCID) cycle loop_faces
+        end do iloop_faces
 
-            ! Viscous flux
-            call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
-                                                         unit_face_normal, &
-                                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                                    cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
-                                                                   num_flux)
-
-            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
-
-            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
-
-        end do loop_faces
-
-        boundary_loop : do ib = 1,nb
-            bface_loop : do j = 1,bound(ib)%nbfaces
+        iboundary_loop : do ib = 1,nb
+            ibface_loop : do j = 1,bound(ib)%nbfaces
                 bface_centroid = bound(ib)%bface_center(:,j)
                 
                 c1 = bound(ib)%bcell(j)
@@ -200,7 +189,47 @@ module residual
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
-                if ( iturb_type == TURB_INVISCID ) cycle bface_loop
+                
+
+            end do ibface_loop
+
+        end do iboundary_loop
+
+        ! Next compute inviscid flux terms:
+        if ( iturb_type == TURB_INVISCID ) return
+
+        vloop_faces : do i = 1,nfaces
+            ! Left and right cell values
+            c1 = face(1,i)
+            c2 = face(2,i)
+            q1 = q(1:5, c1)
+            q2 = q(1:5, c2)
+            gradq1 = ccgradq(1:3,1:5,c1)
+            gradq2 = ccgradq(1:3,1:5,c2)! Face normal
+            unit_face_normal = face_nrml(1:3,i)
+
+            ! Viscous flux
+            call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
+                                                         unit_face_normal, &
+                                    cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                    cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                                                                   num_flux)
+
+            res(:,c1) = res(:,c1) + num_flux * face_nrml_mag(i)
+
+            res(:,c2) = res(:,c2) - num_flux * face_nrml_mag(i)
+        end do vloop_faces
+
+        vboundary_loop : do ib = 1,nb
+            vbface_loop : do j = 1,bound(ib)%nbfaces
+                bface_centroid = bound(ib)%bface_center(:,j)
+                
+                c1 = bound(ib)%bcell(j)
+
+                unit_face_normal = bound(ib)%bface_nrml(:,j)
+
+                q1 = q(:,c1)
+                gradq1 = ccgradq(1:3,1:5,c1)
                 
                 face_sides = bound(ib)%bfaces(1,j)
 
@@ -214,27 +243,20 @@ module residual
                 else ! ilsq_stencil == LSQ_STENCIL_NN
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
-                xc   = cell(c1)%xc
-                yc   = cell(c1)%yc
-                zc   = cell(c1)%zc
-                dxc2 = fxc - xc
-                dyc2 = fyc - yc
-                dzc2 = fzc - zc
-                xc2  = fxc + dxc2
-                yc2  = fyc + dyc2
-                zc2  = fzc + dzc2
+                
+                xc2  = gcell(ib)%xc(j)
+                yc2  = gcell(ib)%yc(j)
+                zc2  = gcell(ib)%zc(j)
                 call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+
                 call visc_flux_boundary(q1,qb,gradqb,unit_face_normal, &
                                 cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                                           xc2,yc2,zc2, &
                                                               num_flux )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
-
-            end do bface_loop
-
-        end do boundary_loop
-
+            end do vbface_loop
+        end do vboundary_loop
     end subroutine compute_residual
 
 end module residual

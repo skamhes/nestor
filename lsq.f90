@@ -37,14 +37,14 @@ module least_squares
     type lsq_cell_type
         integer                                 ::    n_nnghbrs  ! number of cells attached to lsq vertex
         integer,  dimension(:)  , pointer       ::    nghbr_lsq  ! list of neighbor cells  
-        real(p2), dimension(:)  , pointer       ::           cx  ! LSQ coefficient for x-derivative (3 unknowns) 
-        real(p2), dimension(:)  , pointer       ::           cy  ! LSQ coefficient for y-derivative (3 unknowns) 
-        real(p2), dimension(:)  , pointer       ::           cz  ! LSQ coefficient for z-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer       ::           cx  ! LSQ coefficient for x-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer       ::           cy  ! LSQ coefficient for y-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer       ::           cz  ! LSQ coefficient for z-derivative (3 unknowns) 
         integer                                 ::          nbf  ! number of boundary faces attached to the cell
         integer,  dimension(:,:), pointer       ::       gcells  ! list of ghost cells (ibcell,ib) length 2xnbf
-        real(p2), dimension(:)  , pointer       ::          gcx  ! LSQ coefficient for x-derivative (3 unknowns) 
-        real(p2), dimension(:)  , pointer       ::          gcy  ! LSQ coefficient for y-derivative (3 unknowns) 
-        real(p2), dimension(:)  , pointer       ::          gcz  ! LSQ coefficient for z-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer       ::          gcx  ! LSQ coefficient for x-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer       ::          gcy  ! LSQ coefficient for y-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer       ::          gcz  ! LSQ coefficient for z-derivative (3 unknowns) 
     end type lsq_cell_type
 
     !Cell data array in the custom data type.
@@ -230,6 +230,10 @@ module least_squares
 
         use sort_routines , only : queued_natural_merge_sort
 
+        use utils , only : iturb_type, TURB_INVISCID
+
+        use solution , only : nlsq
+
         implicit none
 
         type(node_type), dimension(nnodes) :: node
@@ -258,6 +262,12 @@ module least_squares
         integer :: ni, cnvtx, ci, cn, nbfn
 
         integer :: start, end
+
+        if (iturb_type == TURB_INVISCID) then
+            nlsq = 1
+        else
+            nlsq = 2 
+        endif
 
         allocate(lsqc(ncells))
         c2bf = 0
@@ -331,9 +341,9 @@ module least_squares
             allocate(lsqc(icell)%nghbr_lsq(c2nn(icell)%n_nnghbr))
             lsqc(icell)%nghbr_lsq = c2nn(icell)%nnghbr
             
-            allocate(lsqc(icell)%cx(c2nn(icell)%n_nnghbr))
-            allocate(lsqc(icell)%cy(c2nn(icell)%n_nnghbr))
-            allocate(lsqc(icell)%cz(c2nn(icell)%n_nnghbr))
+            allocate(lsqc(icell)%cx(c2nn(icell)%n_nnghbr,nlsq))
+            allocate(lsqc(icell)%cy(c2nn(icell)%n_nnghbr,nlsq))
+            allocate(lsqc(icell)%cz(c2nn(icell)%n_nnghbr,nlsq))
 
             lsqc(icell)%nbf = 0
         end do
@@ -381,9 +391,9 @@ module least_squares
                 ci = bound(ib)%bcell(icell)
                 if (.not.associated(lsqc(ci)%gcells)) then 
                     allocate(lsqc(ci)%gcells(2,lsqc(ci)%nbf))
-                    allocate(lsqc(ci)%gcx(lsqc(ci)%nbf))
-                    allocate(lsqc(ci)%gcy(lsqc(ci)%nbf))
-                    allocate(lsqc(ci)%gcz(lsqc(ci)%nbf))
+                    allocate(lsqc(ci)%gcx(lsqc(ci)%nbf,nlsq))
+                    allocate(lsqc(ci)%gcy(lsqc(ci)%nbf,nlsq))
+                    allocate(lsqc(ci)%gcz(lsqc(ci)%nbf,nlsq))
                     lsqc(ci)%nbf = 0
                 end if
                 
@@ -693,18 +703,18 @@ module least_squares
 
         use direct_solve , only : qr_factorization
 
-        use solution , only : ndim
+        use solution , only : ndim, nlsq
 
         implicit none
 
         real(p2) :: maxdx, maxdy, maxdz
         real(p2) :: lsq_weight_invdis_power
-        integer                           :: m, n             !Size of LSQ matrix: A(m,n).
-        real(p2), pointer, dimension(:,:) :: a                !LSQ matrix: A(m,n).
-        real(p2), pointer, dimension(:,:) :: rinvqt           !Pseudo inverse R^{-1}*Q^T
-        integer                           :: nghbr_cell
+        integer                             :: m, n             !Size of LSQ matrix: A(m,n).
+        real(p2), pointer, dimension(:,:,:) :: a                !LSQ matrix: A(m,n).
+        real(p2), pointer, dimension(:,:,:) :: rinvqt           !Pseudo inverse R^{-1}*Q^T
+        integer                             :: nghbr_cell
         
-        integer :: k, ib
+        integer :: k, ib, mweight
         integer :: icell
         integer :: ci
         
@@ -732,7 +742,7 @@ module least_squares
         ! instability known for Euler solvers. So, this is the unweighted LSQ gradient.
         ! More accurate gradients are obtained with 1.0, and such can be used for the
         ! viscous terms and source terms in turbulence models.
-        lsq_weight_invdis_power = 0
+        ! lsq_weight_invdis_power = 0
 
         !--------------------------------------------------------------------------------
         !--------------------------------------------------------------------------------
@@ -742,9 +752,9 @@ module least_squares
             n = ndim                    ! # of dimensions
 
             ! Allocate LSQ matrix and the pseudo inverse, R^{-1}*Q^T
-            allocate(a(m + lsqc(icell)%nbf,n)) ! note: it may produce some additional speed to switch the rows and columns here
+            allocate(a(m + lsqc(icell)%nbf,n,nlsq)) ! note: it may produce some additional speed to switch the rows and columns here
             ! however a is a very small matrix and this subroutine is called once so we'll leave that for another day
-            allocate(rinvqt(n,m + lsqc(icell)%nbf))
+            allocate(rinvqt(n,m + lsqc(icell)%nbf,nlsq))
             ! Initialize a
             a = zero
            
@@ -761,10 +771,13 @@ module least_squares
                 dx = cell(nghbr_cell)%xc - cell(icell)%xc
                 dy = cell(nghbr_cell)%yc - cell(icell)%yc
                 dz = cell(nghbr_cell)%zc - cell(icell)%zc
-                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
-                a(k,1) = weight_k*dx
-                a(k,2) = weight_k*dy
-                a(k,3) = weight_k*dz
+                do mweight = 1,nlsq
+                    lsq_weight_invdis_power = real(mweight-1, p2)
+                    weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                    a(k,1,mweight) = weight_k*dx
+                    a(k,2,mweight) = weight_k*dy
+                    a(k,3,mweight) = weight_k*dz
+                end do
                 maxdx  = max(abs(dx),maxdx)
                 maxdy  = max(abs(dy),maxdy)
                 maxdz  = max(abs(dz),maxdz)
@@ -777,18 +790,22 @@ module least_squares
                 dx = gcell(ib)%xc(ci) - cell(icell)%xc
                 dy = gcell(ib)%yc(ci) - cell(icell)%yc
                 dz = gcell(ib)%zc(ci) - cell(icell)%zc
-                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
-                a(k+lsqc(icell)%n_nnghbrs,1) = weight_k*dx
-                a(k+lsqc(icell)%n_nnghbrs,2) = weight_k*dy
-                a(k+lsqc(icell)%n_nnghbrs,3) = weight_k*dz
+                do mweight = 1,nlsq
+                    lsq_weight_invdis_power = real(mweight-1, p2)
+                    weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                    a(k+lsqc(icell)%n_nnghbrs,1,mweight) = weight_k*dx
+                    a(k+lsqc(icell)%n_nnghbrs,2,mweight) = weight_k*dy
+                    a(k+lsqc(icell)%n_nnghbrs,3,mweight) = weight_k*dz
+                end do
                 maxdx  = max(abs(dx),maxdx)
                 maxdy  = max(abs(dy),maxdy)
                 maxdz  = max(abs(dz),maxdz)
             end do nghbr_loop2
             !-------------------------------------------------------
             ! Perform QR factorization and compute R^{-1}*Q^T from A(m,n).
-            call qr_factorization(a,rinvqt,m + lsqc(icell)%nbf,n)
-
+            do mweight = 1,nlsq
+                call qr_factorization(a(:,:,mweight),rinvqt(:,:,mweight),m + lsqc(icell)%nbf,n)
+            end do
             !-------------------------------------------------------
             ! Compute and store the LSQ coefficients: R^{-1}*Q^T*w.
             !
@@ -800,10 +817,13 @@ module least_squares
                 dx = cell(nghbr_cell)%xc - cell(icell)%xc
                 dy = cell(nghbr_cell)%yc - cell(icell)%yc
                 dz = cell(nghbr_cell)%zc - cell(icell)%zc
-                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
-                lsqc(icell)%cx(k)  = rinvqt(ix,k) * weight_k
-                lsqc(icell)%cy(k)  = rinvqt(iy,k) * weight_k
-                lsqc(icell)%cz(k)  = rinvqt(iz,k) * weight_k
+                do mweight = 1,nlsq
+                    lsq_weight_invdis_power = real(mweight-1, p2)
+                    weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                    lsqc(icell)%cx(k,mweight)  = rinvqt(ix,k,mweight) * weight_k
+                    lsqc(icell)%cy(k,mweight)  = rinvqt(iy,k,mweight) * weight_k
+                    lsqc(icell)%cz(k,mweight)  = rinvqt(iz,k,mweight) * weight_k
+                end do
             end do nghbr_loop3
 
             ! Do ghost cells if any
@@ -813,10 +833,13 @@ module least_squares
                 dx = gcell(ib)%xc(ci) - cell(icell)%xc
                 dy = gcell(ib)%yc(ci) - cell(icell)%yc
                 dz = gcell(ib)%zc(ci) - cell(icell)%zc
-                weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
-                lsqc(icell)%gcx(k - m)  = rinvqt(ix,k) * weight_k
-                lsqc(icell)%gcy(k - m)  = rinvqt(iy,k) * weight_k
-                lsqc(icell)%gcz(k - m)  = rinvqt(iz,k) * weight_k
+                do mweight = 1,nlsq
+                    lsq_weight_invdis_power = real(mweight-1, p2)
+                    weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
+                    lsqc(icell)%gcx(k - m,mweight)  = rinvqt(ix,k,mweight) * weight_k
+                    lsqc(icell)%gcy(k - m,mweight)  = rinvqt(iy,k,mweight) * weight_k
+                    lsqc(icell)%gcz(k - m,mweight)  = rinvqt(iz,k,mweight) * weight_k
+                end do
             end do nghbr_loop4
             !-------------------------------------------------------
             ! Deallocate a and rinvqt, whose size may change in the next cell. 
@@ -827,51 +850,53 @@ module least_squares
         ! Compute the gradient of w = 2*x+y+4*z to se if we get wx = 2, wy = 1, and wz = 4 correctly
         verification_error = .false.
 
-        do icell = 1,ncells
-            ! initialize wx, wy, and wz
-            wx = zero
-            wy = zero
-            wz = zero
-            ! (xi,yi,zi) to be used to compute the function 2*x+y+4z at i
-            xi = cell(icell)%xc
-            yi = cell(icell)%yc
-            zi = cell(icell)%zc
+        do mweight = 1,nlsq
+            do icell = 1,ncells
+                ! initialize wx, wy, and wz
+                wx = zero
+                wy = zero
+                wz = zero
+                ! (xi,yi,zi) to be used to compute the function 2*x+y+4z at i
+                xi = cell(icell)%xc
+                yi = cell(icell)%yc
+                zi = cell(icell)%zc
 
-            ! look over the vertex neighboes
-            do k = 1,lsqc(icell)%n_nnghbrs
-                nghbr_cell = lsqc(icell)%nghbr_lsq(k)
-                xk = cell(nghbr_cell)%xc
-                yk = cell(nghbr_cell)%yc
-                zk = cell(nghbr_cell)%zc
-                ! This is how we use the LSQ coefficients: accumulate cx*(wk-wi)
-                ! and cy*(wk-wi) and cz*(wk-wi)
-                wx = wx + lsqc(icell)%cx(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                wy = wy + lsqc(icell)%cy(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                wz = wz + lsqc(icell)%cz(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-            end do
-            do k = 1,lsqc(icell)%nbf
-                ci = lsqc(icell)%gcells(1,k)
-                ib = lsqc(icell)%gcells(2,k)
-                xk = gcell(ib)%xc(ci)
-                yk = gcell(ib)%yc(ci)
-                zk = gcell(ib)%zc(ci)
-                wx = wx + lsqc(icell)%gcx(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                wy = wy + lsqc(icell)%gcy(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-                wz = wz + lsqc(icell)%gcz(k)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
-            end do
+                ! look over the vertex neighboes
+                do k = 1,lsqc(icell)%n_nnghbrs
+                    nghbr_cell = lsqc(icell)%nghbr_lsq(k)
+                    xk = cell(nghbr_cell)%xc
+                    yk = cell(nghbr_cell)%yc
+                    zk = cell(nghbr_cell)%zc
+                    ! This is how we use the LSQ coefficients: accumulate cx*(wk-wi)
+                    ! and cy*(wk-wi) and cz*(wk-wi)
+                    wx = wx + lsqc(icell)%cx(k,mweight)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wy = wy + lsqc(icell)%cy(k,mweight)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wz = wz + lsqc(icell)%cz(k,mweight)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                end do
+                do k = 1,lsqc(icell)%nbf
+                    ci = lsqc(icell)%gcells(1,k)
+                    ib = lsqc(icell)%gcells(2,k)
+                    xk = gcell(ib)%xc(ci)
+                    yk = gcell(ib)%yc(ci)
+                    zk = gcell(ib)%zc(ci)
+                    wx = wx + lsqc(icell)%gcx(k,mweight)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wy = wy + lsqc(icell)%gcy(k,mweight)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                    wz = wz + lsqc(icell)%gcz(k,mweight)*( (2.0*xk+yk+4.0*zk)-(2.0*xi+yi+4.0*zi) )
+                end do
 
-            maxDeltasNZ = zero
-            if (maxdx > 0.001_p2) maxDeltasNZ(1) = one
-            if (maxdy > 0.001_p2) maxDeltasNZ(2) = one
-            if (maxdz > 0.001_p2) maxDeltasNZ(3) = one
-            if ( maxDeltasNZ(1)*abs(wx-two) > 1.0e-06_p2 .or. &
-                 maxDeltasNZ(2)*abs(wy-one) > 1.0e-06_p2 .or. &
-                 maxDeltasNZ(3)*abs(wz-4.0_p2) > 1.0e-06_p2) then
-                    write(*,*) " wx = ", wx, " exact ux = 2.0"!,maxDeltasNZ(1)*abs(wx-two)
-                    write(*,*) " wy = ", wy, " exact uy = 1.0"!,maxDeltasNZ(2)*abs(wy-one)
-                    write(*,*) " wz = ", wz, " exact uz = 4.0"!, maxDeltasNZ(3)*abs(wz-4.0_p2),maxDeltasNZ(3)
-                    verification_error = .true.
-            end if
+                maxDeltasNZ = zero
+                if (maxdx > 0.001_p2) maxDeltasNZ(1) = one
+                if (maxdy > 0.001_p2) maxDeltasNZ(2) = one
+                if (maxdz > 0.001_p2) maxDeltasNZ(3) = one
+                if ( maxDeltasNZ(1)*abs(wx-two) > 1.0e-06_p2 .or. &
+                    maxDeltasNZ(2)*abs(wy-one) > 1.0e-06_p2 .or. &
+                    maxDeltasNZ(3)*abs(wz-4.0_p2) > 1.0e-06_p2) then
+                        write(*,*) " wx = ", wx, " exact ux = 2.0"!,maxDeltasNZ(1)*abs(wx-two)
+                        write(*,*) " wy = ", wy, " exact uy = 1.0"!,maxDeltasNZ(2)*abs(wy-one)
+                        write(*,*) " wz = ", wz, " exact uz = 4.0"!, maxDeltasNZ(3)*abs(wz-4.0_p2),maxDeltasNZ(3)
+                        verification_error = .true.
+                end if
+            end do
         end do
 
 
