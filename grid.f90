@@ -362,35 +362,7 @@ module grid
         ! Close the file
         close(1)
 
-        !--------------------------------------------------------------------------------
-        !--------------------------------------------------------------------------------
-        ! 2. Read the boundary condition data file
-        write(*,*)
-        write(*,*) "-------------------------------------------------------"
-        write(*,*) " Reading the boundary condition file: ", &
-                    trim(io_path)//trim(filename_bc)
-        write(*,*)
-
-        open(unit=2, file=trim(io_path)//trim(filename_bc), status="unknown", iostat=os)
-        read(2,*) nb
-        
-        allocate(bc_type(nb))
-        do i = 1, nb
-            read(2,*) dummy_int, bc_type(i)                               
-        end do
-        !  Print the data
-        do i = 1, nb
-            write(*,'(a10,i3,a12,a20)') " boundary", i, "  bc_type = ", trim(bc_type(i))
-        end do
-
-        write(*,*)
-
-        close(2)
-
-        ! set up the integer bc_type array
-        call bc_convert_c_to_i
-        ! End of Read the boundary condition data file
-        !--------------------------------------------------------------------------------
+        call read_boundary
 
         write(*,*)
         write(*,*) " Finished Reading : ", trim(io_path)//trim(filename_grid), " and ",&
@@ -658,14 +630,28 @@ module grid
         write(*,*) "     Prisms = ", nprs
         write(*,*)
 
+        call read_boundary
 
-         !--------------------------------------------------------------------------------
-        !--------------------------------------------------------------------------------
-        ! 2. Read the boundary condition data file
+        write(*,*)
+        write(*,*) " Finished Reading : ", trim(io_path)//trim(filename_grid), " and ",&
+            trim(io_path)//trim(filename_bc)
+        write(*,*) "-------------------------------------------------------"
+        write(*,*)
+    end subroutine read_su2
+
+    subroutine read_boundary
+
+        use files , only : filename_grid, filename_bc
+        use config, only : io_path
+
+        implicit none 
+
+        integer :: os, i, dummy_int
+
         write(*,*)
         write(*,*) "-------------------------------------------------------"
         write(*,*) " Reading the boundary condition file: ", &
-            trim(io_path)//trim(filename_bc)
+                    trim(io_path)//trim(filename_bc)
         write(*,*)
 
         open(unit=2, file=trim(io_path)//trim(filename_bc), status="unknown", iostat=os)
@@ -683,15 +669,13 @@ module grid
         write(*,*)
 
         close(2)
+
+        ! set up the integer bc_type array
+        call bc_convert_c_to_i
         ! End of Read the boundary condition data file
         !--------------------------------------------------------------------------------
 
-        write(*,*)
-        write(*,*) " Finished Reading : ", trim(io_path)//trim(filename_grid), " and ",&
-            trim(io_path)//trim(filename_bc)
-        write(*,*) "-------------------------------------------------------"
-        write(*,*)
-    end subroutine read_su2
+    end subroutine read_boundary
 
     subroutine construct_grid
         use common , only : p2, zero, one, three
