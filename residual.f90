@@ -31,7 +31,7 @@ module residual
 
         use bc_states       , only : get_right_state
 
-        use gradient        , only : compute_gradient
+        use gradient        , only : compute_gradient, set_ghost_values
 
         use viscous_flux    , only : visc_flux_boundary, visc_flux_internal
 
@@ -75,6 +75,7 @@ module residual
         ! Compute gradients at cells.
         !
         if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID) then
+            call set_ghost_values
             call compute_gradient(1) ! For now we are just using unweighted gradients
         endif
 
@@ -197,6 +198,8 @@ module residual
 
         ! Next compute inviscid flux terms:
         if ( iturb_type == TURB_INVISCID ) return
+
+        call compute_gradient(2)
 
         vloop_faces : do i = 1,nfaces
             ! Left and right cell values

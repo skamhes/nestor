@@ -8,6 +8,8 @@ module gradient
 
     public compute_gradient
 
+    public set_ghost_values
+
     contains
 
     subroutine init_gradients
@@ -172,8 +174,6 @@ module gradient
 
         use common , only : p2, ix, iy, iz
 
-        use bc_states , only : get_right_state
-
         use grid , only : nb, gcell, bound, ncells
 
         use solution , only : q, ccgradq, nq, nlsq
@@ -194,18 +194,6 @@ module gradient
         real(p2), dimension(5) :: q1, qb
         real(p2), dimension(5) :: qk, qi
         real(p2)               :: qk_j
-
-        ! First update the ghost cell values
-        do ib = 1,nb
-            do j=1,bound(ib)%nbfaces
-                c1 = bound(ib)%bcell(j)
-                unit_face_normal = bound(ib)%bface_nrml(:,j)
-                q1 = q(:,c1)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
-                gcell(ib)%q(:,j) = qb
-            end do
-        end do
-
 
         do icell=1,ncells
             ! loop over the vertex neighboes
@@ -283,5 +271,37 @@ module gradient
         
     end subroutine boundary_value
 
+    subroutine set_ghost_values
+
+        use solution , only : q
+
+        use bc_states , only : get_right_state
+                
+        use grid     , only : nb, bound, gcell
+
+        use common   , only : p2
+
+        use utils    , only : ibc_type
+
+        implicit none
+
+        integer  :: c1
+        integer  :: ib, j
+        
+        real(p2), dimension(5) :: q1, qb
+        real(p2), dimension(3) :: unit_face_normal
+
+         ! First update the ghost cell values
+        do ib = 1,nb
+            do j=1,bound(ib)%nbfaces
+                c1 = bound(ib)%bcell(j)
+                unit_face_normal = bound(ib)%bface_nrml(:,j)
+                q1 = q(:,c1)
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                gcell(ib)%q(:,j) = qb
+            end do
+        end do
+
+    end subroutine set_ghost_values
 
 end module gradient
