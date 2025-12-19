@@ -25,7 +25,7 @@ module viscosity
         real(p2), intent(in) :: T
         real(p2)             :: mu
 
-        ! note: C0 = C0 / T_inf in reality
+        ! note: C0 = C0 / T_inf in reality.  SEE: set_initial_solution in initialize.f90
         mu =  mu_norm * (one + C0) / (T + C0)*T**(three_half)
 
     end function compute_viscosity

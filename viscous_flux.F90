@@ -9,7 +9,7 @@ module viscous_flux
 
     contains
 
-    subroutine visc_flux_internal(q1,q2,muf,mutf,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2, num_flux)
+    subroutine visc_flux_internal(q1,q2,gradq1,gradq2,trb1,trb2,n12,xc1,yc1,zc1,xc2,yc2,zc2, num_flux)
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
@@ -19,11 +19,13 @@ module viscous_flux
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
+        use turb                    , only : nturb
+
         implicit none
 
         real(p2), dimension(nq),      intent(in) :: q1, q2
-        real(p2),                     intent(in) :: muf, mutf
         real(p2), dimension(ndim,nq), intent(in) :: gradq1, gradq2
+        real(p2), dimension(nturb),   intent(in) :: trb1, trb2
         real(p2), dimension(ndim),    intent(in) :: n12               ! Unit area vector (from c1 to c2)
         real(p2),                     intent(in) :: xc1, yc1, zc1     ! Left cell centroid
         real(p2),                     intent(in) :: xc2, yc2, zc2     ! Right cell centroid
@@ -51,11 +53,11 @@ module viscous_flux
 
         ! This subroutine only handles computing the interface gradient.
         ! Once we have it we call the internal function
-        call compute_visc_num_flux(q1,q2,muf,mutf,gradq_face,n12,num_flux)
+        call compute_visc_num_flux(q1,q2,trb1,trb2,gradq_face,n12,num_flux)
 
     end subroutine visc_flux_internal
 
-    subroutine visc_flux_boundary(q1,qb,muf,mutf,face_gradient,n12,xc1,yc1,zc1,xc2,yc2,zc2,num_flux)
+    subroutine visc_flux_boundary(q1,qb,trb1,trb2,face_gradient,n12,xc1,yc1,zc1,xc2,yc2,zc2,num_flux)
 
         use common                  , only : p2, half
 
@@ -63,10 +65,12 @@ module viscous_flux
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
+        use turb                    , only : nturb
+
         implicit none
 
         real(p2), dimension(nq),      intent(in)    :: q1, qb
-        real(p2),                     intent(in)    :: muf, mutf
+        real(p2), dimension(nturb),   intent(in)    :: trb1, trb2
         real(p2), dimension(ndim,nq), intent(in)    :: face_gradient     ! Grad at bound interface computed using avg face's vgrad
         real(p2), dimension(ndim),    intent(in)    :: n12               ! Normalized face vector
         real(p2),                     intent(in)    :: xc1, yc1, zc1     ! Left cell centroid
@@ -97,12 +101,12 @@ module viscous_flux
 
 
         ! This is just a wrapper function since we already have the interface gradient computed.
-        call compute_visc_num_flux(q1,qb,muf,mutf,gradq_face,n12,num_flux)
+        call compute_visc_num_flux(q1,qb,trb1,trb2,gradq_face,n12,num_flux)
 
         
     end subroutine visc_flux_boundary
 
-    subroutine compute_visc_num_flux(q1,q2,muf,mutf,interface_grad,n12,num_flux)
+    subroutine compute_visc_num_flux(q1,q2,trb1,trb2,interface_grad,n12,num_flux)
         use common                  , only : p2, half, zero, two_third, four_third, ix, iy, iz
 
         use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT ! w2u, nq
@@ -110,17 +114,22 @@ module viscous_flux
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp, pr_t
 
         use viscosity               , only : compute_viscosity
+
+        use turb                    , only : nturb, calcmut
+
         implicit none 
 
         real(p2), dimension(nq),      intent(in)    :: q1, q2
-        real(p2),                     intent(in)    :: muf, mutf
+        real(p2), dimension(nturb),   intent(in)    :: trb1, trb2
         real(p2), dimension(ndim,nq), intent(in)    :: interface_grad
         real(p2), dimension(ndim),    intent(in)    :: n12
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
         ! Local Vars
-        real(p2)                     :: mu_effective
-        real(p2)                     :: u, v, w, T
+        real(p2)                     :: mu_effective, mu, mut
+        real(p2), dimension(nturb)   :: trb
+        real(p2), dimension(nq)      :: qf
+        real(p2)                     :: p, u, v, w, T
         real(p2)                     :: tauxx, tauyy, tauzz !Viscous stresses: diagonal compontens
         real(p2)                     :: tauxy, tauyz, tauzx !Viscous stresses: off-diagonal components
         real(p2)                     :: tauyx, tauzy, tauxz !Viscous stresses: same as above by symmetry
@@ -130,13 +139,21 @@ module viscous_flux
         real(p2), dimension(3)       :: grad_u, grad_v, grad_w   !Interface gradients of velocities
         real(p2), dimension(3)       :: grad_T
         
-        u = half * (q1(2)  + q2(2) ) ! u at the face
-        v = half * (q1(3)  + q2(3) ) ! v at the face
-        w = half * (q1(4)  + q2(4) ) ! w at the face
-        T = half * (q1(nq) + q2(nq)) ! T at the face
-        C0= sutherland_constant/reference_temp
-        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
-        mu_effective = muf + mutf*zero
+        qf = half * (q1 + q2)
+
+        p = qf(1)  ! p at the face
+        u = qf(2)  ! u at the face
+        v = qf(3)  ! v at the face
+        w = qf(4)  ! w at the face
+        T = qf(5)  ! T at the face
+        
+        mu = compute_viscosity(T)
+
+        trb = half * (trb1 + trb2)
+
+        mut = calcmut(qf,mu,trb)
+
+        mu_effective = mu + mut
 
 #ifdef NANCHECK
         if (isnan(mu_effective)) then 
@@ -166,9 +183,9 @@ module viscous_flux
     
         ! Heat fluxes: q = - mu*grad(T)/(Prandtl*(gamma-1))
     
-        qx = - ( muf/(pr*gammamo) + zero*mutf/(pr*gammamo) ) * grad_T(1)
-        qy = - ( muf/(pr*gammamo) + zero*mutf/(pr*gammamo) ) * grad_T(2)
-        qz = - ( muf/(pr*gammamo) + zero*mutf/(pr*gammamo) ) * grad_T(3)
+        qx = - ( mu/(pr*gammamo) + mut/(pr_t*gammamo) ) * grad_T(1)
+        qy = - ( mu/(pr*gammamo) + mut/(pr_t*gammamo) ) * grad_T(2)
+        qz = - ( mu/(pr*gammamo) + mut/(pr_t*gammamo) ) * grad_T(3)
 
         tauxn = tauxx*n12(1) + tauxy*n12(2) + tauxz*n12(3)
         tauyn = tauyx*n12(1) + tauyy*n12(2) + tauyz*n12(3)

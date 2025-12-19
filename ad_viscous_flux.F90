@@ -6,7 +6,7 @@ module ad_viscous_flux
     private
     contains
 
-    subroutine visc_flux_internal_ddt(q1,q2,mutf,gradq1,gradq2,n12,xc1,yc1,zc1,xc2,yc2,zc2,dFndQL,dFndQR)
+    subroutine visc_flux_internal_ddt(q1,q2,gradq1,gradq2,trb1,trb2,n12,xc1,yc1,zc1,xc2,yc2,zc2,dFndQL,dFndQR)
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
@@ -18,11 +18,13 @@ module ad_viscous_flux
 
         use ad_operators
 
+        use turb                    , only : nturb
+
         implicit none
 
         real(p2), dimension(nq),      intent(in)  :: q1, q2
-        real(p2),                     intent(in)  :: mutf
         real(p2), dimension(ndim,nq), intent(in)  :: gradq1, gradq2
+        real(p2), dimension(nturb),   intent(in)  :: trb1, trb2
         real(p2), dimension(ndim),    intent(in)  :: n12               ! Unit area vector (from c1 to c2)
         real(p2),                     intent(in)  :: xc1, yc1, zc1     ! Left cell centroid
         real(p2),                     intent(in)  :: xc2, yc2, zc2     ! Right cell centroid
@@ -59,7 +61,7 @@ module ad_viscous_flux
 
             ! This subroutine only handles computing the interface gradient.
             ! Once we have it we call the internal function
-            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,mutf,gradq_face,n12,dFndQ)
+            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,trb1,trb2,gradq_face,n12,dFndQ)
             if (icell==1) then
                 dFndQL = dFndQ
             else
@@ -68,7 +70,7 @@ module ad_viscous_flux
         end do jac_L_R
     end subroutine visc_flux_internal_ddt
 
-    subroutine visc_flux_boundary_ddt(q1,qb,mutf,interface_grad_dummy,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
+    subroutine visc_flux_boundary_ddt(q1,qb,interface_grad_dummy,trb1,trb2,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
 
         use common                  , only : p2, half
 
@@ -78,10 +80,12 @@ module ad_viscous_flux
 
         use ad_operators
 
+        use turb                    , only : nturb
+
         implicit none
 
         real(p2), dimension(nq),      intent(in)  :: q1, qb
-        real(p2),                     intent(in)  :: mutf
+        real(p2), dimension(nturb),   intent(in)  :: trb1, trb2
         real(p2), dimension(ndim,nq), intent(in)  :: interface_grad_dummy
         real(p2), dimension(ndim),    intent(in)  :: n12
         real(p2),                     intent(in)  :: xc1, yc1, zc1     ! Left cell centroid
@@ -119,7 +123,7 @@ module ad_viscous_flux
             end do
 
             ! This is just a wrapper function since we already have the interface gradient computed.
-            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,mutf,gradq_face,n12,dFndQ)
+            call compute_visc_num_flux_ddt(qL_ddt,qR_ddt,trb1,trb2,gradq_face,n12,dFndQ)
 
             if (icell==1) then
                 dFndQL = dFndQ
@@ -129,30 +133,31 @@ module ad_viscous_flux
         end do jac_L_R
     end subroutine visc_flux_boundary_ddt
 
-    subroutine compute_visc_num_flux_ddt(q1,q2,mutf,interface_grad,n12,dFdU)
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third
+    subroutine compute_visc_num_flux_ddt(q1,q2,trb1,trb2,interface_grad,n12,dFdU)
+        use common                  , only : p2, half, one, zero, three_half, two_third, four_third, ix, iy, iz
 
-        use solution_vars           , only : gammamo, nq, ndim, T_inf ! w2u, nq
+        use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT ! w2u, nq
         
-        use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
+        use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp, pr_t
 
         use ad_operators
 
         use viscosity               , only : compute_viscosity_ddt
 
+        use turb                    , only : nturb, calcmut
+
         implicit none
 
         type(derivative_data_type_df5), dimension(nq),      intent(in)    :: q1, q2
-        real(p2)                      ,                     intent(in)    :: mutf
+        real(p2), dimension(nturb),   intent(in)                          :: trb1, trb2
         type(derivative_data_type_df5), dimension(ndim,nq), intent(in)    :: interface_grad
         real(p2), dimension(ndim),                          intent(in)    :: n12
         real(p2), dimension(nq,nq),                         intent(out)   :: dFdU
 
         ! Local Vars
-        type(derivative_data_type_df5), dimension(nq) :: num_flux
-        type(derivative_data_type_df5)                :: mu
-        type(derivative_data_type_df5)                :: u, v, w, T
-        type(derivative_data_type_df5)                :: C0
+        type(derivative_data_type_df5), dimension(nq) :: num_flux, qf
+        type(derivative_data_type_df5)                :: mu, mu_effective
+        type(derivative_data_type_df5)                :: p, u, v, w, T
         type(derivative_data_type_df5)                :: tauxx, tauyy, tauzz !Viscous stresses: diagonal compontens
         type(derivative_data_type_df5)                :: tauxy, tauyz, tauzx !Viscous stresses: off-diagonal components
         type(derivative_data_type_df5)                :: tauyx, tauzy, tauxz !Viscous stresses: same as above by symmetry
@@ -162,39 +167,50 @@ module ad_viscous_flux
         type(derivative_data_type_df5), dimension(3)  :: grad_u, grad_v, grad_w   !Interface gradients of velocities
         type(derivative_data_type_df5), dimension(3)  :: grad_T
 
+        real(p2), dimension(nturb)                    :: trb
+        real(p2)                                      :: mut ! not contributing to the Jacobian for now
+
         integer :: i, j
         
-        u = half * (q1(2)  + q2(2) ) ! u at the face
-        v = half * (q1(3)  + q2(3) ) ! v at the face
-        w = half * (q1(4)  + q2(4) ) ! w at the face
-        T = half * (q1(nq) + q2(nq)) ! T at the face
+        qf = half * (q1 + q2)
+
+        p = qf(1)  ! p at the face
+        u = qf(2)  ! u at the face
+        v = qf(3)  ! v at the face
+        w = qf(4)  ! w at the face
+        T = qf(5)  ! T at the face
         
-        mu =  compute_viscosity_ddt(T)
-        mu = mu + mutf*zero
+        mu = compute_viscosity_ddt(T) ! for now we aren't counting this term towards the jacobian
+
+        trb = half * (trb1 + trb2)
+
+        mut = calcmut((/p%f,u%f,v%f,w%f,T%f/),mu%f,trb)
+
+        mu_effective = mu + mut
 
 #ifdef NANCHECK
         ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
-        if (ddt_isnan(mu)) then 
+        if (ddt_isnan(mu_effective)) then 
             write (*,*) "nan value present - press [Enter] to continue"
             read(unit=*,fmt=*)
         end if
 #endif
 
         ! Interface values
-        grad_u = interface_grad(:,2)
-        grad_v = interface_grad(:,3)
-        grad_w = interface_grad(:,4)
-        grad_T = interface_grad(:,5)
+        grad_u = interface_grad(:,iu)
+        grad_v = interface_grad(:,iv)
+        grad_w = interface_grad(:,iw)
+        grad_T = interface_grad(:,iT)
 
         ! Viscous stresses (Stokes' hypothesis is assumed)
        
-        tauxx =  mu*(four_third*grad_u(1) - two_third*grad_v(2) - two_third*grad_w(3))
-        tauyy =  mu*(four_third*grad_v(2) - two_third*grad_u(1) - two_third*grad_w(3))
-        tauzz =  mu*(four_third*grad_w(3) - two_third*grad_u(1) - two_third*grad_v(2))
+        tauxx =  mu_effective*(four_third*grad_u(ix) - two_third*grad_v(iy) - two_third*grad_w(iz))
+        tauyy =  mu_effective*(four_third*grad_v(iy) - two_third*grad_u(ix) - two_third*grad_w(iz))
+        tauzz =  mu_effective*(four_third*grad_w(iz) - two_third*grad_u(ix) - two_third*grad_v(iy))
     
-        tauxy =  mu*(grad_u(2) + grad_v(1))
-        tauxz =  mu*(grad_u(3) + grad_w(1))
-        tauyz =  mu*(grad_v(3) + grad_w(2))
+        tauxy =  mu_effective*(grad_u(iy) + grad_v(ix))
+        tauxz =  mu_effective*(grad_u(iz) + grad_w(ix))
+        tauyz =  mu_effective*(grad_v(iz) + grad_w(iy))
     
         tauyx = tauxy
         tauzx = tauxz
@@ -202,9 +218,9 @@ module ad_viscous_flux
     
         ! Heat fluxes: q = - mu*grad(T)/(Prandtl*(gamma-1))
     
-        qx = - mu*grad_T(1)/(pr*(gammamo))
-        qy = - mu*grad_T(2)/(pr*(gammamo))
-        qz = - mu*grad_T(3)/(pr*(gammamo))
+        qx = - ( mu/(pr*gammamo) + mut/(pr_t*gammamo) ) * grad_T(1)
+        qy = - ( mu/(pr*gammamo) + mut/(pr_t*gammamo) ) * grad_T(2)
+        qz = - ( mu/(pr*gammamo) + mut/(pr_t*gammamo) ) * grad_T(3)
 
         tauxn = tauxx*n12(1) + tauxy*n12(2) + tauxz*n12(3)
         tauyn = tauyx*n12(1) + tauyy*n12(2) + tauyz*n12(3)

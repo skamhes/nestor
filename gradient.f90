@@ -82,7 +82,7 @@ module gradient
             lsq : select case(ilsq_stencil)
             case(LSQ_STENCIL_WVERTEX) lsq
                 vgradq = zero
-                call compute_vgradient
+                call compute_vgradient_flow
             case(LSQ_STENCIL_NN) lsq
                 call compute_cgradient(weight)
             case default lsq
@@ -127,8 +127,8 @@ module gradient
 
         vertex_loop : do i = 1, nnodes
             var_loop : do ivar = 1, nq
-                if (lsq(i)%btype /= INTERNAL ) then ! boundary vertex
-                    bound_int = lsq(i)%btype
+                if (lsqv(i)%btype /= INTERNAL ) then ! boundary vertex
+                    bound_int = lsqv(i)%btype
                     call boundary_value_flow(bound_int,ivar, unknowns, qi)
                 else
                     unknowns = 4
@@ -183,7 +183,7 @@ module gradient
 
         use grid , only : nb, gcell, bound, ncells
 
-        use solution , only : q, ccgradq, nq, nlsq
+        use solution_vars , only : q, ccgradq, nq, nlsq
 
         use utils , only : ibc_type
 
@@ -319,7 +319,7 @@ module gradient
 
         use grid            , only : ncells, nnodes, bound, cell
 
-        use least_squares   , only : lsq, INTERNAL
+        use least_squares   , only : lsqv, INTERNAL
 
         use bc_states       , only : get_right_state
 
@@ -341,20 +341,20 @@ module gradient
 
         var_loop : do ivar = 1, nturb
             vertex_loop : do i = 1, nnodes
-                if (lsq(i)%btype /= INTERNAL ) then ! boundary vertex
-                    bound_int = lsq(i)%btype
+                if (lsqv(i)%btype /= INTERNAL ) then ! boundary vertex
+                    bound_int = lsqv(i)%btype
                     call boundary_value_turb(bound_int, unknowns, ti)
                 else
                     unknowns = 4
                 endif
-                attach_loop : do k = 1,lsq(i)%ncells_lsq
+                attach_loop : do k = 1,lsqv(i)%ncells_lsq
                     ! Get q at the neighboring cell (tk)
-                    if (lsq(i)%ib_lsq(k) == INTERNAL) then
-                        attached_cell = lsq(i)%cell_lsq(k)   
+                    if (lsqv(i)%ib_lsq(k) == INTERNAL) then
+                        attached_cell = lsqv(i)%cell_lsq(k)   
                         tk = turb_var(attached_cell,ivar)
                     else ! BVERT
-                        attached_bface = lsq(i)%cell_lsq(k)
-                        ib            = lsq(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
+                        attached_bface = lsqv(i)%cell_lsq(k)
+                        ib            = lsqv(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
                         attached_cell  = bound(ib)%bcell(attached_bface) 
                         tL = turb_var(attached_cell,ivar)
                         ! This is somewhat redundant.  At some point I should improve it...
@@ -362,20 +362,20 @@ module gradient
                         tk = tcB
                     endif
                     if ( unknowns == 3) then
-                        vgrad_turb_var(1,i,ivar) = vgrad_turb_var(1,i,ivar) + lsq(i)%cx3(k) * (tk - ti)
-                        vgrad_turb_var(2,i,ivar) = vgrad_turb_var(2,i,ivar) + lsq(i)%cy3(k) * (tk - ti)
-                        vgrad_turb_var(3,i,ivar) = vgrad_turb_var(3,i,ivar) + lsq(i)%cz3(k) * (tk - ti)
+                        vgrad_turb_var(1,i,ivar) = vgrad_turb_var(1,i,ivar) + lsqv(i)%cx3(k) * (tk - ti)
+                        vgrad_turb_var(2,i,ivar) = vgrad_turb_var(2,i,ivar) + lsqv(i)%cy3(k) * (tk - ti)
+                        vgrad_turb_var(3,i,ivar) = vgrad_turb_var(3,i,ivar) + lsqv(i)%cz3(k) * (tk - ti)
                     else
-                        vgrad_turb_var(1,i,ivar) = vgrad_turb_var(1,i,ivar) + lsq(i)%cx4(k) * tk
-                        vgrad_turb_var(2,i,ivar) = vgrad_turb_var(2,i,ivar) + lsq(i)%cy4(k) * tk
-                        vgrad_turb_var(3,i,ivar) = vgrad_turb_var(3,i,ivar) + lsq(i)%cz4(k) * tk
+                        vgrad_turb_var(1,i,ivar) = vgrad_turb_var(1,i,ivar) + lsqv(i)%cx4(k) * tk
+                        vgrad_turb_var(2,i,ivar) = vgrad_turb_var(2,i,ivar) + lsqv(i)%cy4(k) * tk
+                        vgrad_turb_var(3,i,ivar) = vgrad_turb_var(3,i,ivar) + lsqv(i)%cz4(k) * tk
                     endif
                 end do attach_loop
             
                 ! Add the vertex grad to each cell
-                do k = 1,lsq(i)%ncells_lsq
-                    if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
-                        attached_cell = lsq(i)%cell_lsq(k)
+                do k = 1,lsqv(i)%ncells_lsq
+                    if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then
+                        attached_cell = lsqv(i)%cell_lsq(k)
                         ccgrad_turb_var(:,attached_cell, ivar) = ccgrad_turb_var(:,attached_cell,ivar) + vgrad_turb_var(:,i,ivar)
                     endif
                 enddo
@@ -430,7 +430,7 @@ module gradient
 
     subroutine set_ghost_values
 
-        use solution , only : q
+        use solution_vars , only : q
 
         use bc_states , only : get_right_state
                 

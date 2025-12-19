@@ -24,7 +24,7 @@ module residual
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
 
-        use utils           , only : iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
+        use utils           , only : iflow_type, FLOW_INVISCID, FLOW_RANS, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -35,7 +35,7 @@ module residual
 
         use utils           , only : ibc_type
         
-        use solution_vars   , only : res, q, ccgradq, vgradq, wsn, phi, mu, iT
+        use solution_vars   , only : res, q, ccgradq, vgradq, wsn, phi, iT
 
         use solution        , only : q2u
 
@@ -47,7 +47,7 @@ module residual
 
         use turb_bc         , only : turb_rhstate
 
-        use gradient        , only : compute_gradient, set_ghost_values_flow
+        use gradient        , only : compute_gradient_flow, set_ghost_values
 
         use viscosity       , only : compute_viscosity
 
@@ -63,7 +63,6 @@ module residual
 
         ! Flow variables
         real(p2), dimension(5)      :: q1, q2, qL, qR
-        real(p2)                    :: mu1, mu2, muf, mutf
         real(p2), dimension(nturb)  :: trbv1, trbv2
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5)      :: num_flux
@@ -71,8 +70,8 @@ module residual
         real(p2)                    :: wave_speed
         real(p2)                    :: phi1, phi2
         real(p2)                    :: xc,   yc,   zc
-        real(p2)                    :: fxc,  fyc,  fzc
-        real(p2)                    :: dxc2, dyc2, dzc2
+        ! real(p2)                    :: fxc,  fyc,  fzc
+        ! real(p2)                    :: dxc2, dyc2, dzc2
         real(p2)                    :: xc2,  yc2,  zc2
         
 
@@ -96,24 +95,19 @@ module residual
         !--------------------------------------------------------------------------------
         ! Compute gradients at cells.
         !
-        if (iflow_type > FLOW_INVISCID) then
+        if (iflow_type > FLOW_INVISCID .or. accuracy_order == 2) then
             call set_ghost_values
-            do i = 1,ncells
-                mu(i) = compute_viscosity(q(iT,i))
-            end do
-            call compute_gradient_flow(1) ! For now we are just using unweighted gradients
-        elseif ( accuracy_order == 2 ) then
-            call compute_gradient_flow(0)
+            call compute_gradient_flow(1)
         endif
 
-        ! Only needs to be set once.
+        ! Only needs to be initialized once.
         gradq1 = zero
         gradq2 = zero
 
         phi1 = one
         phi2 = one
         
-        if (use_limiter) call compute_limiter
+        if (use_limiter) call compute_limiter_flow
 
         !--------------------------------------------------------------------------------
         !--------------------------------------------------------------------------------
@@ -142,9 +136,6 @@ module residual
         ! 3. Add it to the residual for 1, and subtract it from the residual for 2.
         !
         !--------------------------------------------------------------------------------
-        mutf = 0 ! only need to set once if not used
-
-
         ! First compute inviscid flux terms
         iloop_faces : do i = 1,nfaces
             ! Left and right cell values
@@ -219,14 +210,6 @@ module residual
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
                 wsn(c1)   = wsn(c1) + wave_speed * bound(ib)%bface_nrml_mag(j)
 
-#ifdef NANCHECK
-                if (any(isnan(res(:,c1)))) then 
-                    write (*,*) "nan value present - press [Enter] to continue"
-                    read(unit=*,fmt=*)
-                end if
-#endif
-                
-
             end do ibface_loop
 
         end do iboundary_loop
@@ -234,7 +217,10 @@ module residual
         ! Next compute inviscid flux terms:
         if ( iflow_type == FLOW_INVISCID ) return
 
-        call compute_gradient(2)
+        call compute_gradient_flow(2)
+
+        trbv1 = zero
+        trbv2 = zero
 
         vloop_faces : do i = 1,nfaces
             ! Left and right cell values
@@ -246,8 +232,14 @@ module residual
             gradq2 = ccgradq(1:3,1:5,c2)! Face normal
             unit_face_normal = face_nrml(1:3,i)
 
+            if (iflow_type == FLOW_RANS) then
+                trbv1 = turb_var(c1,:)
+                trbv2 = turb_var(c2,:)
+            endif
+
             ! Viscous flux
             call visc_flux_internal(q1,q2,ccgradq(:,:,c1),ccgradq(:,:,c2), &
+                                                             trbv1, trbv2, &
                                                          unit_face_normal, &
                                     cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                     cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
@@ -271,6 +263,10 @@ module residual
                 
                 face_sides = bound(ib)%bfaces(1,j)
 
+                xc2  = gcell(ib)%xc(j)
+                yc2  = gcell(ib)%yc(j)
+                zc2  = gcell(ib)%zc(j)
+
                 if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                     gradqb = zero
                     do k = 1,face_sides
@@ -282,25 +278,18 @@ module residual
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
                 
-                xc2  = gcell(ib)%xc(j)
-                yc2  = gcell(ib)%yc(j)
-                zc2  = gcell(ib)%zc(j)
                 call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
 
-                mu1 = mu(c1)
-                mu2 = compute_viscosity(qb(iT))
-                muf = half * (mu1 + mu2) ! we do this here because we need it more than once
                 if (iflow_type == FLOW_RANS) then
                     trbv1 = turb_var(c1,:)
                     call turb_rhstate(trbv1, ibc_type(ib), trbv2)
-                    mutf = calcmut(q1,q2,muf,trbv1,trbv2)
                     ! no elseif needed, we set this to zero before the loop.
                 end if
 
-                call visc_flux_boundary(q1,qb,muf,mutf,gradqb,unit_face_normal, &
-                                cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                                                          xc2,yc2,zc2, &
-                                                              num_flux )
+                call visc_flux_boundary(q1,qb,trbv1,trbv2,gradqb,unit_face_normal, &
+                                            cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                                                      xc2,yc2,zc2, &
+                                                                          num_flux )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
 #ifdef NANCHECK

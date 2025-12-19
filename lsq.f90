@@ -230,9 +230,9 @@ module least_squares
 
         use sort_routines , only : queued_natural_merge_sort
 
-        use utils , only : iturb_type, TURB_INVISCID
+        use utils , only : iflow_type, FLOW_INVISCID
 
-        use solution , only : nlsq
+        use solution_vars , only : nlsq
 
         implicit none
 
@@ -263,7 +263,7 @@ module least_squares
 
         integer :: start, end
 
-        if (iturb_type == TURB_INVISCID) then
+        if (iflow_type == FLOW_INVISCID) then
             nlsq = 1
         else
             nlsq = 2 
@@ -703,7 +703,7 @@ module least_squares
 
         use direct_solve , only : qr_factorization
 
-        use solution , only : ndim, nlsq
+        use solution_vars , only : ndim, nlsq
 
         implicit none
 

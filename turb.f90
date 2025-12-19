@@ -122,7 +122,7 @@ module turb
 
     end subroutine init_turb
 
-    function calcmut(q1,q2,muf,trbv1,trbv2) result(mutf)
+    function calcmut(q,mu,trbv) result(mut)
 
         use common , only : half
 
@@ -132,15 +132,15 @@ module turb
 
         implicit none
 
-        real(p2), dimension(nq),    intent(in) :: q1, q2
-        real(p2),                   intent(in) :: muf
-        real(p2), dimension(nturb), intent(in) :: trbv1, trbv2
+        real(p2), dimension(nq),    intent(in) :: q
+        real(p2),                   intent(in) :: mu
+        real(p2), dimension(nturb), intent(in) :: trbv
 
-        real(p2)                               :: mutf
+        real(p2)                               :: mut
 
         select case(iturb_model)
         case(TURB_SA)
-            mutf = calcmut_SA(q1,q2,muf,trbv1,trbv2)
+            mut = calcmut_SA(q,mu,trbv(1))
         case default
             write(*,*) "Error turb.f90 calcmut(). Unsupported turbulence model."
             stop
@@ -148,7 +148,7 @@ module turb
         
     end function calcmut
 
-    pure function calcmut_SA(q1,q2,muf,trbv1,trbv2) result(mutf)
+    pure function calcmut_SA(q,mu,nut) result(mut)
 
     use common , only : half
 
@@ -160,30 +160,26 @@ module turb
 
     implicit none
 
-    real(p2), dimension(nq), intent(in) :: q1, q2
-    real(p2),                intent(in) :: muf
-    real(p2), dimension(1),  intent(in) :: trbv1, trbv2
+    real(p2), dimension(nq), intent(in) :: q
+    real(p2),                intent(in) :: mu
+    real(p2),                intent(in) :: nut
 
-    real(p2)                               :: mutf
+    real(p2)                               :: mut
 
     ! Local Vars
-    real(p2) :: rho1, rho2, rhoF
-    real(p2) :: nuf
-    real(p2) :: nutf
+    real(p2) :: rho
+    real(p2) :: nu
     real(p2) :: chi3, fv1
 
-    rho1 = q1(ip)*gamma / q1(iT)
-    rho2 = q2(ip)*gamma / q2(iT)
-    rhoF = half * ( rho1 + rho2 )
+    rho = q(ip)*gamma / q(iT)
+    
+    nu = mu / rho
 
-    nuf = muf / rhoF
-
-    nutf = half * ( trbv1(1) + trbv2(1) )
-    chi3 = ( nutf / muf )**3
+    chi3 = ( nut / nu )**3
 
     fv1 = chi3 / ( chi3 + cv13 )
 
-    mutf = rhoF * nutf * fv1
+    mut = rho * nut * fv1
     
 end function calcmut_SA
 

@@ -12,7 +12,7 @@ module forces
 
         use config      , only : drag, lift, accuracy_order, turbulence_type, M_inf, Re_inf, sutherland_constant, reference_temp
 
-        use utils       , only : ibc_type, BC_VISC_STRONG, iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX
+        use utils       , only : ibc_type, BC_VISC_STRONG, iflow_type, FLOW_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid        , only : bound, nb, bc_type, cell
 

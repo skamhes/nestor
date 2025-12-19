@@ -55,7 +55,7 @@ module wall_distance
 
         use grid , only : nnodes, x, y, z, bound, nb, bc_type, ncells, cell
 
-        use sorting , only : heap_sort_index
+        use sort_routines , only : heap_sort_index
         
         implicit none
 
@@ -388,7 +388,7 @@ module wall_distance
     
         use grid , only : x, y, z
 
-        use sorting , only : heap_sort_index
+        use sort_routines , only : heap_sort_index
         implicit none
 
         integer, dimension(:), intent(in) :: nodes  ! the global ID of the wall nodes in this box, sorted in the long dir
@@ -492,7 +492,7 @@ module wall_distance
 
     subroutine sort_longest(n, wnx, wny, wnz, wn, box, wns)
 
-        use sorting , only : heap_sort_index
+        use sort_routines , only : heap_sort_index
 
         implicit none 
 

@@ -15,7 +15,7 @@ module solution_vars
     real(p2), dimension(:,:)  , pointer :: u        ! conservative variables at cells center
     real(p2), dimension(:,:)  , pointer :: w        ! primitive (rho, u, v, w, p) variables at cells center.
     real(p2), dimension(:,:)  , pointer :: q        ! alternate primitive variables (p, u, v, w, T) at cells centers.
-    real(p2), dimension(:)    , pointer :: mu       ! viscosity
+    ! real(p2), dimension(:)    , pointer :: mu       ! viscosity
     real(p2), dimension(:,:,:), pointer :: ccgradw  ! gradients of w at cell center.
     real(p2), dimension(:,:,:), pointer :: vgradw   ! gradients of w at vertices (nodes).
     real(p2), dimension(:,:,:), pointer :: ccgradq  ! gradients of q at cell center.
@@ -39,6 +39,8 @@ module solution_vars
     real(p2)                            :: force_lift
     real(p2), dimension(3)              :: vector_drag
     real(p2), dimension(3)              :: vector_lift
+
+    integer                             :: nlsq
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.

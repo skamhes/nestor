@@ -4,6 +4,10 @@ module solution
 
     subroutine define_problem
 
+        use solution_vars , only : nq, ndim
+
+        use utils , only : iflow_type, FLOW_RANS, iturb_model, TURB_SA
+
         ! This just avoids some circular dependencies for now.  But later on we can use it to define additional solvers that we may 
         ! need.
 
@@ -34,7 +38,7 @@ module solution
         allocate( q(nq,ncells) )
         q = zero
 
-        if (iflow_type > FLOW_INVISCID) allocate(mu(ncells))
+        ! if (iflow_type > FLOW_INVISCID) allocate(mu(ncells))
 
         allocate( dtau(ncells) )
         allocate( wsn( ncells) )

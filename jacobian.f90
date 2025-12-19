@@ -15,14 +15,14 @@ module jacobian
 
         use common              , only : p2, zero, half
 
-        use utils               , only : iturb_type, TURB_INVISCID, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
+        use utils               , only : iflow_type, FLOW_INVISCID, FLOW_RANS, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
-                                         bound, nb
+                                         bound, nb, gcell
 
-        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, mu, iT
+        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, iT
 
         use solution            , only : compute_primative_jacobian
 
@@ -48,6 +48,7 @@ module jacobian
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
         real(p2)                    :: face_mag
+        real(p2)                    :: xc2, yc2, zc2
 
         real(p2), dimension(3,5)    :: dummy1, dummy2
         real(p2)                    :: mu1, mu2, muf
@@ -89,24 +90,21 @@ module jacobian
             k = kth_nghbr_of_2(i)
             jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
 
-            if ( iturb_type == TURB_INVISCID ) cycle loop_faces
+            if ( iflow_type == FLOW_INVISCID ) cycle loop_faces
 
             gradq1 = ccgradq(1:3,1:5,c1)
             gradq2 = ccgradq(1:3,1:5,c2)
 
-            mu1 = mu(c1)
-            mu2 = mu(c2)
-            muf = half * (mu1 + mu2) ! we do this here because we need it more than once
             if (iflow_type == FLOW_RANS) then
                 trbv1 = turb_var(c1,:)
                 trbv2 = turb_var(c2,:)
-                mutf = calcmut(q(:,c1),q(:,c2),muf,trbv1,trbv2)
             end if
 
-            call visc_flux_internal_ddt(q(:,c1),q(:,c2),mutf,gradq1,gradq2,unit_face_nrml, &
-                                               cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                                               cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
-                                                                        dFnduL, dFnduR)
+            call visc_flux_internal_ddt(q(:,c1),q(:,c2),gradq1,gradq2,trbv1,trbv2, &
+                                                                   unit_face_nrml, &
+                                            cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                            cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                                                                     dFnduL, dFnduR)
             
             jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
             ! get neighbor index k for cell c1
@@ -130,6 +128,10 @@ module jacobian
                 face_mag       = bound(ib)%bface_nrml_mag(i)
 
                 q1 = q(:,c1)
+
+                xc2  = gcell(ib)%xc(j)
+                yc2  = gcell(ib)%yc(j)
+                zc2  = gcell(ib)%zc(j)
                 
                 call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
 
@@ -138,7 +140,7 @@ module jacobian
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 
-                if ( iturb_type == TURB_INVISCID ) cycle bfaces_loop
+                if ( iflow_type == FLOW_INVISCID ) cycle bfaces_loop
 
                 face_sides = bound(ib)%bfaces(1,i)
 
@@ -153,10 +155,15 @@ module jacobian
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
                 
-                call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
-                                  cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                  bface_centroid(1),bface_centroid(2),bface_centroid(3), &
-                                                           dFnduL, dFnduR)
+                if (iflow_type == FLOW_RANS) then
+                    trbv1 = turb_var(c1,:)
+                    call turb_rhstate(trbv1, ibc_type(ib), trbv2)
+                end if
+                call visc_flux_boundary_ddt(q1,qb,trbv1,trbv2,gradqb, &
+                                                      unit_face_nrml, &
+                               cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                                         xc2,yc2,zc2, &
+                                                        dFnduL, dFnduR)
 
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
