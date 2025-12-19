@@ -17,7 +17,7 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -Wargument-mismatch
 # FFLAGS = -O2 -pg
-# FFLAGS = -O3
+# FFLAGS = -g -O3 -march=native
 ##########################################################
 # VPATH = ..
 ##########################################################
