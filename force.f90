@@ -12,7 +12,7 @@ module forces
 
         use config      , only : drag, lift, accuracy_order, turbulence_type, M_inf, Re_inf, sutherland_constant, reference_temp
 
-        use utils       , only : ibc_type, BC_VISC_STRONG, iflow_type, FLOW_INVISCID
+        use utils       , only : ibc_type, BC_VISC_STRONG, iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid        , only : bound, nb, bc_type, cell
 
@@ -72,13 +72,18 @@ module forces
                 if ( iflow_type > FLOW_INVISCID ) then
                     face_sides = bound(ib)%bfaces(1,i)
 
-                    bface_grad = zero
-                    do k = 1,face_sides
-                        nk = bound(ib)%bfaces(k + 1,i)
-                        bface_grad = bface_grad + vgradq(:,2:4,nk)
-                    end do
-                    bface_grad = bface_grad / real(face_sides, p2)
-                    
+                    if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                        bface_grad = zero
+                        do k = 1,face_sides
+                            nk = bound(ib)%bfaces(k + 1,i)
+                            bface_grad = bface_grad + vgradq(:,2:4,nk)
+                        end do
+                        bface_grad = bface_grad / real(face_sides, p2)
+                    else
+                        bface_grad = ccgradq(1:3,2:4,ci)
+                        ! This seems to be less accurate as the cell centered gradient is influenced by flow values farther from
+                        ! the wall
+                    endif
                     stress_tensor = compute_tau_wall(q(5,ci),bface_grad)
                     
                     bface_shear = matmul(stress_tensor,bface_normal)

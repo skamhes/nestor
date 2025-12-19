@@ -15,7 +15,7 @@ module jacobian
 
         use common              , only : p2, zero, half
 
-        use utils               , only : iflow_type, FLOW_INVISCID, ibc_type, FLOW_RANS
+        use utils               , only : iturb_type, TURB_INVISCID, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
@@ -48,6 +48,8 @@ module jacobian
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
         real(p2)                    :: face_mag
+
+        real(p2), dimension(3,5)    :: dummy1, dummy2
         real(p2)                    :: mu1, mu2, muf
         real(p2)                    :: mutf
         real(p2), dimension(nturb)  :: trbv1,trbv2
@@ -87,7 +89,7 @@ module jacobian
             k = kth_nghbr_of_2(i)
             jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
 
-            if ( iflow_type == FLOW_INVISCID ) cycle loop_faces
+            if ( iturb_type == TURB_INVISCID ) cycle loop_faces
 
             gradq1 = ccgradq(1:3,1:5,c1)
             gradq2 = ccgradq(1:3,1:5,c2)
@@ -136,28 +138,22 @@ module jacobian
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 
-                if ( iflow_type == FLOW_INVISCID ) cycle bfaces_loop
+                if ( iturb_type == TURB_INVISCID ) cycle bfaces_loop
 
                 face_sides = bound(ib)%bfaces(1,i)
 
-                gradqb = zero
-                do k = 1,face_sides
-                    nk = bound(ib)%bfaces(k + 1,i)
-                    gradqb = gradqb + vgradq(:,:,nk)
-                end do
-                gradqb = gradqb / real(face_sides, p2)
-
-                mu1 = mu(c1)
-                mu2 = compute_viscosity(qb(iT))
-                muf = half * (mu1 + mu2) ! we do this here because we need it more than once
-                if (iflow_type == FLOW_RANS) then
-                    trbv1 = turb_var(c1,:)
-                    call turb_rhstate(trbv1, ibc_type(ib), trbv2)
-                    mutf = calcmut(q1,qb,muf,trbv1,trbv2)
-                    ! no elseif needed, we set this to zero before the loop.
-                end if
+                if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                    gradqb = zero
+                    do k = 1,face_sides
+                        nk = bound(ib)%bfaces(k + 1,i)
+                        gradqb = gradqb + vgradq(:,:,nk)
+                    end do
+                    gradqb = gradqb / real(face_sides, p2)
+                else ! ilsq_stencil == LSQ_STENCIL_NN
+                    gradqb = ccgradq(1:3,1:5,c1)
+                endif
                 
-                call visc_flux_boundary_ddt(q1,qb,mutf,gradqb,unit_face_nrml, &
+                call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
                                   cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                   bface_centroid(1),bface_centroid(2),bface_centroid(3), &
                                                            dFnduL, dFnduR)

@@ -17,7 +17,7 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -Wargument-mismatch -DNANCHECK
 # FFLAGS = -O2 -pg
-# FFLAGS = -O3
+# FFLAGS = -g -O3 -march=native
 ##########################################################
 # VPATH = ..
 ##########################################################
@@ -45,7 +45,7 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
 		$(SDIR)/ad_operators.o\
-		$(SDIR)/sorting.o\
+		$(SDIR)/sort_routines.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/grid_statistics.o\

@@ -133,7 +133,7 @@ module config
     ! GRADIENT SETTINGS (&gradient)
     character(80)           :: grad_method               = "lsq"
     integer                 :: accuracy_order       = 1
-    character(80)           :: lsq_stencil          = "w_vertex"
+    character(80)           :: lsq_stencil          = "nn" ! node neighbor, calculated at the cell center: alt w_vertex
     real(p2)                :: lsq_weight           = zero
     logical                 :: use_limiter          = .false.
 
@@ -389,6 +389,8 @@ module config
       select case(trim(lsq_stencil))
       case('w_vertex')
         ilsq_stencil = LSQ_STENCIL_WVERTEX
+      case('nn')
+        ilsq_stencil = LSQ_STENCIL_NN
       case default
         write(*,*) ' lsq_stencil input "', trim(jacobian_method),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'

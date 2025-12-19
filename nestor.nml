@@ -1,8 +1,7 @@
 &project
   project_name = "quad_3d"
-  !second_namelist = "grids/cylinder/final_grids/nestor.nml"
   second_namelist = "grids/flat_plate/final_grids/nestor.nml"
-  io_path = "grids/flat_plate/final_grids/"
+  ! io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
@@ -40,6 +39,7 @@ gcr_reduction_target = 0.05
 &gradient
   accuracy_order = 2
   use_limiter    = .false.
+  lsq_stencil    = 'nn' ! node neighbor
   /
 
 &turbulence

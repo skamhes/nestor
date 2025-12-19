@@ -32,18 +32,22 @@ module viscous_flux
         ! Local Vars
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
+        real(p2)                     :: magds
         
         integer                      :: ivar
 
         ! Calculate the face gradients
-        ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
-        dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
+         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
+        magds = dot_product(ds,ds)
+        dsds2 = ds/magds ! ds(:)/ds**2
+        ! magds = sqrt(magds)
 
         ! Equation 14
         do ivar = 1,nq
-            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar))
+            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar)) ! arithemetic mean at the face
             gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
-        end do
+            ! ^ eliminates odd-even decoupling by replacing the normal part of the mean face gradient with a central difference.
+         end do
 
         ! This subroutine only handles computing the interface gradient.
         ! Once we have it we call the internal function
@@ -51,7 +55,7 @@ module viscous_flux
 
     end subroutine visc_flux_internal
 
-    subroutine visc_flux_boundary(q1,qb,muf,mutf,face_gradient,n12,xc1,yc1,zc1,xf2,yf2,zf2,num_flux)
+    subroutine visc_flux_boundary(q1,qb,muf,mutf,face_gradient,n12,xc1,yc1,zc1,xc2,yc2,zc2,num_flux)
 
         use common                  , only : p2, half
 
@@ -66,25 +70,29 @@ module viscous_flux
         real(p2), dimension(ndim,nq), intent(in)    :: face_gradient     ! Grad at bound interface computed using avg face's vgrad
         real(p2), dimension(ndim),    intent(in)    :: n12               ! Normalized face vector
         real(p2),                     intent(in)    :: xc1, yc1, zc1     ! Left cell centroid
-        real(p2),                     intent(in)    :: xf2, yf2, zf2     ! Boundary face centroid
+        real(p2),                     intent(in)    :: xc2, yc2, zc2     ! Boundary face centroid
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
 
         ! Local Vars
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
-        
+        real(p2)                     :: magds
+        real(p2), dimension(nq)      :: qL, qR
+
         integer                      :: ivar
 
         gradq_face = face_gradient
 
         ! Calculate the face gradients
-        ds = (/xf2-xc1, yf2-yc1, zf2-zc1/) ! vector pointing from center of cell 1 to cell 2
-        dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
+        ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
+        magds = dot_product(ds,ds)
+        dsds2 = ds/magds ! ds(:)/ds**2
+        ! magds = sqrt(magds)
 
         ! Equation 14
         do ivar = 1,nq
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( half * (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
         end do
 
 
@@ -95,9 +103,9 @@ module viscous_flux
     end subroutine visc_flux_boundary
 
     subroutine compute_visc_num_flux(q1,q2,muf,mutf,interface_grad,n12,num_flux)
-        use common                  , only : p2, half, zero, two_third, four_third
+        use common                  , only : p2, half, zero, two_third, four_third, ix, iy, iz
 
-        use solution_vars           , only : gammamo, nq, ndim ! w2u, nq
+        use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp, pr_t
 
@@ -126,10 +134,10 @@ module viscous_flux
         v = half * (q1(3)  + q2(3) ) ! v at the face
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
-        
+        C0= sutherland_constant/reference_temp
+        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
         mu_effective = muf + mutf*zero
 
-        ! get_viscosity = scaling_factor * ( (one + ( C_0/Freestream_Temp ) )/(T + ( C_0/Freestream_Temp )) ) ** 1.5_p2
 #ifdef NANCHECK
         if (isnan(mu_effective)) then 
             write (*,*) "nan value present - press [Enter] to continue"
@@ -137,20 +145,20 @@ module viscous_flux
         end if
 #endif
         ! Interface values
-        grad_u = interface_grad(:,2)
-        grad_v = interface_grad(:,3)
-        grad_w = interface_grad(:,4)
-        grad_T = interface_grad(:,5)
+        grad_u = interface_grad(:,iu)
+        grad_v = interface_grad(:,iv)
+        grad_w = interface_grad(:,iw)
+        grad_T = interface_grad(:,iT)
 
         ! Viscous stresses (Stokes' hypothesis is assumed)
        
-        tauxx =  mu_effective*(four_third*grad_u(1) - two_third*grad_v(2) - two_third*grad_w(3))
-        tauyy =  mu_effective*(four_third*grad_v(2) - two_third*grad_u(1) - two_third*grad_w(3))
-        tauzz =  mu_effective*(four_third*grad_w(3) - two_third*grad_u(1) - two_third*grad_v(2))
+        tauxx =  mu_effective*(four_third*grad_u(ix) - two_third*grad_v(iy) - two_third*grad_w(iz))
+        tauyy =  mu_effective*(four_third*grad_v(iy) - two_third*grad_u(ix) - two_third*grad_w(iz))
+        tauzz =  mu_effective*(four_third*grad_w(iz) - two_third*grad_u(ix) - two_third*grad_v(iy))
     
-        tauxy =  mu_effective*(grad_u(2) + grad_v(1))
-        tauxz =  mu_effective*(grad_u(3) + grad_w(1))
-        tauyz =  mu_effective*(grad_v(3) + grad_w(2))
+        tauxy =  mu_effective*(grad_u(iy) + grad_v(ix))
+        tauxz =  mu_effective*(grad_u(iz) + grad_w(ix))
+        tauyz =  mu_effective*(grad_v(iz) + grad_w(iy))
     
         tauyx = tauxy
         tauzx = tauxz
