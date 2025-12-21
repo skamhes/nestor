@@ -171,7 +171,7 @@ module forces
         integer, parameter :: iz = 3
 
         C0= sutherland_constant/reference_temp
-        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+        mu =  M_inf/Re_inf * (one + C0) / (T + C0)*T**(three_half)
 
         grad_u = face_grad(:,ix)
         grad_v = face_grad(:,iy)

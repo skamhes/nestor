@@ -132,7 +132,7 @@ module viscous_flux
         w = half * (q1(4)  + q2(4) ) ! w at the face
         T = half * (q1(nq) + q2(nq)) ! T at the face
         C0= sutherland_constant/reference_temp
-        mu = M_inf/Re_inf * ((one + C0/T_inf) / (T + C0/T_inf))*T**(three_half)
+        mu = M_inf/Re_inf * ((one + C0) / (T + C0))*T**(three_half)
 
         if (isnan(mu)) then 
             write (*,*) "nan value present - press [Enter] to continue"
