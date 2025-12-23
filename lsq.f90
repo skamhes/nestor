@@ -37,14 +37,16 @@ module least_squares
     type lsq_cell_type
         integer                                 ::    n_nnghbrs  ! number of cells attached to lsq vertex
         integer,  dimension(:)  , pointer       ::    nghbr_lsq  ! list of neighbor cells  
-        real(p2), dimension(:,:), pointer       ::           cx  ! LSQ coefficient for x-derivative (3 unknowns) 
-        real(p2), dimension(:,:), pointer       ::           cy  ! LSQ coefficient for y-derivative (3 unknowns) 
-        real(p2), dimension(:,:), pointer       ::           cz  ! LSQ coefficient for z-derivative (3 unknowns) 
+        real(p2), dimension(:,:,:), pointer     ::           cf  ! LSQ coefficient for x,y,&z-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer     ::           cx  ! LSQ coefficient for x-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer     ::           cy  ! LSQ coefficient for y-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer     ::           cz  ! LSQ coefficient for z-derivative (3 unknowns) 
         integer                                 ::          nbf  ! number of boundary faces attached to the cell
         integer,  dimension(:,:), pointer       ::       gcells  ! list of ghost cells (ibcell,ib) length 2xnbf
-        real(p2), dimension(:,:), pointer       ::          gcx  ! LSQ coefficient for x-derivative (3 unknowns) 
-        real(p2), dimension(:,:), pointer       ::          gcy  ! LSQ coefficient for y-derivative (3 unknowns) 
-        real(p2), dimension(:,:), pointer       ::          gcz  ! LSQ coefficient for z-derivative (3 unknowns) 
+        real(p2), dimension(:,:,:), pointer     ::          gcf  ! LSQ coefficient for x,y,&z-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer     ::          gcx  ! LSQ coefficient for x-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer     ::          gcy  ! LSQ coefficient for y-derivative (3 unknowns) 
+        real(p2), dimension(:,:), pointer     ::          gcz  ! LSQ coefficient for z-derivative (3 unknowns) 
     end type lsq_cell_type
 
     !Cell data array in the custom data type.
@@ -344,6 +346,7 @@ module least_squares
             allocate(lsqc(icell)%cx(c2nn(icell)%n_nnghbr,nlsq))
             allocate(lsqc(icell)%cy(c2nn(icell)%n_nnghbr,nlsq))
             allocate(lsqc(icell)%cz(c2nn(icell)%n_nnghbr,nlsq))
+            allocate(lsqc(icell)%cf(3,c2nn(icell)%n_nnghbr,nlsq))
 
             lsqc(icell)%nbf = 0
         end do
@@ -394,6 +397,7 @@ module least_squares
                     allocate(lsqc(ci)%gcx(lsqc(ci)%nbf,nlsq))
                     allocate(lsqc(ci)%gcy(lsqc(ci)%nbf,nlsq))
                     allocate(lsqc(ci)%gcz(lsqc(ci)%nbf,nlsq))
+                    allocate(lsqc(ci)%gcf(3,lsqc(ci)%nbf,nlsq))
                     lsqc(ci)%nbf = 0
                 end if
                 
@@ -823,6 +827,7 @@ module least_squares
                     lsqc(icell)%cx(k,mweight)  = rinvqt(ix,k,mweight) * weight_k
                     lsqc(icell)%cy(k,mweight)  = rinvqt(iy,k,mweight) * weight_k
                     lsqc(icell)%cz(k,mweight)  = rinvqt(iz,k,mweight) * weight_k
+                    lsqc(icell)%cf(:,k,mweight)  = rinvqt(:,k,mweight) * weight_k
                 end do
             end do nghbr_loop3
 
@@ -839,6 +844,7 @@ module least_squares
                     lsqc(icell)%gcx(k - m,mweight)  = rinvqt(ix,k,mweight) * weight_k
                     lsqc(icell)%gcy(k - m,mweight)  = rinvqt(iy,k,mweight) * weight_k
                     lsqc(icell)%gcz(k - m,mweight)  = rinvqt(iz,k,mweight) * weight_k
+                    lsqc(icell)%gcf(:,k - m,mweight)  = rinvqt(:,k,mweight) * weight_k
                 end do
             end do nghbr_loop4
             !-------------------------------------------------------
