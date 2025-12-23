@@ -91,9 +91,10 @@ module inviscid_flux
     !
     ! Note: This is currently unaltered from the edu_euler roe function (other than some formatting changes).  
     ! I will at some point optimie this.  But right now I'm just looking to get a working code...
-    subroutine roe(ucL, ucR, njk, num_flux,wsn)
+        subroutine roe(qcL, qcR, njk, num_flux,wsn)
 
-        use solution    , only : gamma
+        use common      , only : zero, one, two, half
+        use solution    , only : gamma, gmoinv, gammamo
         use config      , only : eig_limiting_factor
        
         implicit none
@@ -101,35 +102,31 @@ module inviscid_flux
         integer , parameter :: p2 = selected_real_kind(15) ! Double precision
        
         !Input
-        real(p2), dimension(5), intent( in) :: ucL !Left  state in conservative variables.
-        real(p2), dimension(5), intent( in) :: ucR !Right state in conservative variables.
+        real(p2), dimension(5), intent( in) :: qcL !Left  state in primitive variables.
+        real(p2), dimension(5), intent( in) :: qcR !Right state in primitive variables.
         real(p2), dimension(3), intent( in) :: njk
        
         !Output
         real(p2), dimension(5)  , intent(out) :: num_flux !Numerical viscous flux
         real(p2),                 intent(out) :: wsn      !Max wave speed
        
-        !Some constants
-        real(p2) ::  zero = 0.0_p2
-        real(p2) ::   one = 1.0_p2
-        real(p2) ::   two = 2.0_p2
-        real(p2) ::  half = 0.5_p2
        
         !Local variables
         !            L = Left
         !            R = Right
         ! No subscript = Roe average
        
-        real(p2) :: nx, ny, nz             ! Normal vector components
-        real(p2) :: uL, uR, vL, vR, wL, wR ! Velocity components.
-        real(p2) :: rhoL, rhoR, pL, pR     ! Primitive variables.
+        ! real(p2) :: nx, ny, nz             ! Normal vector components
+        ! real(p2) :: uL, uR, vL, vR, wL, wR ! Velocity components.
+        real(p2) :: rhoL, rhoR!, pL, pR     ! Primitive variables.
         real(p2) :: qnL, qnR               ! Normal velocities
         real(p2) :: aL, aR, HL, HR         ! Speed of sound, Total enthalpy
         real(p2), dimension(5)   :: fL     ! Physical flux evaluated at ucL
         real(p2), dimension(5)   :: fR     ! Physical flux evaluated at ucR
        
-        real(p2) :: RT                     ! RT = sqrt(rhoR/rhoL)
+        real(p2) :: RT,oneRT              ! RT = sqrt(rhoR/rhoL)
         real(p2) :: rho,u,v,w,H,a,qn       ! Roe-averages
+        real(p2) :: a2inv
        
         real(p2) :: drho, dqn, dp          ! Differences in rho, qn, p, e.g., dp=pR-pL
         real(p2), dimension(4) :: LdU      ! Wave strengths = L*(UR-UL)
@@ -143,79 +140,89 @@ module inviscid_flux
        
         ! Face normal vector (unit vector)
        
-        nx = njk(1)
-        ny = njk(2)
-        nz = njk(3)
+        ! nx = njk(1)
+        ! ny = njk(2)
+        ! nz = njk(3)
        
         !Primitive and other variables.
         
         !  Left state
        
-           rhoL = ucL(1)
-             uL = ucL(2)/ucL(1)
-             vL = ucL(3)/ucL(1)
-             wL = ucL(4)/ucL(1)
-            qnL = uL*nx + vL*ny + wL*nz
-             pL = (gamma-one)*( ucL(5) - half*rhoL*(uL*uL+vL*vL+wL*wL) )
-             aL = sqrt(gamma*pL/rhoL)
-             HL = aL*aL/(gamma-one) + half*(uL*uL+vL*vL+wL*wL)
+           rhoL = qcL(1)*gamma / qcL(5)
+            !  pL = qcL(1)
+            !  uL = qcL(2)
+            !  vL = qcL(3)
+            !  wL = qcL(4)
+            qnL = dot_product(qcL(2:4),njk)
+             aL = sqrt(gamma*qcL(1)/rhoL)
+             HL = aL*aL*gmoinv + half*(dot_product(qcL(2:4),qcL(2:4)))
        
         !  Right state
        
-           rhoR = ucR(1)
-             uR = ucR(2)/ucR(1)
-             vR = ucR(3)/ucR(1)
-             wR = ucR(4)/ucR(1)
-            qnR = uR*nx + vR*ny + wR*nz
-             pR = (gamma-one)*( ucR(5) - half*rhoR*(uR*uR+vR*vR+wR*wR) )
-             aR = sqrt(gamma*pR/rhoR)
-             HR = aR*aR/(gamma-one) + half*(uR*uR+vR*vR+wR*wR)
+           rhoR = qcR(1)*gamma / qcR(5)
+            !  pR = qcR(5)
+            !  uR = qcR(2)/qcR(1)
+            !  vR = qcR(3)/qcR(1)
+            !  wR = qcR(4)/qcR(1)
+            qnR = dot_product(qcR(2:4),njk)
+             aR = sqrt(gamma*qcR(1)/rhoR)
+             HR = aR*aR*gmoinv + half*(dot_product(qcR(2:4),qcR(2:4)))
        
         !Compute the physical flux: fL = Fn(UL) and fR = Fn(UR)
        
-        fL(1) = rhoL*qnL
-        fL(2) = rhoL*qnL * uL + pL*nx
-        fL(3) = rhoL*qnL * vL + pL*ny
-        fL(4) = rhoL*qnL * wL + pL*nz
-        fL(5) = rhoL*qnL * HL
+        ! fL(1) = rhoL*qnL
+        ! fL(2) = rhoL*qnL * uL + pL*nx
+        ! fL(3) = rhoL*qnL * vL + pL*ny
+        ! fL(4) = rhoL*qnL * wL + pL*nz
+        ! fL(5) = rhoL*qnL * HL
     
-        fR(1) = rhoR*qnR
-        fR(2) = rhoR*qnR * uR + pR*nx
-        fR(3) = rhoR*qnR * vR + pR*ny
-        fR(4) = rhoR*qnR * wR + pR*nz
-        fR(5) = rhoR*qnR * HR
+        fL(:) = rhoL*qnL ! do this mult once
+        fL(2:4) = fL(2:4)*qcL(2:4)+qcL(1)*njk(:) ! Goal here is to take advantage of cpu vector ops.  Someprobing on godbolt seems to indicate this is better.
+        fL(5) = fL(5)*HL
+
+        ! fR(1) = rhoR*qnR
+        ! fR(2) = rhoR*qnR * uR + pR*nx
+        ! fR(3) = rhoR*qnR * vR + pR*ny
+        ! fR(4) = rhoR*qnR * wR + pR*nz
+        ! fR(5) = rhoR*qnR * HR
        
+        fR(:) = rhoR*qnR ! do this mult once
+        fR(2:4) = fR(2:4)*qcR(2:4)+qcR(1)*njk(:)
+        fR(5) = fR(5)*HR
+
         !First compute the Roe-averaged quantities
         
         !  NOTE: See http://www.cfdnotes.com/cfdnotes_roe_averaged_density.html for
         !        the Roe-averaged density.
         
            RT = sqrt(rhoR/rhoL)
+        oneRT = one / (one + RT)
           rho = RT*rhoL                                        !Roe-averaged density
-            u = (uL + RT*uR)/(one + RT)                        !Roe-averaged x-velocity
-            v = (vL + RT*vR)/(one + RT)                        !Roe-averaged y-velocity
-            w = (wL + RT*wR)/(one + RT)                        !Roe-averaged z-velocity
-            H = (HL + RT*HR)/(one + RT)                        !Roe-averaged total enthalpy
-            a = sqrt( (gamma-one)*(H-half*(u*u + v*v + w*w)) ) !Roe-averaged speed of sound
-           qn = u*nx + v*ny + w*nz                             !Roe-averaged face-normal velocity
+            u = (qcL(2) + RT*qcR(2)) * oneRT                   !Roe-averaged x-velocity
+            v = (qcL(3) + RT*qcR(3)) * oneRT                           !Roe-averaged y-velocity
+            w = (qcL(4) + RT*qcR(4)) * oneRT                           !Roe-averaged z-velocity
+            H = (HL + RT*HR) * oneRT                           !Roe-averaged total enthalpy
+            a = sqrt( (gammamo)*(H-half*(u*u + v*v + w*w)) ) !Roe-averaged speed of sound
+           qn = u*njk(1) + v*njk(2) + w*njk(3)                             !Roe-averaged face-normal velocity
        
         !Wave Strengths
        
           drho = rhoR - rhoL !Density difference
-            dp =   pR - pL   !Pressure difference
+            dp = qcR(1) - qcL(1)   !Pressure difference
            dqn =  qnR - qnL  !Normal velocity difference
        
-        LdU(1) = (dp - rho*a*dqn )/(two*a*a) !Left-moving acoustic wave strength
-        LdU(2) = (dp + rho*a*dqn )/(two*a*a) !Right-moving acoustic wave strength
-        LdU(3) =  drho - dp/(a*a)            !Entropy wave strength
+           a2inv = one / (a*a)
+        LdU(1) = (dp - rho*a*dqn )*(half*a2inv) !Left-moving acoustic wave strength
+        LdU(2) = (dp + rho*a*dqn )*(half*a2inv) !Right-moving acoustic wave strength
+        LdU(3) =  drho - dp*(a2inv)            !Entropy wave strength
         LdU(4) = rho                         !Shear wave strength (not really, just a factor)
        
         !Absolute values of the wave Speeds
     
         ws(1) = abs(qn-a) !Left-moving acoustic wave
         ws(2) = abs(qn+a) !Right-moving acoustic wave
-        ws(3) = abs(qn)   !Entropy wave
-        ws(4) = abs(qn)   !Shear waves
+        ws(3:4) = abs(qn)   !Entropy wave
+        ! ws(4) = abs(qn)   !Shear waves
        
         ! Harten's Entropy Fix JCP(1983), 49, pp357-393. This is typically applied
         ! only for the nonlinear fields (k=1 and 3), but here it is applied to all
@@ -240,16 +247,16 @@ module inviscid_flux
         
         ! Left-moving acoustic wave
         R(1,1) = one    
-        R(2,1) = u - a*nx
-        R(3,1) = v - a*ny
-        R(4,1) = w - a*nz
+        R(2,1) = u - a*njk(1)
+        R(3,1) = v - a*njk(2)
+        R(4,1) = w - a*njk(3)
         R(5,1) = H - a*qn
        
         ! Right-moving acoustic wave
         R(1,2) = one
-        R(2,2) = u + a*nx
-        R(3,2) = v + a*ny
-        R(4,2) = w + a*nz
+        R(2,2) = u + a*njk(1)
+        R(3,2) = v + a*njk(2)
+        R(4,2) = w + a*njk(3)
         R(5,2) = H + a*qn
        
         ! Entropy wave
@@ -260,13 +267,13 @@ module inviscid_flux
         R(5,3) = half*(u*u + v*v + w*w)
        
         ! Two shear wave components combined into one (wave strength incorporated).
-        du = uR - uL
-        dv = vR - vL
-        dw = wR - wL
+        du = qcR(2) - qcL(2)
+        dv = qcR(3) - qcL(3)
+        dw = qcR(4) - qcL(4)
         R(1,4) = zero
-        R(2,4) = du - dqn*nx
-        R(3,4) = dv - dqn*ny
-        R(4,4) = dw - dqn*nz
+        R(2,4) = du - dqn*njk(1)
+        R(3,4) = dv - dqn*njk(2)
+        R(4,4) = dw - dqn*njk(3)
         R(5,4) = u*du + v*dv + w*dw - qn*dqn
        
         !Dissipation Term: |An|(UR-UL) = R|Lambda|L*dU = sum_k of [ ws(k) * R(:,k) * L*dU(k) ]

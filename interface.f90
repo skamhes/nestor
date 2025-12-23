@@ -26,18 +26,19 @@ module interface
         real(p2),                   intent(out) :: wsn   
 
         ! Local Vars
-        real(p2), dimension(5) :: uL, uR ! conservative vars computed from wL and wR
+        real(p2), dimension(5) :: uL, uR, num_flux1 ! conservative vars computed from wL and wR
 
-        uL = q2u(qL)
-        uR = q2u(qR)
+        
+        real                   :: time
+        real, dimension(2)     :: values
 
         !------------------------------------------------------------
         !  (1) Roe flux
         !------------------------------------------------------------
         select case(imethod_inv_flux)
         case(IFLUX_ROE)
-            call roe(uL,uR,n12, num_flux,wsn)
-        ! !------------------------------------------------------------
+            call roe(qL,qR,n12,num_flux,wsn)
+        !------------------------------------------------------------
         ! Other fluxes not yet implemneted.
         !------------------------------------------------------------
         case default
