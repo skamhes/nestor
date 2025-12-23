@@ -38,7 +38,7 @@ gcr_reduction_target = 0.05
 
 &gradient
   accuracy_order = 2
-  use_limiter    = .false.
+  use_limiter    = .true.
   lsq_stencil    = 'nn' ! node neighbor
   /
 

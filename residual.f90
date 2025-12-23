@@ -27,7 +27,7 @@ module residual
 
         use interface       , only : interface_flux, reconstruct_flow
 
-        use limiter         , only : compute_limiter
+        use limiter         , only : compute_limiter, compute_limiter_new
 
         use bc_states       , only : get_right_state
 
@@ -86,7 +86,8 @@ module residual
         phi1 = one
         phi2 = one
         
-        if (use_limiter) call compute_limiter
+        if (use_limiter) call compute_limiter_new
+        ! call compute_limiter_new
 
         !--------------------------------------------------------------------------------
         !--------------------------------------------------------------------------------
