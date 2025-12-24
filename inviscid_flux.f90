@@ -277,9 +277,10 @@ module inviscid_flux
         R(5,4) = u*du + v*dv + w*dw - qn*dqn
        
         !Dissipation Term: |An|(UR-UL) = R|Lambda|L*dU = sum_k of [ ws(k) * R(:,k) * L*dU(k) ]
-       
-        diss(:) = ws(1)*LdU(1)*R(:,1) + ws(2)*LdU(2)*R(:,2) &
-                + ws(3)*LdU(3)*R(:,3) + ws(4)*LdU(4)*R(:,4)
+        ! diss(:) = ws(1)*LdU(1)*R(:,1) + ws(2)*LdU(2)*R(:,2) &
+        !         + ws(3)*LdU(3)*R(:,3) + ws(4)*LdU(4)*R(:,4)
+
+        diss(:) = matmul(R,ws*LdU) ! Did some testing this it a hair faster sometimes.
        
         ! This is the numerical flux: Roe flux = 1/2 *[  Fn(UL)+Fn(UR) - |An|(UR-UL) ]
         ! write(*,*) "Normal:", diss

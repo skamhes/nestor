@@ -42,6 +42,8 @@ module solution
     real(p2), dimension(3)              :: vector_lift
 
     integer                             :: nlsq ! number of sets of lsq coefficients with different weighting
+
+    real(p2)                            :: C0  ! term in sutherland viscosity equation
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.
@@ -308,7 +310,7 @@ module initialize
         use grid   , only : ncells
 
         use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
-                            high_ar_correction
+                            high_ar_correction, sutherland_constant, reference_temp
 
         use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
 
@@ -348,6 +350,8 @@ module initialize
             call init_ar_array
             call compute_aspect_ratio
         endif
+
+        C0 = sutherland_constant/reference_temp
         
     end subroutine set_initial_solution
 

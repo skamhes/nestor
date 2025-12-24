@@ -28,9 +28,6 @@ module interface
         ! Local Vars
         real(p2), dimension(5) :: uL, uR, num_flux1 ! conservative vars computed from wL and wR
 
-        
-        real                   :: time
-        real, dimension(2)     :: values
 
         !------------------------------------------------------------
         !  (1) Roe flux

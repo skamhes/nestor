@@ -32,6 +32,7 @@ module viscous_flux
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
         real(p2)                     :: magds
+        real(p2), dimension(nq)      :: correction
         
         integer                      :: ivar
 
@@ -41,11 +42,11 @@ module viscous_flux
         dsds2 = ds/magds ! ds(:)/ds**2
         ! magds = sqrt(magds)
 
-        ! Equation 14
-        do ivar = 1,nq
-            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar)) ! arithemetic mean at the face
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
-            ! ^ eliminates odd-even decoupling by replacing the normal part of the mean face gradient with a central difference.
+        ! Equation 14 (optimized to save ~1e-06 second per call) But like... this gets called a lot man.
+         gradq_face = half*(gradq1+gradq2)
+         correction = matmul(ds,gradq_face) - (q2-q1)
+         do ivar = 2,5
+             gradq_face(:,ivar) = gradq_face(:,ivar) - correction(ivar) * dsds2
          end do
 
         ! This subroutine only handles computing the interface gradient.
@@ -76,11 +77,11 @@ module viscous_flux
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
         real(p2)                     :: magds
-        real(p2), dimension(nq)      :: qL, qR
+        real(p2), dimension(nq)      :: correction
 
         integer                      :: ivar
 
-        gradq_face = face_gradient
+        ! gradq_face = face_gradient
 
         ! Calculate the face gradients
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
@@ -88,12 +89,10 @@ module viscous_flux
         dsds2 = ds/magds ! ds(:)/ds**2
         ! magds = sqrt(magds)
 
-        ! Equation 14
-        do ivar = 1,nq
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+        correction = matmul(ds,face_gradient) - (qb-q1)
+        do ivar = 2,5
+            gradq_face(:,ivar) = face_gradient(:,ivar) - correction(ivar) * dsds2
         end do
-
-
         ! This is just a wrapper function since we already have the interface gradient computed.
         call compute_visc_num_flux(q1,qb,gradq_face,n12,num_flux)
 
@@ -103,7 +102,7 @@ module viscous_flux
     subroutine compute_visc_num_flux(q1,q2,interface_grad,n12,num_flux)
         use common                  , only : p2, half, one, zero, three_half, two_third, four_third, ix, iy, iz
 
-        use solution                , only : gammamo, nq, ndim, T_inf, iu, iv, iw, iT ! w2u, nq
+        use solution                , only : gammamo, nq, ndim, T_inf, iu, iv, iw, iT, C0 ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
 
@@ -115,9 +114,9 @@ module viscous_flux
         real(p2), dimension(nq),      intent(out)   :: num_flux
 
         ! Local Vars
+        real(p2), dimension(5)       :: q
         real(p2)                     :: mu
         real(p2)                     :: u, v, w, T
-        real(p2)                     :: C0
         real(p2)                     :: tauxx, tauyy, tauzz !Viscous stresses: diagonal compontens
         real(p2)                     :: tauxy, tauyz, tauzx !Viscous stresses: off-diagonal components
         real(p2)                     :: tauyx, tauzy, tauxz !Viscous stresses: same as above by symmetry
@@ -127,11 +126,12 @@ module viscous_flux
         real(p2), dimension(3)       :: grad_u, grad_v, grad_w   !Interface gradients of velocities
         real(p2), dimension(3)       :: grad_T
         
-        u = half * (q1(2)  + q2(2) ) ! u at the face
-        v = half * (q1(3)  + q2(3) ) ! v at the face
-        w = half * (q1(4)  + q2(4) ) ! w at the face
-        T = half * (q1(nq) + q2(nq)) ! T at the face
-        C0= sutherland_constant/reference_temp
+        q = half * (q1 + q2)
+        u = q(2)  ! u at the face
+        v = q(3)  ! v at the face
+        w = q(4)  ! w at the face
+        T = q(nq) ! T at the face
+
         mu = M_inf/Re_inf * ((one + C0) / (T + C0))*T**(three_half)
 
         if (isnan(mu)) then 
