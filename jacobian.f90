@@ -20,7 +20,7 @@ module jacobian
         use config              , only : eps_weiss_smith
 
         use grid                , only : ncells, nfaces, & 
-                                         face, cell, &
+                                         face, cell, gcell, &
                                          face_nrml_mag, face_nrml, &
                                          bound, nb
 
@@ -43,6 +43,7 @@ module jacobian
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
         real(p2)                    :: face_mag
+        real(p2)                    :: xc2, yc2, zc2
 
         real(p2), dimension(3,5) :: dummy1, dummy2
 
@@ -146,10 +147,14 @@ module jacobian
                 else ! ilsq_stencil == LSQ_STENCIL_NN
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
+
+                xc2  = gcell(ib)%xc(j)
+                yc2  = gcell(ib)%yc(j)
+                zc2  = gcell(ib)%zc(j)
                 
                 call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
                                   cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                  bface_centroid(1),bface_centroid(2),bface_centroid(3), &
+                                                          xc2, yc2, zc2, &
                                                            dFnduL, dFnduR)
 
                 ! We only have a diagonal term to add
