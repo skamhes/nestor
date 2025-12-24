@@ -134,9 +134,9 @@ module jacobian
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
 
-                xc2  = gcell(ib)%xc(j)
-                yc2  = gcell(ib)%yc(j)
-                zc2  = gcell(ib)%zc(j)
+                xc2  = gcell(ib)%xc(i)
+                yc2  = gcell(ib)%yc(i)
+                zc2  = gcell(ib)%zc(i)
                 
                 call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
                                   cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
