@@ -26,6 +26,7 @@ module solution
     
 
     real(p2), dimension(:)    , pointer :: dtau  !pseudo time step
+    real(p2)                            :: CFL_used ! used for GCR as CFL changes most iterations 
     real(p2), dimension(:)    , pointer :: wsn   !maximum eigenvalue at faces
 
     real(p2), dimension(:,:), pointer   :: res     !residual vector
@@ -41,6 +42,10 @@ module solution
     real(p2)                            :: force_lift
     real(p2), dimension(3)              :: vector_drag
     real(p2), dimension(3)              :: vector_lift
+
+    integer                             :: nlsq ! number of sets of lsq coefficients with different weighting
+
+    real(p2)                            :: C0  ! term in sutherland viscosity equation
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.
@@ -72,7 +77,7 @@ module solution
     !------------------------------------------------------------------------------------
     !------------------------------------------------------------------------------------
 
-    ! because I just had a bug where i used the wronog index.......
+    ! because I just had a bug where i used the wrong index.......
     integer, parameter :: ip = 1
     integer, parameter :: iu = 2
     integer, parameter :: iv = 3
@@ -95,10 +100,31 @@ module solution
     public :: jac
     type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
     
+    ! ! Jacobian Free Newton-Krylov Variables
+    ! real(p2), dimension(:,:,:), pointer :: gcr_precond_correction
+    ! real(p2), dimension(:,:),   pointer :: gcr_final_correction
+    ! real(p2), dimension(:,:,:), pointer :: gcr_search_direction
+    real(p2) :: inv_ncells ! 1/ncells/nq
+    real(p2) :: nl_reduction
+    integer  :: n_projections                   
+
+
+
+
     ! Force values
     real(p2) :: force_normalization
 
     contains
+
+    subroutine define_problem
+
+        ! This just avoids some circular dependencies for now.  But later on we can use it to define additional solvers that we may 
+        ! need.
+
+        nq = 5
+        ndim = 3
+
+    end subroutine define_problem
 
     subroutine allocate_solution_vars
 
@@ -106,13 +132,14 @@ module solution
 
         use grid , only : ncells, nnodes
 
-        use config , only : accuracy_order, grad_method, lsq_stencil, solver_type, method_inv_flux, method_inv_jac, &
-                            sideslip, aoa, lift, drag, turbulence_type
+        use config , only : accuracy_order, grad_method, lsq_stencil, method_inv_flux, method_inv_jac, &
+                            sideslip, aoa, lift, drag, &
+                            gcr_max_projections, CFL
+
+        use utils  , only : iturb_type, TURB_INVISCID, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
+                            igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         implicit none
-
-        nq = 5
-        ndim = 3
 
         ! initialize
         allocate( q(nq,ncells) )
@@ -123,9 +150,9 @@ module solution
         dtau = zero
         wsn = zero
 
-        if ( accuracy_order > 1 .OR. trim(turbulence_type) == 'laminar' ) then
+        if ( accuracy_order > 1 .OR. iturb_type > TURB_INVISCID) then
             allocate( ccgradq(ndim,nq,ncells) )
-            if (trim(grad_method) == 'lsq' .and. trim(lsq_stencil) == 'w_vertex') then
+            if (igrad_method == GRAD_LSQ .and. ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 allocate(  vgradq(ndim,nq,nnodes) )
             endif
         endif
@@ -133,7 +160,9 @@ module solution
         allocate( res(nq,ncells) )
         res = zero
 
-        if ( trim(solver_type) == 'implicit') allocate(solution_update(nq,ncells))
+        if ( isolver_type == SOLVER_IMPLICIT .or. isolver_type == SOLVER_GCR) then 
+            allocate(solution_update(nq,ncells))
+        endif
 
         if ( trim(method_inv_flux) == 'roe_lm_w' ) then
             allocate(ur2(ncells))
@@ -147,24 +176,46 @@ module solution
 
         if ( lift ) then 
             ! These might even be correct :)
-            vector_lift(1) = -sin(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
-            vector_lift(2) = -sin(aoa*pi/180_p2)*sin(sideslip*pi/180_p2)
-            vector_lift(3) =  cos(aoa*pi/180_p2)
+            vector_lift(1) = -sin(aoa*pi/180.0_p2)*cos(sideslip*pi/180.0_p2)
+            vector_lift(2) = -sin(aoa*pi/180.0_p2)*sin(sideslip*pi/180.0_p2)
+            vector_lift(3) =  cos(aoa*pi/180.0_p2)
         endif
         if ( drag ) then
             ! ditto:)
-            vector_drag(1) =  cos(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
-            vector_drag(2) =  cos(aoa*pi/180_p2)*sin(sideslip*pi/180_p2)
-            vector_drag(3) =  sin(aoa*pi/180_p2)
+            vector_drag(1) =  cos(aoa*pi/180.0_p2)*cos(sideslip*pi/180.0_p2)
+            vector_drag(2) =  cos(aoa*pi/180.0_p2)*sin(sideslip*pi/180.0_p2)
+            vector_drag(3) =  sin(aoa*pi/180.0_p2)
         endif
 
+        inv_ncells = one / real(ncells*nq,p2) 
+
+        CFL_used = CFL
+
     end subroutine allocate_solution_vars
+
+    subroutine compute_local_time_step_dtau
+
+        use common                  , only : half, p2
+        use grid                    , only : ncells, cell
+        use config                  , only : CFL, high_ar_correction
+        use grid_statists           , only : cell_aspect_ratio
+
+        implicit none
+
+        integer :: i
+        ! real(p2), dimension(ncells) :: viscous_dtau
+
+        cell_loop : do i = 1,ncells
+            dtau(i) = CFL * cell(i)%vol/( half * wsn(i) )
+            if (high_ar_correction) dtau(i) = dtau(i) * cell_aspect_ratio(i)
+        end do cell_loop
+    end subroutine compute_local_time_step_dtau
 
     !********************************************************************************
     ! Compute Q from W
     !
     ! ------------------------------------------------------------------------------
-    !  Input:  u = conservative variables (rho, u, v, w, p)
+    !  Input:  w = conservative variables (rho, u, v, w, p)
     ! Output:  q =    primitive variables (  p, u, v, w, T)
     ! ------------------------------------------------------------------------------
     !
@@ -220,6 +271,39 @@ module solution
         u_out(5) = q_in(1)*gmoinv + half*u_out(1)*(q_in(iu)**2 + q_in(iv)**2 + q_in(iw)**2)
     
     end function q2u
+
+    pure function compute_primative_jacobian(qi) result(preconditioner)
+
+        ! This function computes the Jacobian DU/DQ where U is the vector of conserved variables [rho rhoU rhoV rhoW rhoE] and W is
+        ! the vector of primitive variables [p U V W T].  This is also written in a way that can allow implementation of Weiss-Smith
+        ! Preconditioning
+
+        use common , only : p2, half
+
+        implicit none
+
+        real(p2), dimension(5),  intent(in) :: qi
+        real(p2), dimension(5,5)            :: preconditioner
+        
+        real(p2), dimension(5,5) :: dwdq, pre_inv
+        real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
+
+
+        H = ((qi(iT))**2)*gmoinv + half * ( qi(iu)**2 + qi(iv)**2 + qi(iw)**2 )
+        rho_p = gamma/qi(5)
+        rho_T = - (qi(ip)*gamma)/(qi(iT)**2)
+        rho = qi(ip)*gamma/qi(iT)
+        UR2inv = one ! will be 1/uR2(i)
+        theta = (UR2inv) - rho_T*(gammamo)/(rho)
+        
+        ! Note transposing this assignment would likely be marginally faster if slightly less easy to read
+        preconditioner(1,:) = (/ theta,         zero,       zero,       zero,       rho_T                   /)
+        preconditioner(2,:) = (/ theta*qi(iu),  rho,        zero,       zero,       rho_T*qi(iu)            /)
+        preconditioner(3,:) = (/ theta*qi(iv),  zero,       rho,        zero,       rho_T*qi(iv)            /)
+        preconditioner(4,:) = (/ theta*qi(iw),  zero,       zero,       rho,        rho_T*qi(iw)            /)
+        preconditioner(5,:) = (/ theta*H-one,  rho*qi(iu), rho*qi(iv), rho*qi(iw), rho_T*H + rho/(gamma-one)/)
+
+    end function compute_primative_jacobian
 
     subroutine compute_uR2
 
@@ -280,8 +364,10 @@ module initialize
 
         use grid   , only : ncells
 
-        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, solver_type, lift, drag, area_reference, &
-                            high_ar_correction, method_inv_flux, method_inv_jac
+        use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
+                            high_ar_correction, method_inv_flux, method_inv_jac, sutherland_constant, reference_temp
+
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
 
         use solution
 
@@ -311,7 +397,7 @@ module initialize
             endif
         end do cell_loop
         
-        if (trim(solver_type) == 'implicit' ) call init_jacobian
+        if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
         
         force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
 
@@ -319,6 +405,8 @@ module initialize
             call init_ar_array
             call compute_aspect_ratio
         endif
+
+        C0 = sutherland_constant/reference_temp
 
         if (trim(method_inv_flux) == 'roe_lm_w' .OR. trim(method_inv_jac) == 'roe_lm_w' ) then
             call compute_grid_spacing

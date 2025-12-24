@@ -8,34 +8,31 @@ module bc_states
 
     subroutine get_right_state(qL,njk, bc_state_type, qcB)
 
-        use common     , only : p2
+        use common     , only : p2, zero
+
+        use utils , only : BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
 
         implicit none
 
         !Input
         real(p2), dimension(5),     intent(in) :: qL
         real(p2), dimension(3),     intent(in) :: njk
-        character(len=*),           intent(in) :: bc_state_type
-        
+        integer ,           intent(in)         :: bc_state_type
         !output
         real(p2), dimension(5),    intent(out) :: qcB
 
-        select case(trim(bc_state_type))
-            case('freestream')
+        select case(bc_state_type)
+            case(BC_FARFIELD)
                 call freestream(qcB)
-            case('symmetry')
-                ! Symmetry is treated the same as a slip wall numerically
-                ! We differentiate the two for force calculations
+            case(BC_TANGENT)
                 call slip_wall(qL,njk,qcB)
-            case('slip_wall') ! Adiabatic
-                call slip_wall(qL,njk,qcB)
-            case('no_slip_wall') ! Adiabatic
+            case(BC_VISC_STRONG) ! Adiabatic
                 call no_slip_wall(qL,qcB)
-            case('outflow_subsonic')
+            case(BC_BACK_PRESSURE)
                 call back_pressure(qL,qcB)
             case default
-                write(*,*) "Boundary condition=",trim(bc_state_type),"  not implemented."
-                write(*,*) " --- Stop at get_right_state() in kcfd_module_bc_states.f90..."
+                write(*,*) "Boundary condition=", bc_state_type ,"  not implemented."
+                write(*,*) " --- Stop at get_right_state() in bc_states.f90..."
                 stop
         end select
 
@@ -70,22 +67,21 @@ module bc_states
     end subroutine back_pressure
 
     subroutine slip_wall(qL,njk,qcB)
-        use common      , only : p2
+        use common      , only : p2, two
         implicit none
 
-        real(p2), dimension(5), intent( in) :: qL
-        real(p2), dimension(3), intent( in) :: njk
-        real(p2), dimension(5), intent(out) :: qcB
+        real(p2), dimension(5),     intent( in) :: qL
+        real(p2), dimension(3),     intent( in) :: njk
+        real(p2), dimension(5),     intent(out) :: qcB
 
         real(p2) :: un
         
         un = qL(2)*njk(1) + qL(3)*njk(2) + qL(4)*njk(3)
         qcB = qL
         ! Ensure zero normal velocity on average:
-        qcB(2) = qL(2) - un*njk(1)
-        qcB(3) = qL(3) - un*njk(2)
-        qcB(4) = qL(4) - un*njk(3)
-
+        qcB(2) = qL(2) - two*un*njk(1)
+        qcB(3) = qL(3) - two*un*njk(2)
+        qcB(4) = qL(4) - two*un*njk(3)
     end subroutine slip_wall
 
     subroutine no_slip_wall(qL,qcB)
@@ -93,8 +89,8 @@ module bc_states
         use common      ,   only : p2, zero, one
         implicit none
 
-        real(p2), dimension(5), intent( in) :: qL
-        real(p2), dimension(5), intent(out) :: qcB
+        real(p2), dimension(5),     intent( in) :: qL
+        real(p2), dimension(5),     intent(out) :: qcB
         
         ! un = wL(2)*njk(1) + wL(3)*njk(2) + wL(4)*njk(3)
         

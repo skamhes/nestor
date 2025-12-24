@@ -59,11 +59,12 @@ module config
     logical       :: lift                = .false.
     logical       :: drag                = .false.
     real(p2)      :: area_reference      = 1.0_p2
+    character(80) :: time_method         = "remaining"
 
     namelist / inputoutput / &
       generate_tec_file_b, generate_tec_file_v, &
       write_data         , import_data,         &
-      lift, drag, area_reference
+      lift, drag, area_reference, time_method
 
     !-------------------------------------------------------------------------
     ! FREESTREAM CONDITIONS (&freestream)
@@ -82,6 +83,8 @@ module config
     real(p2)               :: CFL_init               = 0.1_p2
     integer                :: CFL_start_iter         = 10
     integer                :: CFL_ramp_steps         = 100
+    real(p2)               :: CFL_max                = 1e+010
+    real(p2)               :: CFL_min                = 1e-012
     integer                :: solver_max_itr         = 1000
     real(p2)               :: solver_tolerance       = 1.0e-05_p2
     character(80)          :: method_inv_flux        = "roe"
@@ -96,6 +99,8 @@ module config
     logical                :: random_perturb         = .false.
     real(p2)               :: eps_weiss_smith        = 1.0e-03_p2
     logical                :: high_ar_correction     = .true.
+    integer                :: gcr_max_projections    = 5
+    real(p2)               :: gcr_reduction_target   = 0.9
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
@@ -104,16 +109,21 @@ module config
       method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
       variable_ur, limit_update, perturb_initial, &
-      entropy_fix, eps_weiss_smith, high_ar_correction
+      entropy_fix, eps_weiss_smith, high_ar_correction, &
+      gcr_max_projections, gcr_reduction_target
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)
     logical                 :: use_amg              = .true.  
     character(80)           :: smoother             = "gs"    ! relaxation scheme type
     integer                 :: lrelax_sweeps        = 500     ! number of sweeps
+    integer                 :: pre_sweeps           = 0       ! number of sweeps before AMG restriction
+    integer                 :: post_sweeps          = 2       ! number of sweeps after AMG prolongation
     real(p2)                :: lrelax_tolerance     = 0.1_p2  ! relaxation tolerance (reduction)
-    integer                 :: max_amg_levels       = 5
-    integer                 :: pre_sweeps           = 2
+    integer                 :: max_amg_levels       = 8
+    integer                 :: min_amg_blcoks       = 1       ! minimum number of blocks before AMG will not further restrict
+    character(1)            :: amg_cycle            = 'f'     ! amg cycle type.
+    integer                 :: max_amg_cycles       = 16      ! Total complete AMG Cycles
     
     namelist / amg / &
     use_amg, smoother, lrelax_sweeps, lrelax_tolerance, max_amg_levels, pre_sweeps
@@ -122,7 +132,7 @@ module config
     ! GRADIENT SETTINGS (&gradient)
     character(80)           :: grad_method               = "lsq"
     integer                 :: accuracy_order       = 1
-    character(80)           :: lsq_stencil          = "w_vertex"
+    character(80)           :: lsq_stencil          = "nn" ! node neighbor, calculated at the cell center: alt w_vertex
     real(p2)                :: lsq_weight           = zero
     logical                 :: use_limiter          = .false.
 
@@ -133,17 +143,26 @@ module config
     ! TURBULENCE SETTINGS (&turbulence)
       character(80)         :: turbulence_type       = 'inviscid'
       real(p2)              :: pr                    = 0.72_p2    ! Prandtl number for sea level air
-      real(p2)              :: Re_inf                = 10000      ! Free stream reynolds number
+      real(p2)              :: Re_inf                = 10000._p2  ! Free stream reynolds number
       real(p2)              :: sutherland_constant   = 110.5_p2   ! (K) Sutherland's constant (C) for air
       real(p2)              :: ideal_gas_constant    = 287.058_p2 ! ideal gas constant for air (R)
-      real(p2)              :: reference_temp        = 300        ! (K) T_inf in EQ 4.14.16 of I do Like CFD
+      real(p2)              :: reference_temp        = 300._p2    ! (K) T_inf in EQ 4.14.16 of I do Like CFD
 
     namelist / turbulence / &
       turbulence_type, pr, reference_temp, Re_inf, sutherland_constant, ideal_gas_constant
 
+
+    !-------------------------------------------------------------------------
+    ! DEBUG SETTINGS (&debug)
+      integer :: gcr_verbosity = 0
+
+    namelist / debug / &
+      gcr_verbosity
+
     contains
         
     subroutine read_nml_config(namelist_file)
+
 
         implicit none
 
@@ -185,12 +204,34 @@ module config
           endif
           read(unit=10,nml=project)
         endif
-        read(unit=10,nml=inputoutput)
-        read(unit=10,nml=freestream)
-        read(unit=10,nml=solver)
-        read(unit=10,nml=amg)
-        read(unit=10,nml=gradient)
-        read(unit=10,nml=turbulence)
+        
+        read(unit=10,nml=inputoutput,iostat=os)
+        call nml_read_error_check(os,'I/O')
+        rewind(10)
+
+        read(unit=10,nml=freestream,iostat=os)
+        call nml_read_error_check(os,'FREESTREAM')
+        rewind(10)
+
+        read(unit=10,nml=solver,iostat=os)
+        call nml_read_error_check(os,'SOLVER')
+        rewind(10)
+
+        read(unit=10,nml=amg,iostat=os)
+        call nml_read_error_check(os,'AMG')
+        rewind(10)
+
+        read(unit=10,nml=gradient,iostat=os)
+        call nml_read_error_check(os,'GRADIENT')
+        rewind(10)
+
+        read(unit=10,nml=turbulence,iostat=os)
+        call nml_read_error_check(os,'TURBULENCE')
+        rewind(10)
+
+        read(unit=10,nml=debug,iostat=os)
+        call nml_read_error_check(os,'DEBUG')
+        rewind(10)
         
     
         write(*,*)
@@ -223,6 +264,10 @@ module config
         write(*,*)
         write(*,*) "TURBULENCE SETTINGS (&turbulence)"
         write(*,nml=turbulence)
+
+        write(*,*)
+        write(*,*) "VERBOSITY SETTINGS (&verbosity)"
+        write(*,nml=debug)
         
         write(*,*)
         write(*,*) " End of Reading the input file: ",namelist_file,"..... "
@@ -230,6 +275,131 @@ module config
         write(*,*)
 
         close(10)
+
+        ! translate the char variables into integers
+        call update_isettings
+
     end subroutine read_nml_config
+
+    subroutine nml_read_error_check(status,nml_name)
+
+      use iso_fortran_env, only : iostat_end, iostat_eor
+      
+      integer, intent(in)       :: status
+      character(*), intent(in)  :: nml_name
+
+      if (status == iostat_end .or. status == iostat_eor) then
+        write(*,*) " NO ",nml_name," SETTINGS LOADED!!  USING DEFAULT SETTINGS."
+      elseif(status /= 0) then
+        write(*,*) " ERROR LOADING DEBUG SETTINGS!!"
+      endif
+    end subroutine nml_read_error_check
+
+    subroutine update_isettings
+
+      use utils
+
+      implicit none
+
+      call initialize_isettings
+
+      ! update settings with imported namelist values
+
+      select case(trim(time_method))
+      case('remaining')
+        itime_method = TM_REMAINING
+      case('elapsed')
+        itime_method = TM_ELAPSED
+      case default
+        write(*,*) ' time_method input "', trim(time_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+
+      select case(trim(method_inv_flux))
+      case('roe')
+        imethod_inv_flux = IFLUX_ROE
+      case default
+        write(*,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+      
+      select case(trim(method_inv_jac))
+      case('roe')
+        imethod_inv_jac = IJAC_ROE
+      case default
+        write(*,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+      
+      select case(trim(solver_type))
+      case('rk')
+        isolver_type = SOLVER_RK
+      case('explicit') 
+        isolver_type = SOLVER_EXPLICIT
+      case('implicit')
+        isolver_type = SOLVER_IMPLICIT 
+      case('gcr')
+        isolver_type = SOLVER_GCR
+      case default
+        write(*,*) ' solver_type input "', trim(solver_type),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+      
+      select case(trim(jacobian_method))
+      case('analytical')
+        ijacobian_method = JAC_ANALYTIC
+      case default
+        write(*,*) ' jacobian_method input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+      
+      select case(trim(smoother))
+      case('gs')
+        ismoother = SMOOTH_GS
+      case default
+        write(*,*) ' smoother input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+
+      select case(trim(grad_method))
+      case('lsq')
+        igrad_method = GRAD_LSQ
+      case default
+        write(*,*) ' grad_method input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+
+      select case(trim(lsq_stencil))
+      case('w_vertex')
+        ilsq_stencil = LSQ_STENCIL_WVERTEX
+      case('nn')
+        ilsq_stencil = LSQ_STENCIL_NN
+      case default
+        write(*,*) ' lsq_stencil input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+
+      select case(trim(turbulence_type))
+      case('inviscid')
+        iturb_type = TURB_INVISCID
+      case('laminar')
+        iturb_type = TURB_LAMINAR
+      case('rans')
+        iturb_type = TURB_RANS
+      case default
+        write(*,*) ' turbulence_type input "', trim(jacobian_method),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+      
+    end subroutine update_isettings
 
 end module config

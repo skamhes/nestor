@@ -20,7 +20,7 @@ program nestor
 
     use grid,   only : read_grid, read_su2, construct_grid
 
-    use solution, only : allocate_solution_vars
+    use solution, only : allocate_solution_vars, define_problem
 
     use steady_solver, only : steady_solve
 
@@ -55,6 +55,8 @@ program nestor
         write(*,*) 'Unsupported grid type: ', trim(grid_type), '. Stop!'
         stop
     endif
+
+    call define_problem
 
     call construct_grid
 

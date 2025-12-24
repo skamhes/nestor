@@ -16,10 +16,8 @@ module inout
         use common          , only : p2, zero
                                      
         use grid            , only : nnodes, x, y, z, &
-                                     ntria, tria, &
-                                     nquad, quad, &
-                                     bc_type, nb, &
-                                     cell, ncells, &
+                                     nb, &
+                                     cell, &
                                      bound, bgrid_type
 
         use solution        , only : q, nq, gamma
@@ -39,15 +37,14 @@ module inout
         type(bnode_type), dimension(nb)               :: bnode_data
             
         type(bgrid_type), dimension(:), pointer       :: bound_export
-        integer :: i, os, ibn
+        integer :: i, os
         
-        integer                           :: j, k, ib, nk, nj, ni, j_count
+        integer                           :: j, k, ib, nk, j_count
         integer                           :: bcell_i, candidate_node
         real(p2), dimension(:,:), pointer :: qn
         real(p2), dimension(:), pointer   :: Mn, rhon
         integer , dimension(:  ), pointer :: nc
         logical                           :: already_added
-        real(p2)                          :: an
         ! integer, dimension(:), pointer    :: nbnodes
 
         allocate(qn(nq, nnodes))
@@ -157,7 +154,9 @@ module inout
 
     subroutine residual_status_header
 
-        use config , only : lift, drag, solver_type
+        use config , only : lift, drag
+
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
 
         write(*,"(A)",advance="no") " Iteration   continuity   x-momemtum   y-momentum   z-momentum       energy      max-res"
 
@@ -168,11 +167,14 @@ module inout
         ! Split
         write(*,"(A)",advance="no") "   |"
 
-        if (trim(solver_type) == "implicit") then
+        select case(isolver_type)
+        case(SOLVER_IMPLICIT)
             write(*,*) " sweeps     reduction       time          CFL"
-        else
+        case(SOLVER_GCR)
+            write(*,*) " projs.     reduction       time          CFL"
+        case default
             write(*,*) "   time     CFL"
-        end if
+        end select
     end subroutine residual_status_header
 
     subroutine print_residual_status(i_iteration, minutes, seconds)
@@ -180,7 +182,8 @@ module inout
 
         use config   , only : CFL, solver_type, lift, drag
 
-        use solution , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift
+        use solution , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, force_drag, force_lift, &
+                              n_projections, nl_reduction, CFL_used
 
         implicit none
 
@@ -209,6 +212,11 @@ module inout
         if ( trim(solver_type) == 'implicit' ) then
             write(*,implicit_format) lrelax_sweeps_actual, lrelax_roc, &
                                      minutes, ":", seconds, CFL
+        elseif ( trim(solver_type) == 'gcr' ) then
+            write(*,implicit_format) n_projections, nl_reduction, &
+                                     minutes, ":", seconds, CFL_used
+            ! note: the CFL is most likely wrong as it is updated for the next iteration before this line has had a chance to print.
+            ! refactoring will take a little work so for now I'm leaving this note to remind me that it is wrong...
         else ! RK Explicit
             write(*,explicit_format) minutes, ":", seconds, CFL
         endif

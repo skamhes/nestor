@@ -11,7 +11,6 @@ module steady_solver
     public :: steady_solve
 
     public :: compute_residual_norm
-    public :: compute_local_time_step_dtau
 
     public :: dq ! solution update
     real(p2), dimension(:,:), pointer :: dq
@@ -28,15 +27,19 @@ module steady_solver
 
         ! use linear_solver , only :  lrelax_sweeps_actual, lrelax_roc
 
-        use config    , only : solver_type, accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
+        use config    , only : accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag, turbulence_type
+                                lift, drag, solver_type
+
+        use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
+                               itime_method, TM_REMAINING, TM_ELAPSED
                                 
         use initialize, only : set_initial_solution
 
-        use solution  , only : q, res, dtau, res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi
+        use solution  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
+                               n_projections, nl_reduction, compute_local_time_step_dtau
 
-        use grid      , only : cell, ncells
+        use grid      , only : ncells
 
         use gradient  , only : init_gradients
 
@@ -49,18 +52,18 @@ module steady_solver
         implicit none
 
         integer                       :: i, n_residual_evaluation
-        integer                       :: L1 = 1
 
         ! Timing Variables
         real                          :: time, totalTime
         real, dimension(2)            :: values
         integer                       :: minutes, seconds
+        integer                       :: dt_vals, solver_epoch
 
         ! Stop file
         logical                       :: stop_me
         integer                       :: ierr
 
-        real(p2)                      :: CFL_multiplier, CFL_final, CFL_running_mult
+        real(p2)                      :: CFL_multiplier, CFL_final
 
         real(p2), parameter :: MIN_RES_NORM_INIT = 1e-012_p2
 
@@ -103,7 +106,7 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2 .OR. trim(turbulence_type) == 'laminar' ) then
+        if (accuracy_order == 2 .OR. iturb_type > TURB_INVISCID ) then
             call init_gradients
         endif    
 
@@ -115,10 +118,16 @@ module steady_solver
         ! Initialize some miscellaneous variables
         lrelax_sweeps_actual = 0
         lrelax_roc = zero
+        n_projections = 0
+        nl_reduction = zero
         n_residual_evaluation = 0
         if (use_limiter) then
             allocate(phi(ncells))
         end if
+
+        if (itime_method == TM_ELAPSED) then
+            call system_clock(COUNT = solver_epoch)
+        endif
 
         solver_loop : do while (i_iteration <= solver_max_itr)
             
@@ -131,11 +140,17 @@ module steady_solver
             ! Compute forces
             if ( lift .OR. drag ) call compute_forces
 
-            ! Iteration timer
-            call dtime(values,time)
-            
+            if (itime_method == TM_ELAPSED) then
+                call system_clock(COUNT = dt_vals)
+                totalTime = (dt_vals - solver_epoch) / 1000 ! it's acceptable in this case to round down to the second
+
+            else
+                ! Iteration timer
+                call dtime(values,time)
+                totalTime = time * real(solver_max_itr-i_iteration) ! total time remaining in seconds
+                
+            endif
             ! Compute time remaining
-            totalTime = time * real(solver_max_itr-i_iteration) ! total time remaining in seconds
             minutes = floor(totalTime/60.0)
             seconds = mod(int(totalTime),60)
             
@@ -172,15 +187,18 @@ module steady_solver
             call compute_local_time_step_dtau
 
             ! March in pseudo-time to update u: u = u + du
-            if (trim(solver_type) == "rk") then
+            select case(isolver_type)
+            case(SOLVER_RK)
                 call explicit_pseudo_time_rk
-            elseif (trim(solver_type) == 'explicit') then
+            case(SOLVER_EXPLICIT)
                 call explicit_pseudo_time_forward_euler
-            elseif (trim(solver_type) == "implicit") then
+            case(SOLVER_IMPLICIT)
                 call implicit
-            else
-                write(*,*) " Unsopported iteration method: Solver = ", solver_type
-            end if
+            case(SOLVER_GCR)
+                call gcr
+            case default
+                write(*,*) " Unsopported iteration method: Solver = ", trim(solver_type)
+            end select
 
             ! If using CFL ramp increase CFL
             if (CFL_ramp .and. (i_iteration < CFL_ramp_steps + CFL_start_iter) .and. i_iteration > CFL_start_iter) then
@@ -242,24 +260,7 @@ module steady_solver
   
     end subroutine compute_residual_norm
 
-    subroutine compute_local_time_step_dtau
 
-        use common                  , only : half, p2
-        use grid                    , only : ncells, cell
-        use solution                , only : dtau, wsn
-        use config                  , only : CFL, high_ar_correction
-        use grid_statists           , only : cell_aspect_ratio
-
-        implicit none
-
-        integer :: i
-        ! real(p2), dimension(ncells) :: viscous_dtau
-
-        cell_loop : do i = 1,ncells
-            dtau(i) = CFL * cell(i)%vol/( half * wsn(i) )
-            if (high_ar_correction) dtau(i) = dtau(i) * cell_aspect_ratio(i)
-        end do cell_loop
-    end subroutine compute_local_time_step_dtau
 
     subroutine explicit_pseudo_time_rk
 
@@ -280,7 +281,7 @@ module steady_solver
         real(p2), dimension(5,ncells) :: q0
         integer                       :: i, os
         real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
-        real(p2), dimension(5,5) :: preconditioner, dwdq, pre_inv
+        real(p2), dimension(5,5) :: preconditioner, pre_inv
 
         q0 = q
 
@@ -416,17 +417,18 @@ module steady_solver
 
         use solution            , only : q, res, solution_update, nq, jac
 
-        use linear_solver       , only : linear_relaxation
+        use linear_solver       , only : linear_relaxation_block
 
         implicit none
-        integer         :: i
+        integer         :: i, os
         real(p2)        :: omegan !under-relaxation factor for nonlinear iteration
         
         ! First compute the jacobian
         call compute_jacobian
 
         ! next compute the correction by relaxing the linear system
-        call linear_relaxation(nq, jac, res, solution_update)
+        ! It turns out calling a generic interface with an assumed shape derived data type causes issues with fortran.  Interesting.
+        call linear_relaxation_block(nq, jac, res, solution_update,os)
 
         loop_cells : do i = 1,ncells
             omegan = safety_factor_primative(q(:,i),solution_update(:,i))
@@ -439,6 +441,34 @@ module steady_solver
 
     end subroutine implicit
 
+    subroutine gcr
+
+        use common              , only : p2
+
+        use gcr                 , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control, GCR_CFL_FREEZE
+
+        use config              , only : variable_ur
+
+        use jacobian            , only : compute_jacobian
+
+        implicit none
+
+        integer :: os
+
+        os = 1
+
+        call compute_jacobian
+
+        do while (os /= GCR_SUCCESS)
+
+            call gcr_run(os)
+
+            call gcr_CFL_control(os)
+
+        end do
+
+    end subroutine gcr
+
     !********************************************************************************
     ! Compute a safety factor (under relaxation for nonlinear update) to make sure
     ! the updated density and pressure are postive.
@@ -447,7 +477,7 @@ module steady_solver
     ! Can you come up with a better and more efficient way to control this?
     !
     !********************************************************************************
-    function safety_factor_primative(q,dq)
+    function safety_factor_primative(q,deltaq)
 
         use common          , only : p2
 
@@ -458,11 +488,9 @@ module steady_solver
        
         real(p2) ::    zero = 0.00_p2
        
-        real(p2), dimension(5), intent(in) :: q, dq
+        real(p2), dimension(5), intent(in) :: q, deltaq
         real(p2)                           :: safety_factor_primative
-        integer                            :: ir = 1, ip = 5
         real(p2), dimension(5)             :: q_updated
-        real(p2), dimension(5)             :: w_updated
         real(p2)                           :: p_updated
        
         ! Default safety_factor
@@ -471,7 +499,7 @@ module steady_solver
     
         ! Temporarily update the solution:
     
-        q_updated = q + safety_factor_primative*dq
+        q_updated = q + safety_factor_primative*deltaq
         
         !-----------------------------
         ! Return if both updated density and pressure are positive
@@ -489,7 +517,7 @@ module steady_solver
     
         if ( q_updated(5) <= zero) then ! meaning du(ir) < zero, reducing the density.
     
-            safety_factor_primative = -q(5)/dq(5) * 0.25_p2 ! to reduce the density only by half.
+            safety_factor_primative = -q(5)/deltaq(5) * 0.25_p2 ! to reduce the density only by half.
     
         endif
     
@@ -505,7 +533,7 @@ module steady_solver
             !Note: Limiting value of safety_factor is zero, i.e., no update and pressure > 0.
             do
     
-            q_updated = q + safety_factor_primative*dq
+            q_updated = q + safety_factor_primative*deltaq
             p_updated = q_updated(1)
     
             ! For low-Mach flows, theoretically, pressure = O(Mach^2).
@@ -520,12 +548,12 @@ module steady_solver
     
         endif
 
-        if (abs(safety_factor_primative * dq(1))/q(1)  > 0.2_p2  ) then 
-            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(1) / dq(1)
+        if (abs(safety_factor_primative * deltaq(1))/q(1)  > 0.2_p2  ) then 
+            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(1) / deltaq(1)
         endif   
         
-        if (abs(safety_factor_primative * dq(5))/q(5)  > 0.2_p2  ) then 
-            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(5) / dq(5)
+        if (abs(safety_factor_primative * deltaq(5))/q(5)  > 0.2_p2  ) then 
+            safety_factor_primative = safety_factor_primative * 0.2_p2 * q(5) / deltaq(5)
         endif   
     end function safety_factor_primative
 

@@ -23,12 +23,12 @@ module linear_solver
     ! b = residual block vector with 1xNQ blocks
     ! x = correction is the solution to x=A^(-1)b (also a block vector)
     ! num_eq is the size of the blocks
-    subroutine linear_relaxation_block(num_eq,jacobian_block,residual,correction)
+    subroutine linear_relaxation_block(num_eq,jacobian_block,residual,correction,iostat)
 
         use common              , only : p2, one, &
                                          my_eps
 
-        use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother
+        use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle
 
         use grid                , only : ncells, cell
 
@@ -36,174 +36,250 @@ module linear_solver
 
         ! use gauss_seidel
 
-        use algebraic_multigird , only : UP, DOWN
+        use algebraic_multigird , only : UP, DOWN, convert_amg_c_to_i
 
         implicit none
 
-        integer,                                intent( in) :: num_eq
-        type(jacobian_type), dimension(ncells), intent( in) :: jacobian_block
-        real(p2), dimension(   num_eq, ncells), intent( in) :: residual
+        integer,                             intent( in) :: num_eq
+        type(jacobian_type), dimension(:),   intent( in) :: jacobian_block
+        real(p2),            dimension(:,:), intent( in) :: residual
+                 
+        real(p2),            dimension(:,:), intent(out) :: correction
+        integer,                             intent(out) :: iostat
 
-        real(p2), dimension(   num_eq, ncells), intent(out) :: correction
+        real(p2), dimension(:,:,:), pointer :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer , dimension(:),     pointer :: C   ! Column index of each value
+        integer , dimension(:),     pointer :: R   ! Start index of each new row
+        integer                             :: nnz
+        real(p2), dimension(:,:,:), pointer :: Dinv
 
-        real(p2), dimension(:,:,:), allocatable :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     allocatable :: C   ! Column index of each value
-        integer , dimension(ncells+1)           :: R   ! Start index of each new row
-        integer                                 :: nnz
-        real(p2), dimension(5,5,ncells)             :: Dinv
+        integer                     :: cycle_type
 
-        integer                     :: os
-        integer                     :: level = 1
-        integer                     :: direction
+        allocate(R(ncells+1))
+        allocate(Dinv(5,5,ncells))
 
         call build_A_BCSM(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
 
-        call build_Dinv_array(ncells,num_eq,jacobian_block,Dinv)
+        call build_Dinv_array(ncells,jacobian_block,Dinv)
 
-        direction = UP 
+        cycle_type = convert_amg_c_to_i(amg_cycle)
 
-        call linear_sweeps(ncells,num_eq,nnz,V,C,R,residual,Dinv,level,direction,correction,os)
+        call multilevel_cycle(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
 
     end subroutine linear_relaxation_block
 
-    recursive subroutine linear_sweeps(ncells,num_eq,nnz,V,C,R,res,Dinv,level,direction,correction,stat)
+    subroutine multilevel_cycle(ncells,num_eq,V,C,R,res,Dinv,cycle_type,keep_A,correction,stat)
 
-        use common          , only : p2, zero, one, half, two, my_eps
+        use common          , only : p2, zero
 
-        use config          , only : lrelax_sweeps, solver_type, lrelax_tolerance, smoother, &
-                                     use_amg, max_amg_levels, pre_sweeps
+        use config          , only : lrelax_tolerance, max_amg_cycles
 
         use solution        , only : lrelax_sweeps_actual, lrelax_roc, roc
 
-        use sparse_matrix   , only : sparseblock_times_vectorblock
-
-        use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
-
-        use algebraic_multigird , only : algebraic_multigrid_prolong, algebraic_multigrid_restrict, UP, DOWN
+        use algebraic_multigird , only : amg_level_type, build_amg_struct, amg_destroy
 
         implicit none
         
-        integer, intent(in)                                 :: ncells
-        integer, intent(in)                                 :: num_eq
-        integer, intent(in)                                 :: nnz
-        real(p2), dimension(num_eq,num_eq,nnz), intent(in)  :: V    ! Values of A
-        integer , dimension(nnz)           , intent(in)     :: C    ! Column index of A
-        integer , dimension(ncells+1), intent(in)           :: R    ! Start index of A
-        real(p2), dimension(num_eq,ncells), intent(in)           :: res  ! RHS (= -b)
-        real(p2), dimension(num_eq,num_eq,ncells), intent(in)         :: Dinv ! Inverse of A(i,i)
-        integer, intent(inout)                                 :: level
-        integer, intent(inout)                              :: direction
+        integer,                            intent(in)      :: ncells
+        integer,                            intent(in)      :: num_eq
+        real(p2), dimension(:,:,:), target, intent(in)      :: V    ! Values of A
+        integer , dimension(:),     target, intent(in)      :: C    ! Column index of A
+        integer , dimension(:),     target, intent(in)      :: R    ! Start index of A
+        real(p2), dimension(:,:),           intent(in)      :: res  ! RHS (= -b)
+        real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
+        integer,                            intent(in)      :: cycle_type
+        logical,                            intent(in)      :: keep_A
         
-        real(p2), dimension(num_eq,ncells), intent(out)          :: correction
-        integer,                       intent(out)          :: stat ! Return 
+        real(p2), dimension(:,:),           intent(out)     :: correction
+        integer,                            intent(out)     :: stat ! Return 
+
+        type(amg_level_type) :: base_level
 
         ! Residual norms(L1,L2,Linf)
         real(p2), dimension(num_eq)    :: linear_res_norm, linear_res_norm_init
 
-        integer                     :: ii
+        integer                     :: icell, icycle
 
-        ! Under-relaxation parameter
-        real(p2) :: omega_lrelax
+        ! Compute initial linear residual norm
+        linear_res_norm_init = zero
+        do icell = 1,ncells
+            linear_res_norm_init = linear_res_norm_init + abs(res(:,icell))
+        end do
 
-        ! Variables to be computed by restricted multigrid
-        integer                             :: ngroup           ! Number of groups in level n + 1
-        integer                             :: nnz_restrict     ! number of non-zero entries in restricted matrix
-        integer,  dimension(ncells)         :: prolongC         ! Column ind. of prolongation matrix. Needed to prolong correction
-        real(p2), dimension(:,:,:), pointer :: RAP_V            ! Values of restricted matrix RAP
-        integer,  dimension(:),     pointer :: RAP_C            ! Column indices of RAP
-        integer,  dimension(:),     pointer :: RAP_R            ! Row indices of RAP (length = ngroups + 1)
-        real(p2), dimension(:,:,:), pointer :: RAP_Dinv         ! Inverse of RAP diagonal blocks (dim = nq x nq x ngroups)
-        real(p2), dimension(:,:),   pointer :: restricted_res   ! R*(A*x + b), dimension (nq x ngroups)
-        real(p2), dimension(:,:),   pointer :: restricted_correction ! Correction of the restricted linear system 
-
-
-
-        ! Initialize some variables
-        omega_lrelax         = one
-        
         ! Initialize the correction
         correction = zero
 
-        relax : do ii =  1,lrelax_sweeps
-            ! Perform Sweep
-            if ( trim(smoother) =='gs' ) then
-                call gauss_seidel_sweep(num_eq,ncells,res,V,C,R,Dinv,omega_lrelax,correction, linear_res_norm)
-            else
-                write(*,*) " Sorry, only 'gs' is available at the moment..."
-                write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop."
-                stop
-            endif
+        base_level = build_amg_struct(V,C,R,Dinv)
+        base_level%ncells = ncells
 
-            ! Check residual for convergence 
-            ! After the first iteration
-            if (ii == 1) then
-                linear_res_norm_init = linear_res_norm
-                ! check for convergence to machine tolerance
-                if ( maxval(linear_res_norm(:)) < my_eps ) then
-                    lrelax_sweeps_actual = ii
-                    stat = RELAX_SUCCESS
-                    exit relax
-                endif
-            else
-                roc = maxval(linear_res_norm(1:5)/linear_res_norm_init(1:5))
-                if (roc < lrelax_tolerance) then
-                    ! if converged
-                    lrelax_sweeps_actual = ii
-                    stat = RELAX_SUCCESS
-                    exit relax
-                elseif ( roc > DIVERGENCE_TOLERANCE ) then
-                    ! residual has diverged
-                    lrelax_sweeps_actual = -1
-                    stat = RELAX_FAIL_DIVERGE
-                    exit relax
-                endif
-            endif
+        amg_cycles : do icycle = 1,max_amg_cycles
+
+            call linear_sweeps(num_eq,base_level,res,cycle_type,1,correction,linear_res_norm,stat)
             
-            ! ******
-            ! 
-            ! Algebraic multigrid goes here
-            ! 
-            ! ******
-            if ( use_amg .AND. level < max_amg_levels .AND. ii >= pre_sweeps .AND. direction == UP) then
-                level = level + 1
-                ! Restrict the current linear system
-                call algebraic_multigrid_restrict(ncells,num_eq,correction,V,C,R,nnz,res,level, & ! input
-                                                ngroup,nnz_restrict,prolongC,RAP_V,RAP_C,RAP_R,RAP_Dinv,restricted_res) ! output
-
-                ! prepare the restricted correction
-                allocate(restricted_correction(num_eq,ngroup))
-                
-                ! Recursively call the linear solver
-                call linear_sweeps(ngroup,num_eq,nnz_restrict,RAP_V,RAP_C,RAP_R,restricted_res,RAP_Dinv, & ! input
-                                level,direction, & ! inout
-                                restricted_correction,stat) ! Output
-
-                ! Prolong the restricted correction back to its original length
-                call algebraic_multigrid_prolong(ncells,prolongC,restricted_correction,correction)
-
-                level = level - 1
-                direction = DOWN
-
-                ! Make sure all of the allocated arrays are deallocated
-                if (associated(RAP_V))        deallocate(     RAP_V)
-                if (associated(RAP_C))        deallocate(     RAP_C)
-                if (associated(RAP_R))        deallocate(     RAP_R)
-                if (associated(RAP_Dinv))     deallocate(  RAP_Dinv)
-                if (associated(restricted_correction)) deallocate(restricted_correction)
-                if (associated(restricted_res)) deallocate(restricted_res)
-
+            ! Check for convergence
+            roc = maxval(linear_res_norm(1:5)/linear_res_norm_init(1:5))
+            if (roc < lrelax_tolerance) then
+                ! if converged
+                lrelax_sweeps_actual = icycle
+                stat = RELAX_SUCCESS
+                exit amg_cycles
+            elseif ( roc > DIVERGENCE_TOLERANCE ) then
+                ! residual has diverged
+                lrelax_sweeps_actual = -1
+                stat = RELAX_FAIL_DIVERGE
+                exit amg_cycles
             endif
-        end do relax
+        end do amg_cycles
+
+
         if ( roc > lrelax_tolerance .AND. roc < DIVERGENCE_TOLERANCE ) then 
             ! If we make it here the sweeps did not converge
             stat = RELAX_FAIL_STALL
         endif
-        
         lrelax_roc = roc
+
+        ! Destroy the amg levels
+        if (keep_A) then
+            if ( associated(base_level%V) )     nullify(base_level%V)
+            if ( associated(base_level%C) )     nullify(base_level%C)
+            if ( associated(base_level%R) )     nullify(base_level%R)
+            if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
+        endif
+        call amg_destroy(base_level)
+
+    end subroutine multilevel_cycle
+
+    recursive subroutine linear_sweeps(num_eq,solve_level,res,cycle_type,level,correction,l1_res_norm,stat)
+
+        use common          , only : p2, zero, one, half, two, my_eps
+
+        use config          , only : lrelax_sweeps, solver_type, lrelax_tolerance, &
+                                     use_amg, max_amg_levels, pre_sweeps, post_sweeps, min_amg_blcoks
+
+        use utils           , only : ismoother, SMOOTH_GS
+        use sparse_matrix   , only : sparseblock_times_vectorblock
+
+        use gauss_seidel    , only : FORWARD, BACKWARD, gauss_seidel_sweep
+
+        use algebraic_multigird , only : algebraic_multigrid_prolong, UP, DOWN, convert_amg_c_to_i, & !,algebraic_multigrid_restrict
+                                         AMG_F, AMG_W, AMG_V, amg_restric_rs, amg_level_type, build_amg_struct
+
+        use ruge_stuben , only : rs_agglom
+
+        implicit none
+        
+        ! integer, intent(in)                                 :: ncells
+        integer,                        intent(in)      :: num_eq
+        type(amg_level_type), target,   intent(inout)   :: solve_level
+        real(p2), dimension(:,:),       intent(in)      :: res  ! RHS (= -b)
+        integer,                        intent(in)      :: level
+        integer,                        intent(in)      :: cycle_type
+        
+        real(p2), dimension(:,:),       intent(inout)   :: correction
+
+        integer,                        intent(out)     :: stat ! Return 
+        real(p2), dimension(:) ,        intent(out)     :: l1_res_norm
+
+        ! Residual norms(L1,L2,Linf)
+        real(p2), dimension(num_eq)    :: linear_res_norm
+
+        integer                     :: isweep
+
+        ! Under-relaxation parameter
+        real(p2) :: omega_lrelax
+
+        type(amg_level_type), pointer :: coarse_level
+
+        ! Variables to be computed by restricted multigrid
+        integer                             :: nnz_restrict     ! number of non-zero entries in restricted matrix
+        real(p2), dimension(:,:),   pointer :: restricted_res   ! R*(A*x + b), dimension (nq x ngroups)
+        real(p2), dimension(:,:),   pointer :: restricted_correction ! Correction of the restricted linear system 
+
+        ! Ensure the RAP pointers are not in an undefined state:
+        nullify(restricted_correction)
+        nullify(restricted_res)
+
+        ! Initialize some variables
+        omega_lrelax         = one
+
+        pre_sweeps  = max(0,pre_sweeps) ! I use the sweeps to calculate the residual norm
+        post_sweeps = max(1,pre_sweeps + post_sweeps) ! we need at least one total sweep
+
+        ! Pre-sweeps
+        pre_sweep_loop : do isweep = 1,pre_sweeps
+            ! Perform sweeps
+            select case(ismoother)
+            case(SMOOTH_GS)
+                call gauss_seidel_sweep(num_eq,solve_level%ncells,res,solve_level%V,solve_level%C,solve_level%R,solve_level%Dinv, &
+                                        omega_lrelax,correction, linear_res_norm)
+            case default
+                write(*,*) " Sorry, only 'gs' is available at the moment..."
+                write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop. linear_solver.f90"
+                stop
+            end select
+
+        end do pre_sweep_loop
+
+        ! Restrict system
+        if (use_amg .and. level < max_amg_levels .and. solve_level%ncells > min_amg_blcoks) then
+            ! Restrict the current linear system
+            call amg_restric_rs(num_eq,correction,solve_level,res,level, & ! input
+                                            nnz_restrict,coarse_level,restricted_res) ! output
+            
+            ! prepare the restricted correction
+            allocate(restricted_correction(num_eq,coarse_level%ncells))
+
+            ! Initialize the restricted correction
+            restricted_correction = zero 
+
+            ! Recursively call the linear solver on the restricted system
+            call linear_sweeps(num_eq,coarse_level,restricted_res,cycle_type,level + 1,& ! input
+                            restricted_correction, & ! inout
+                            linear_res_norm,stat)    ! Output
+            
+            ! For the F and W cycles, recursively call the AMG solver again.
+            select case(cycle_type)
+            case(AMG_F)
+                ! Recursively call the linear solver
+                call linear_sweeps(num_eq,coarse_level,restricted_res,AMG_V,level + 1, & ! input
+                                    restricted_correction, & ! inout
+                                    linear_res_norm,stat) ! Output
+            case(AMG_W)
+                ! Recursively call the linear solver
+                call linear_sweeps(num_eq,coarse_level,restricted_res,cycle_type,level + 1,&!input
+                                restricted_correction,& ! inout
+                                linear_res_norm,stat) ! Output
+            end select
+            
+            ! Prolong the restricted correction back to its original length
+            call algebraic_multigrid_prolong(solve_level%ncells,coarse_level%prolongC,restricted_correction,correction)
+
+        end if
+
+        ! Post-sweeps
+        post_sweep_loop : do isweep = 1,post_sweeps
+            ! Perform sweeps
+            select case(ismoother)
+            case(SMOOTH_GS)
+                call gauss_seidel_sweep(num_eq,solve_level%ncells,res,solve_level%V,solve_level%C,solve_level%R,solve_level%Dinv, &
+                                        omega_lrelax,correction, linear_res_norm)
+                case default
+                    write(*,*) " Sorry, only 'gs' is available at the moment..."
+                    write(*,*) " Set lrelax_scheme = 'gs', and try again. Stop. linear_solver.f90"
+                    stop
+                end select
+
+        end do post_sweep_loop
+        
+        ! Make sure all of the allocated arrays are deallocated
+        if (associated(restricted_correction))  deallocate(restricted_correction)
+        if (associated(restricted_res))         deallocate(restricted_res)
+
+        l1_res_norm = linear_res_norm
 
     end subroutine linear_sweeps
 
-    subroutine build_Dinv_array(ncells,nq,jac,D_inv)
+    subroutine build_Dinv_array(ncells,jac,D_inv)
         ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
         ! so the other two indices do not need to be stored.
         use common      , only : p2, zero
@@ -211,11 +287,10 @@ module linear_solver
         use solution    , only : jacobian_type
 
         implicit none
-        integer, intent(in) :: ncells
-        integer, intent(in) :: nq
-        type(jacobian_type), dimension(ncells), intent(in) :: jac
+        integer,                            intent(in) :: ncells
+        type(jacobian_type), dimension(:),  intent(in) :: jac
         
-        real(p2), dimension(nq,nq,ncells), INTENT(OUT) :: D_inv
+        real(p2), dimension(:,:,:),         INTENT(OUT) :: D_inv
         
 
         integer :: i
@@ -240,14 +315,14 @@ module linear_solver
 
         implicit none 
 
-        integer, intent(in) :: ncells
-        type(cc_data_type), dimension(ncells), intent(in) :: cell
-        type(jacobian_type), dimension(ncells), intent(in) :: jac
+        integer,                             intent(in) :: ncells
+        type(cc_data_type),  dimension(:),   intent(in) :: cell
+        type(jacobian_type), dimension(:),   intent(in) :: jac
 
-        real(p2), dimension(:,:,:), allocatable, intent(out)  :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer, dimension(:),  allocatable, intent(out)       :: C   ! Column index of each value
-        integer,dimension(ncells+1), intent(out) :: R   ! Start index of each new row
-        integer, INTENT(OUT), optional :: nnz
+        real(p2), dimension(:,:,:), pointer, intent(out) :: V   ! Values (5x5 block matrix) plus corresponding index
+        integer,  dimension(:),     pointer, intent(out) :: C   ! Column index of each value
+        integer,  dimension(:),              intent(out) :: R   ! Start index of each new row
+        integer, optional,                   INTENT(OUT) :: nnz
 
         integer :: i, j, length
 
@@ -274,6 +349,7 @@ module linear_solver
                 end if
             end do
         end do
+
     end subroutine build_A_BCSM
 
 end module linear_solver

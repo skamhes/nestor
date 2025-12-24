@@ -8,6 +8,8 @@ module gradient
 
     public compute_gradient
 
+    public set_ghost_values
+
     contains
 
     subroutine init_gradients
@@ -20,21 +22,24 @@ module gradient
 
         use common        , only : p2, zero
 
+        use utils         , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
+
         !use grid          , only : nnodes, ncells
 
 
         implicit none
         
-        if (trim(grad_method) == 'lsq') then
+        select case(igrad_method)
+        case(GRAD_LSQ)
             ! Build LSQ Stencil and coefficients
             call construct_lsq_stencil
-            if (trim(lsq_stencil) == 'w_vertex') then
+            if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
                 ! Gradient arrays are allocated in solution subroutine
                 write(*,*)
                 write(*,*) 'Initializing gradient vertex arrays.'
                 vgradq = zero
             endif
-        endif
+        end select
 
         ! Initialize the cell centered array always
         write(*,*)
@@ -52,6 +57,8 @@ module gradient
         use common          , only : p2, zero
 
         use config          , only : grad_method, lsq_stencil
+        
+        use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
         use solution        , only : ccgradq, vgradq
 
@@ -65,15 +72,24 @@ module gradient
         
         ccgradq = zero
 
-        if (trim(grad_method) == 'lsq') then
-            if (trim(lsq_stencil) == 'w_vertex') then
+        select case(igrad_method)
+        case(GRAD_LSQ)
+            lsq : select case(ilsq_stencil)
+            case(LSQ_STENCIL_WVERTEX) lsq
                 vgradq = zero
-
                 call compute_vgradient
-            end if
-        else
+            case(LSQ_STENCIL_NN) lsq
+                call compute_cgradient(weight)
+            case default lsq
+                write(*,*) 'Unsupported gradient methodstencil.'
+                write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
+                stop    
+            end select lsq
+        case default
             write(*,*) 'Unsupported gradient method.'
-        endif
+            write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
+            stop
+        end select
 
         
 
@@ -83,13 +99,15 @@ module gradient
         
         use common          , only : p2, zero
 
-        use grid            , only : ncells, nnodes, bc_type, bound, cell
+        use grid            , only : ncells, nnodes, bound, cell
 
-        use least_squares   , only : lsq, INTERNAL
+        use least_squares   , only : lsqv, INTERNAL
 
         use solution        , only : ccgradq, vgradq, nq, q
 
         use bc_states       , only : get_right_state
+
+        use utils           , only : ibc_type
 
         implicit none
 
@@ -104,42 +122,42 @@ module gradient
 
         vertex_loop : do i = 1, nnodes
             var_loop : do ivar = 1, nq
-                if (lsq(i)%btype /= INTERNAL ) then ! boundary vertex
-                    bound_int = lsq(i)%btype
+                if (lsqv(i)%btype /= INTERNAL ) then ! boundary vertex
+                    bound_int = lsqv(i)%btype
                     call boundary_value(bound_int,ivar, unknowns, qi)
                 endif
-                attach_loop : do k = 1,lsq(i)%ncells_lsq
+                attach_loop : do k = 1,lsqv(i)%ncells_lsq
                     ! Get q at the neighboring cell (qk)
-                    if (lsq(i)%ib_lsq(k) == INTERNAL) then
-                        attached_cell = lsq(i)%cell_lsq(k)   
+                    if (lsqv(i)%ib_lsq(k) == INTERNAL) then
+                        attached_cell = lsqv(i)%cell_lsq(k)   
                         qk = q(ivar,attached_cell)
                     else ! BVERT
-                        attached_bface = lsq(i)%cell_lsq(k)
-                        ib            = lsq(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
+                        attached_bface = lsqv(i)%cell_lsq(k)
+                        ib            = lsqv(i)%ib_lsq(k) ! this is the ib of the ghost cell (0 if internal)
                         attached_cell  = bound(ib)%bcell(attached_bface) 
                         qL = q(:,attached_cell)
                         bface_nrml = bound(ib)%bface_nrml(:,attached_bface)
                         ! This is somewhat redundant.  At some point I should improve it...
-                        call get_right_state(qL,bface_nrml, bc_type(ib), qcB)
+                        call get_right_state(qL,bface_nrml, ibc_type(ib),qcB)
                         qk = qcB(ivar)
                     endif
                     if ( unknowns == 3) then
-                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx3(k) * (qk - qi)
-                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy3(k) * (qk - qi)
-                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz3(k) * (qk - qi)
+                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsqv(i)%cx3(k) * (qk - qi)
+                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsqv(i)%cy3(k) * (qk - qi)
+                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsqv(i)%cz3(k) * (qk - qi)
                     else
-                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsq(i)%cx4(k) * qk
-                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsq(i)%cy4(k) * qk
-                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsq(i)%cz4(k) * qk
+                        vgradq(1,ivar,i) = vgradq(1,ivar,i) + lsqv(i)%cx4(k) * qk
+                        vgradq(2,ivar,i) = vgradq(2,ivar,i) + lsqv(i)%cy4(k) * qk
+                        vgradq(3,ivar,i) = vgradq(3,ivar,i) + lsqv(i)%cz4(k) * qk
                     endif
                 end do attach_loop
 
             end do var_loop    
 
             ! Add the vertex grad to each cell
-            do k = 1,lsq(i)%ncells_lsq
-                if ( lsq(i)%ib_lsq(k) == INTERNAL ) then
-                    attached_cell = lsq(i)%cell_lsq(k)
+            do k = 1,lsqv(i)%ncells_lsq
+                if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then
+                    attached_cell = lsqv(i)%cell_lsq(k)
                     ccgradq(:,:,attached_cell) = ccgradq(:,:,attached_cell) + vgradq(:,:,i)
                 endif
             enddo
@@ -152,12 +170,75 @@ module gradient
 
     end subroutine compute_vgradient
 
+    subroutine compute_cgradient(weight)
+
+        use common , only : p2, ix, iy, iz
+
+        use grid , only : nb, gcell, bound, ncells
+
+        use solution , only : q, ccgradq, nq, nlsq
+
+        use utils , only : ibc_type
+
+        use least_squares , only : lsqc
+        
+        implicit none
+
+        integer, intent(in) :: weight
+
+        integer :: ib, j, icell, kcell, jvar
+        integer :: c1
+        integer :: ck, ci
+
+        real(p2), dimension(3) :: unit_face_normal
+        real(p2), dimension(5) :: q1, qb
+        real(p2), dimension(5) :: qk, qi, dq
+        real(p2)               :: qk_j
+
+        real(p2) :: dqx, dqy, dqz
+        real(p2), dimension(3) :: dqf
+
+        do icell=1,ncells
+            qi = q(:,icell)
+            do kcell = 1,lsqc(icell)%n_nnghbrs
+                ck = lsqc(icell)%nghbr_lsq(kcell)
+                qk = q(:,ck)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5 ! Hard code for loop unrolling
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(jvar)
+                end do
+                ! The loop unroller seems to be smarter than me doing this manually
+                ! ccgradq(:,1,icell) = ccgradq(:,1,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(1)
+                ! ccgradq(:,2,icell) = ccgradq(:,2,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(2)
+                ! ccgradq(:,3,icell) = ccgradq(:,3,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(3)
+                ! ccgradq(:,4,icell) = ccgradq(:,4,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(4)
+                ! ccgradq(:,5,icell) = ccgradq(:,5,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(5)
+            end do
+            do kcell = 1,lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,kcell)
+                ib = lsqc(icell)%gcells(2,kcell)
+                qk = gcell(ib)%q(:,ci)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
+                end do
+                ! ccgradq(:,1,icell) = ccgradq(:,1,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(1)
+                ! ccgradq(:,2,icell) = ccgradq(:,2,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(2)
+                ! ccgradq(:,3,icell) = ccgradq(:,3,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(3)
+                ! ccgradq(:,4,icell) = ccgradq(:,4,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(4)
+                ! ccgradq(:,5,icell) = ccgradq(:,5,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(5)
+            end do
+        end do
+
+
+    end subroutine compute_cgradient
+
     subroutine boundary_value(boundary_type, scalar, known, value)
         use common          , only : p2, zero
 
         use solution        , only : p_inf, u_inf, v_inf, w_inf, T_inf
-
-        use grid            , only : bc_type
 
         use least_squares   , only : FREE_STREAM, SLIP_WALL, NO_SLIP_WALL, PRESSURE_OUTLET
 
@@ -203,4 +284,38 @@ module gradient
     end select
         
     end subroutine boundary_value
+
+    subroutine set_ghost_values
+
+        use solution , only : q
+
+        use bc_states , only : get_right_state
+                
+        use grid     , only : nb, bound, gcell
+
+        use common   , only : p2
+
+        use utils    , only : ibc_type
+
+        implicit none
+
+        integer  :: c1
+        integer  :: ib, j
+        
+        real(p2), dimension(5) :: q1, qb
+        real(p2), dimension(3) :: unit_face_normal
+
+         ! First update the ghost cell values
+        do ib = 1,nb
+            do j=1,bound(ib)%nbfaces
+                c1 = bound(ib)%bcell(j)
+                unit_face_normal = bound(ib)%bface_nrml(:,j)
+                q1 = q(:,c1)
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                gcell(ib)%q(:,j) = qb
+            end do
+        end do
+
+    end subroutine set_ghost_values
+
 end module gradient

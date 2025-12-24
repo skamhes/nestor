@@ -1,12 +1,12 @@
 &project
-  project_name = "none"
+  project_name = "quad_3d"
   second_namelist = "grids/flat_plate/final_grids/nestor.nml"
-  io_path = "grids/flat_plate/final_grids/"
+  ! io_path = "grids/cylinder/final_grids/"
   /
 
 &inputoutput
   generate_tec_file_b = .true.
-    drag = .true.
+    !drag = .true.
   area_reference = 1.0
   /
    
@@ -15,20 +15,15 @@
   /
 
 &solver
-  CFL = 1000000
-  solver_type = "implicit"
-  perturb_initial = .false.
-  solver_tolerance = 1e-12
+  CFL = 1
+  solver_type = "gcr"
+  perturb_initial = .true.
+  solver_tolerance = 1e-2
   solver_max_itr = 1000
   method_inv_flux = "roe_lm_w"
    method_inv_jac = "roe_lm_w"
-!  method_inv_flux = "roe"
-!   method_inv_jac = "roe"
-! variable_ur = 0.5, 0.5, 0.5, 0.5, 0.5
-! variable_ur = 0.2, 0.2, 0.2, 0.2, 0.2
-! variable_ur = 0.8, 0.8, 0.8, 0.8, 0.8
-  eps_weiss_smith = 0.001
-  entropy_fix = 'harten'
+gcr_max_projections = 20
+gcr_reduction_target = 0.05
   /
 
 &amg
@@ -43,10 +38,14 @@
 
 &gradient
   accuracy_order = 2
-  use_limiter    = .false.
+  use_limiter    = .true.
+  lsq_stencil    = 'nn' ! node neighbor
   /
 
 &turbulence
-  turbulence_type = 'viscous'
+  !turbulence_type = 'viscous'
   /
 
+&debug
+  !gcr_verbosity = 4
+  /

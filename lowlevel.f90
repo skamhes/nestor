@@ -83,4 +83,21 @@ module lowlevel
     end subroutine my_alloc_int_ptr
     !********************************************************************************
 
+    subroutine ip_swap(ix,iy)
+
+        implicit none
+
+        integer, dimension(:), pointer, intent(inout) :: ix, iy
+
+        integer, dimension(:), pointer :: itmp
+
+        itmp => ix
+
+        ix => iy
+        iy => itmp
+
+        nullify(itmp)
+
+    end subroutine ip_swap
+
 end module lowlevel

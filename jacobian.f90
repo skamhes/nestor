@@ -14,15 +14,17 @@ module jacobian
     subroutine compute_jacobian
 
         use common              , only : p2, zero, half, one
-        use config              , only : turbulence_type, method_inv_jac, eps_weiss_smith, method_inv_flux
+        use utils               , only : iturb_type, TURB_INVISCID, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
+        
+        use config              , only : method_inv_jac, eps_weiss_smith, method_inv_flux
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
                                          face_nrml_mag, face_nrml, &
-                                         bound, nb, bc_type
+                                         bound, nb
 
         use solution            , only : q, gamma, gammamo, gmoinv, dtau, jac, &
-                                         kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, ur2
+                                         kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, compute_primative_jacobian, ur2
 
         use interface_jacobian  , only : interface_jac
 
@@ -34,19 +36,16 @@ module jacobian
 
         implicit none
         ! Local Vars
-        integer                     :: c1, c2, i, k, ib, idestat, j, os, ii,jj, nk
-        real(p2), dimension(3)      :: unit_face_nrml, bface_centroid, ds, d_Cb, ejk
-        real(p2), dimension(5)      :: u1, u2, ub, wb, qb, q1
+        integer                     :: c1, c2, i, k, ib, idestat, j, nk
+        real(p2), dimension(3)      :: unit_face_nrml, bface_centroid
+        real(p2), dimension(5)      :: qb, q1
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
         real(p2), dimension(5,5)    :: dFnduL, dFnduR
-        real(p2)                    :: face_mag, mag_ds, mag_ejk
-        real(p2)                    :: xc1,xc2,yc1,yc2,zc1,zc2
+        real(p2)                    :: face_mag
 
-        real(p2), dimension(5,5)    :: preconditioner, pre_inv
-        real(p2), dimension(5,5)    :: duLdqL, duRdqR
-        real(p2)                    :: theta
-        real(p2)                    :: rho_p, rho_T, rho
-        real(p2)                    :: H, alpha, beta, lambda, absu, UR2inv
+        real(p2), dimension(3,5) :: dummy1, dummy2
+
+        real(p2), dimension(5,5)    :: preconditioner
         real(p2)                    :: ur21, ur22
         integer                     :: face_sides
 
@@ -86,7 +85,7 @@ module jacobian
             k = kth_nghbr_of_2(i)
             jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
 
-            if ( trim(turbulence_type) == 'inviscid' ) cycle loop_faces
+            if ( iturb_type == TURB_INVISCID ) cycle loop_faces
 
             gradq1 = ccgradq(1:3,1:5,c1)
             gradq2 = ccgradq(1:3,1:5,c2)
@@ -119,7 +118,7 @@ module jacobian
 
                 q1 = q(:,c1)
                 
-                call get_right_state(q1, unit_face_nrml, bc_type(ib), qb)
+                call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
 
                 if(trim(method_inv_jac)=="roe_lm_w") then
                     uR21 = ur2(c1)
@@ -132,17 +131,21 @@ module jacobian
                 ! We only have a diagonal term to add
                 jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
 
-                if ( trim(turbulence_type) == 'inviscid' ) cycle bfaces_loop
+                if ( iturb_type == TURB_INVISCID ) cycle bfaces_loop
 
                 face_sides = bound(ib)%bfaces(1,i)
 
-                gradqb = zero
-                do k = 1,face_sides
-                    nk = bound(ib)%bfaces(k + 1,i)
-                    gradqb = gradqb + vgradq(:,:,nk)
-                end do
-                gradqb = gradqb / real(face_sides, p2)
-
+                if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                    gradqb = zero
+                    do k = 1,face_sides
+                        nk = bound(ib)%bfaces(k + 1,i)
+                        gradqb = gradqb + vgradq(:,:,nk)
+                    end do
+                    gradqb = gradqb / real(face_sides, p2)
+                else ! ilsq_stencil == LSQ_STENCIL_NN
+                    gradqb = ccgradq(1:3,1:5,c1)
+                endif
+                
                 call visc_flux_boundary_ddt(q1,qb,gradqb,unit_face_nrml, &
                                   cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                   bface_centroid(1),bface_centroid(2),bface_centroid(3), &
@@ -158,26 +161,10 @@ module jacobian
         ! Now we need to add the pseudo time vol/dtau to the diagonal term along with the jacobian
         ! DQ/DW and generate the inverse diagonal block
         do i = 1,ncells
-            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
-            rho_p = gamma/q(5,i)
-            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
-            rho = q(1,i)*gamma/q(5,i)
-            if(trim(method_inv_flux)=="roe_lm_w") then
-                UR2inv = one / ur2(i)
-            else
-                UR2inv = one 
-            end if
-            theta = (UR2inv) - rho_T*(gammamo)/(rho)
+            preconditioner = compute_primative_jacobian(q(:,i))
+
+            jac(i)%diag = jac(i)%diag + (cell(i)%vol/dtau(i))*preconditioner
             
-            ! Note transposing this assignment would likely be marginally faster if slightly less easy to read
-            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                /)
-            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)         /)
-            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)         /)
-            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)         /)
-            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho*gmoinv /)
-
-            jac(i)%diag(:,:) = jac(i)%diag(:,:) + (cell(i)%vol/dtau(i))*preconditioner(:,:)
-
             ! Invert the diagonal
             idestat = 0
             !                A                 dim  A^{-1}           error check

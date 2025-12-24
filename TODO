@@ -1,2 +1,5 @@
 Allocate jacobian in a jacobian module (was in the construct grid data which doesn't make sense now)
 Poetentially add weighting to the cell gradient average step.
+
+
+Idea for speeding up the gradient computation: vecotrize the lsq computations.  Need to think about the structure of this a little.

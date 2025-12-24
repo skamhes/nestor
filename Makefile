@@ -13,12 +13,11 @@
 FC = gfortran
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
- FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
+# FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
-		 -fbacktrace -fall-intrinsics
+		 -fbacktrace -fall-intrinsics -Wargument-mismatch
 # FFLAGS = -O2 -pg
-# FFLAGS = -O3
-
+FFLAGS = -g -pg -O3 -march=native
 ##########################################################
 # VPATH = ..
 ##########################################################
@@ -41,7 +40,9 @@ FC = gfortran
 SDIR = .
 
 OBCTS = $(SDIR)/lowlevel.o\
+		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
+		$(SDIR)/sort_routines.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
 		$(SDIR)/grid_statistics.o\
@@ -62,13 +63,15 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/limiter.o\
 		$(SDIR)/residual.o\
 		$(SDIR)/gauss_seidel.o\
+		$(SDIR)/ruge_stuben.o\
 		$(SDIR)/algebraic_multigrid.o\
 		$(SDIR)/linear_solver.o\
 		$(SDIR)/interface_jacobian.o\
 		$(SDIR)/jacobian.o\
 		$(SDIR)/force.o\
+		$(SDIR)/gcr.o\
 		$(SDIR)/steady_solver.o\
-	        $(SDIR)/nestor.o
+		$(SDIR)/nestor.o
 ##########################################################
 # Make all
 # This target doesnt actually get used it just exists to 

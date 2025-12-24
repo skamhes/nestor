@@ -12,6 +12,8 @@ module forces
 
         use config      , only : drag, lift, accuracy_order, turbulence_type, M_inf, Re_inf, sutherland_constant, reference_temp
 
+        use utils       , only : ibc_type, BC_VISC_STRONG, iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX
+
         use grid        , only : bound, nb, bc_type, cell
 
         use solution    , only : q, force_drag, force_lift, ndim, ccgradq, force_normalization, &
@@ -48,7 +50,8 @@ module forces
 
         boundary_loop : do ib = 1,nb
             ! Only walls:
-            if ( .NOT. (trim(bc_type(ib)) == 'no_slip_wall' .OR. trim(bc_type(ib)) == 'slip_wall' ) ) then
+            if ( .NOT. (ibc_type(ib) == BC_VISC_STRONG .OR. trim(bc_type(ib)) == 'slip_wall' ) ) then
+                ! Only one of these is integers for now.  We don't have a unique int for slip walls...
                 cycle boundary_loop
             endif
 
@@ -68,16 +71,21 @@ module forces
                 bface_normal = bound(ib)%bface_nrml(:,i)
                 bface_mag    = bound(ib)%bface_nrml_mag(i)
 
-                if ( trim(turbulence_type) /= 'inviscid' ) then
+                if ( iturb_type > TURB_INVISCID ) then
                     face_sides = bound(ib)%bfaces(1,i)
 
-                    bface_grad = zero
-                    do k = 1,face_sides
-                        nk = bound(ib)%bfaces(k + 1,i)
-                        bface_grad = bface_grad + vgradq(:,2:4,nk)
-                    end do
-                    bface_grad = bface_grad / real(face_sides, p2)
-                    
+                    if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                        bface_grad = zero
+                        do k = 1,face_sides
+                            nk = bound(ib)%bfaces(k + 1,i)
+                            bface_grad = bface_grad + vgradq(:,2:4,nk)
+                        end do
+                        bface_grad = bface_grad / real(face_sides, p2)
+                    else
+                        bface_grad = ccgradq(1:3,2:4,ci)
+                        ! This seems to be less accurate as the cell centered gradient is influenced by flow values farther from
+                        ! the wall
+                    endif
                     stress_tensor = compute_tau_wall(q(5,ci),bface_grad)
                     
                     bface_shear = matmul(stress_tensor,bface_normal)
@@ -85,13 +93,13 @@ module forces
 
                 if ( lift ) then
                     pforce_lift = pforce_lift + face_pressure * bface_mag * dot_product(bface_normal,vector_lift)
-                    if ( trim(turbulence_type) /= 'inviscid' ) then 
+                    if ( iturb_type > TURB_INVISCID ) then 
                         vforce_lift = vforce_lift - bface_mag * dot_product(bface_shear, vector_lift)
                     end if
                 endif
                 if ( drag ) then
                     pforce_drag = pforce_drag + face_pressure * bface_mag * dot_product(bface_normal,vector_drag)
-                    if ( trim(turbulence_type) /= 'inviscid' ) then 
+                    if ( iturb_type > TURB_INVISCID ) then 
                         vforce_drag = vforce_drag - bface_mag * dot_product(bface_shear, vector_drag)
                     end if
                 endif
@@ -163,7 +171,7 @@ module forces
         integer, parameter :: iz = 3
 
         C0= sutherland_constant/reference_temp
-        mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+        mu =  M_inf/Re_inf * (one + C0) / (T + C0)*T**(three_half)
 
         grad_u = face_grad(:,ix)
         grad_v = face_grad(:,iy)
