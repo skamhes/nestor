@@ -102,6 +102,8 @@ module interface_jacobian
         use ad_operators        ! all
 
         use config              , only : method_inv_jac
+
+        use utils               , only : imethod_inv_jac, IJAC_ROE_LM
         
         use ad_inviscid_flux    , only :      roe_lm_w_ddt
                                      
@@ -113,10 +115,10 @@ module interface_jacobian
         real(p2), dimension(3), intent(in) :: njk
         real(p2),               intent(in) :: ur2j, ur2k  ! reference velocity from cell(j) and neighbor (k)
 
-        real(p2), dimension(5,5), intent(out) :: dFndqL, dFndqR
+        real(p2), dimension(5,5), intent(out) :: dFnduL, dFnduR
 
         ! Local vavrs
-        real(p2), dimension(5,5)    :: dfndq
+        real(p2), dimension(5,5)    :: dfndu
         real(p2), dimension(5)      :: dummy5
         real(p2)                    :: wsn
         
@@ -140,9 +142,9 @@ module interface_jacobian
             !------------------------------------------------------------
             !  (1) Roe flux
             !------------------------------------------------------------
-            if(trim(method_inv_jac)=="roe") then
+            if(imethod_inv_jac == IJAC_ROE_LM) then
                     
-                call roe_ddt(uL_ddt,uR_ddt,njk, dummy5,dfndu,wsn)
+                call roe_lm_w_ddt(uL_ddt,uR_ddt,njk,ur2j,ur2k,dummy5,dfndu,wsn)
 
             ! !------------------------------------------------------------
             ! !  (2) Rusanov flux

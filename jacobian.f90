@@ -14,9 +14,10 @@ module jacobian
     subroutine compute_jacobian
 
         use common              , only : p2, zero, half, one
-        use utils               , only : iturb_type, TURB_INVISCID, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
+        use utils               , only : iturb_type, TURB_INVISCID, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX, &
+                                         imethod_inv_jac, IJAC_ROE_LM
         
-        use config              , only : method_inv_jac, eps_weiss_smith, method_inv_flux
+        use config              , only : eps_weiss_smith
 
         use grid                , only : ncells, nfaces, & 
                                          face, cell, &
@@ -64,7 +65,7 @@ module jacobian
             unit_face_nrml = face_nrml(1:3,i)
             face_mag       = face_nrml_mag(i)
 
-            if(trim(method_inv_jac)=="roe_lm_w") then
+            if(imethod_inv_jac == IJAC_ROE_LM) then
                 uR21 = ur2(c1)
                 uR22 = ur2(c2)
                 call interface_jac(q(:,c1), q(:,c2), unit_face_nrml, ur21, ur22, dFnduL, dFnduR)
@@ -120,7 +121,7 @@ module jacobian
                 
                 call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
 
-                if(trim(method_inv_jac)=="roe_lm_w") then
+                if(imethod_inv_jac == IJAC_ROE_LM) then
                     uR21 = ur2(c1)
                     !uR22 = ( min( max( eps_weiss_smith,sqrt(qb(2)**2 + qb(3)**2 + qb(4)**2) ), one) )**2
                     ur22 = ur21
@@ -158,10 +159,14 @@ module jacobian
         
         end do bound_loop
 
+        ur21 = one
         ! Now we need to add the pseudo time vol/dtau to the diagonal term along with the jacobian
         ! DQ/DW and generate the inverse diagonal block
         do i = 1,ncells
-            preconditioner = compute_primative_jacobian(q(:,i))
+            if(imethod_inv_jac == IJAC_ROE_LM) then
+                uR21 = ur2(i)
+            endif
+            preconditioner = compute_primative_jacobian(q(:,i), ur21)
 
             jac(i)%diag = jac(i)%diag + (cell(i)%vol/dtau(i))*preconditioner
             

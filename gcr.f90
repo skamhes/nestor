@@ -465,9 +465,11 @@ module gcr
 
         use common , only : p2, one
 
-        use solution , only : nq, q, res, dtau, compute_primative_jacobian
+        use solution , only : nq, q, res, dtau, compute_primative_jacobian, ur2
 
         use config , only : gcr_verbosity
+
+        use utils  , only : imethod_inv_flux, IFLUX_ROE_LM
 
         use grid , only : ncells, cell
 
@@ -485,6 +487,7 @@ module gcr
         real(p2), dimension(:,:), pointer :: r_0
         real(p2), dimension(5,5)          :: prim_jac
         real(p2)                          :: eps_frechet
+        real(p2)                          :: uR2i
         real(p2)                          :: frech_min_bound = 1.0e-07_p2
 
         integer :: icell
@@ -527,8 +530,12 @@ module gcr
         frechet_deriv = update_length * ( res - r_0 ) / eps_frechet
 
         ! write(*,*) "  Pre psuedo time:", l2norm(nq,ncells,frechet_deriv(:,:))
+        uR2i = one
         do icell = 1,ncells
-            prim_jac = compute_primative_jacobian(q(:,icell))
+            if(imethod_inv_flux == IFLUX_ROE_LM) then
+                uR2i = ur2(icell)
+            endif
+            prim_jac = compute_primative_jacobian(q(:,icell),uR2i)
             frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * matmul(prim_jac,sol_update(:,icell))
             ! frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * sol_update(:,icell)
         end do
@@ -606,7 +613,9 @@ module gcr
 
         use config , only : gcr_reduction_target
 
-        use solution , only : nq, q, res, compute_primative_jacobian, dtau, inv_ncells, compute_primative_jacobian
+        use utils  , only : imethod_inv_flux, IFLUX_ROE_LM
+
+        use solution , only : nq, q, res, compute_primative_jacobian, dtau, inv_ncells, compute_primative_jacobian, ur2
 
         use grid , only : ncells, cell
 
@@ -626,6 +635,7 @@ module gcr
         real(p2)                            :: f_0, f_1, g_1     ! terms in the optimization equation 22
         !real(p2), dimension(nq,ncells)      :: frechet_deriv
         real(p2)                            :: ur_opt, ur_min
+        real(p2)                            :: uR2i
 
         integer :: icell
 
@@ -642,9 +652,12 @@ module gcr
 
         call compute_residual
 
+        uR2i = one
+
         do icell = 1,ncells
+            if (imethod_inv_flux == IFLUX_ROE_LM) ur2i = ur2(icell)
             res(:,icell) = res(:,icell) + cell(icell)%vol/dtau(icell) *  &
-                            matmul( compute_primative_jacobian(q(:,icell)) , sol_update(:,icell) )
+                            matmul( compute_primative_jacobian(q(:,icell),uR2i) , sol_update(:,icell) )
         end do  
 
         residual_reduct_target = half * (one + gcr_reduction_target)
@@ -707,8 +720,8 @@ module gcr
         ur_min = ( one-residual_reduct_target ) / ( one - (gcr_res_rms/R0_rms) )
         ur_opt = min(max(ur_opt,ur_min) , one)
 
-        ! Because this passed the realizability check with ur = 1, we know -Q(j,i) < sol_update for j = 1,5 and any i.
-        ! Therefore if abs(ur_opt) < 1, we now the updated solution w/ under-relaxation will also be realizable.
+        ! Because this passed the realizability check with ur = 1, we know -Q(j,i) < sol_update for j = 1&5 and any i.
+        ! Therefore if abs(ur_opt) < 1, we know the updated solution w/ under-relaxation will also be realizable.
         q = q + ur_opt * sol_update
 
         ! Check convergence of the updated solution
@@ -716,8 +729,9 @@ module gcr
 
         ! Compute R_tau
         do icell = 1,ncells
+             if (imethod_inv_flux == IFLUX_ROE_LM) ur2i = ur2(icell)
             res(:,icell) = res(:,icell) + cell(icell)%vol/dtau(icell) * &
-                        matmul( compute_primative_jacobian(q(:,icell)) , sol_update(:,icell) )
+                        matmul( compute_primative_jacobian(q(:,icell),uR2i) , sol_update(:,icell) )
         end do  
 
         Rtau_rms = rms(nq,ncells,res,inv_ncells)
@@ -737,13 +751,15 @@ module gcr
 
     subroutine gcr_CFL_control(gcr_status)
 
-        use common          , only : p2, two
+        use common          , only : p2, two, one
         
         use config          , only : CFL, CFL_max, CFL_min
 
+        use utils           , only : imethod_inv_jac, IJAC_ROE_LM
+
         use grid            , only : ncells, cell
 
-        use solution        , only : jac, q, compute_primative_jacobian, nq, dtau, compute_local_time_step_dtau, CFL_used
+        use solution        , only : jac, q, compute_primative_jacobian, nq, dtau, compute_local_time_step_dtau, CFL_used, ur2
 
         use direct_solve    , only : gewp_solve
 
@@ -753,9 +769,12 @@ module gcr
 
         real(p2), dimension(nq,nq) :: preconditioner
 
+        real(p2)                   :: ur2i
+
         integer :: icell, k, j
         integer :: idestat
 
+        ur2i = one
 
         if (gcr_status == GCR_SUCCESS) then
             if (gcr_verbosity >= 3) then
@@ -772,7 +791,10 @@ module gcr
             gcr_status = GCR_SUCCESS
         else ! fail
             do icell = 1,ncells
-                preconditioner = compute_primative_jacobian(q(:,icell))
+                if(imethod_inv_jac == IJAC_ROE_LM) then
+                    uR2i = uR2(icell)
+                endif
+                preconditioner = compute_primative_jacobian(q(:,icell),uR2i)
 
                 ! we want to remove the pseudo transient term so that we can add it with a different CFL
                 jac(icell)%diag = jac(icell)%diag - (cell(icell)%vol/dtau(icell))*preconditioner
@@ -792,7 +814,8 @@ module gcr
 
             ! Update the jac_diag and jac_diag_inv
             do icell = 1,ncells
-                preconditioner = compute_primative_jacobian(q(:,icell))
+                if(imethod_inv_jac == IJAC_ROE_LM) uR2i = uR2(icell)
+                preconditioner = compute_primative_jacobian(q(:,icell),uR2i)
 
                 ! we want to remove the pseudo transient term so that we can add it with a different CFL
                 jac(icell)%diag = jac(icell)%diag + (cell(icell)%vol/dtau(icell))*preconditioner

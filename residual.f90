@@ -10,10 +10,10 @@ module residual
 
         use common          , only : p2, zero, half, one, two
 
-        use config          , only : method_inv_flux, accuracy_order, use_limiter, &
-                                     eps_weiss_smith, method_inv_jac,
+        use config          , only : accuracy_order, use_limiter, eps_weiss_smith
 
-        use utils           , only : iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
+        use utils           , only : iturb_type, TURB_INVISCID, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN, &
+                                     imethod_inv_flux, IFLUX_ROE_LM
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -92,7 +92,7 @@ module residual
         ! call compute_limiter_new
 
         ! Compute low mach reference velocity
-        if(trim(method_inv_flux)=="roe_lm_w" .OR. trim(method_inv_jac)=='roe_lm_w') call compute_uR2
+        if(imethod_inv_flux == IFLUX_ROE_LM) call compute_uR2
 
 
         !--------------------------------------------------------------------------------
@@ -151,7 +151,7 @@ module residual
             ! Face normal
             unit_face_normal = face_nrml(1:3,i)
             
-            if(trim(method_inv_flux)=="roe_lm_w") then
+            if(imethod_inv_flux == IFLUX_ROE_LM) then
                 uR21 = ur2(c1)
                 uR22 = ur2(c2)
             endif
@@ -197,7 +197,7 @@ module residual
                 ! Get the right hand state (weak BC!)
                 call get_right_state(qL, unit_face_normal, ibc_type(ib), qb)
                 
-                if(trim(method_inv_flux)=="roe_lm_w") then
+                if(imethod_inv_flux == IFLUX_ROE_LM) then
                     uR21 = ur2(c1)
                     ! At some point I will probably want to revisit this boundary treatment.  I'm not sure if it will cause issues 
                     ! for now...
@@ -206,6 +206,7 @@ module residual
 
                 call interface_flux(          qL,      qb, & !<- Left/right states
                                          unit_face_normal, & !<- unit face normal
+                                               ur21, ur22, &
                                         num_flux, wave_speed  )
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)

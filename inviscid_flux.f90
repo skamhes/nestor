@@ -293,19 +293,18 @@ module inviscid_flux
     !--------------------------------------------------------------------------------
 
 
-    subroutine roe_lm_w(ucL, ucR, ur2L, ur2R, njk, num_flux,wsn)
+    subroutine roe_lm_w(qcL, qcR, ur2L, ur2R, njk, num_flux,wsn)
 
-      use common      , only : half, one, two
+      use common      , only : half, one, two, p2
       use solution    , only : gamma, gammamo
-      use config      , only : eig_limiting_factor, entropy_fix
+      use config      , only : eig_limiting_factor
+      use utils       , only : ientropy_fix, IHARTEN, IMAVRIPLIS
      
       implicit none
      
-      integer , parameter :: p2 = selected_real_kind(15) ! Double precision
-     
       !Input
-      real(p2), dimension(5), intent( in) :: ucL !Left  state in conservative variables.
-      real(p2), dimension(5), intent( in) :: ucR !Right state in conservative variables.
+      real(p2), dimension(5), intent( in) :: qcL !Left  state in conservative variables.
+      real(p2), dimension(5), intent( in) :: qcR !Right state in conservative variables.
       real(p2),               intent( in) :: ur2L ! Left reference velocity
       real(p2),               intent( in) :: ur2R ! right reference velocity.
       real(p2), dimension(3), intent( in) :: njk
@@ -324,8 +323,8 @@ module inviscid_flux
       real(p2) :: rhoL, rhoR, pL, pR     ! Primitive variables.
       real(p2) :: qnL, qnR               ! Normal velocities
       real(p2) :: aL, aR, HL, HR         ! Speed of sound, Total enthalpy
-      real(p2), dimension(5)   :: fL     ! Physical flux evaluated at ucL
-      real(p2), dimension(5)   :: fR     ! Physical flux evaluated at ucR
+      real(p2), dimension(5)   :: fL     ! Physical flux evaluated at qcL
+      real(p2), dimension(5)   :: fR     ! Physical flux evaluated at qcR
 
       real(p2) :: RT                     ! RT = sqrt(rhoR/rhoL)
       real(p2) :: rho,u,v,w,H,a,qn,p     ! Roe-averages
@@ -351,23 +350,23 @@ module inviscid_flux
             
       !  Left state
            
-      rhoL = ucL(1)
-        uL = ucL(2)/ucL(1)
-        vL = ucL(3)/ucL(1)
-        wL = ucL(4)/ucL(1)
+      rhoL = qcL(1)*gamma / qcL(5)
+        pL = qcL(1)
+        uL = qcL(2)
+        vL = qcL(3)
+        wL = qcL(4)
        qnL = uL*nx + vL*ny + wL*nz
-        pL = (gammamo)*( ucL(5) - half*rhoL*(uL*uL+vL*vL+wL*wL) )
         aL = sqrt(gamma*pL/rhoL)
         HL = aL*aL/(gammamo) + half*(uL*uL+vL*vL+wL*wL)
 
       !  Right state
 
-      rhoR = ucR(1)
-        uR = ucR(2)/ucR(1)
-        vR = ucR(3)/ucR(1)
-        wR = ucR(4)/ucR(1)
+      rhoR = qcR(1)*gamma / qcR(5)
+        pR = qcR(1)
+        uR = qcR(2)
+        vR = qcR(3)
+        wR = qcR(4)
        qnR = uR*nx + vR*ny + wR*nz
-        pR = (gammamo)*( ucR(5) - half*rhoR*(uR*uR+vR*vR+wR*wR) )
         aR = sqrt(gamma*pR/rhoR)
         HR = aR*aR/(gammamo) + half*(uR*uR+vR*vR+wR*wR)
 
@@ -413,10 +412,10 @@ module inviscid_flux
         dp =   pR - pL   !Pressure difference
        dqn =  qnR - qnL  !Normal velocity difference (= delta_u in Weiss and Smith)
 
-      drhou = ucR(2) - ucL(2)
-      drhov = ucR(3) - ucL(3)
-      drhow = ucR(4) - ucL(4)
-      drhoE = ucR(5) - ucL(5)
+      drhou = qcR(2) - qcL(2)
+      drhov = qcR(3) - qcL(3)
+      drhow = qcR(4) - qcL(4)
+      drhoE = qcR(5) - qcL(5)
       absU  = abs(qn) ! wave speed one
 
       T = gamma * p / rho
@@ -431,12 +430,12 @@ module inviscid_flux
       ws2 = abs(uprime + cprime)
       ws3 = abs(uprime - cprime)
 
-      if (entropy_fix == 'harten') then
+      if (ientropy_fix == IHARTEN) then
         dws(:) = eig_limiting_factor(1:4)*a
         if (absU < dws(3))  absU = half * ( (absU**2)/(dws(3)*a) + (dws(3)*a) )
         if (ws2  < dws(1))  ws2  = half * ( (ws2**2) /(dws(1)*a) + (dws(1)*a) )
         if (ws3  < dws(2))  ws3  = half * ( (ws3**2) /(dws(2)*a) + (dws(2)*a) )
-      elseif (entropy_fix == 'mavriplis') then
+      elseif (ientropy_fix == IMAVRIPLIS) then
         ! https://doi.org/10.2514/6.2007-3955
         absU = max(absU,eig_limiting_factor(3)*ws2)
         ! ws2 = max(ws2,eig_limiting_factor(1)*ws2) ! not needed

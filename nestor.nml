@@ -1,6 +1,6 @@
 &project
   project_name = "quad_3d"
-  second_namelist = "grids/flat_plate/final_grids/nestor.nml"
+  ! second_namelist = "grids/flat_plate/final_grids/nestor.nml"
   ! io_path = "grids/cylinder/final_grids/"
   /
 
@@ -20,8 +20,8 @@
   perturb_initial = .true.
   solver_tolerance = 1e-2
   solver_max_itr = 1000
-  method_inv_flux = "roe_lm_w"
-   method_inv_jac = "roe_lm_w"
+  method_inv_flux = "roe_lm"
+   method_inv_jac = "roe_lm"
 gcr_max_projections = 20
 gcr_reduction_target = 0.05
   /
@@ -43,7 +43,7 @@ gcr_reduction_target = 0.05
   /
 
 &turbulence
-  !turbulence_type = 'viscous'
+  turbulence_type = 'laminar'
   /
 
 &debug

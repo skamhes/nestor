@@ -266,7 +266,7 @@ module steady_solver
 
         use common              , only : p2, half, one, zero
 
-        use config              , only : method_inv_flux
+        use utils               , only : imethod_inv_flux, IFLUX_ROE_LM
         
         use solution            , only : q, res, dtau, gammamo, gamma, gmoinv, ur2
 
@@ -287,7 +287,7 @@ module steady_solver
 
         do i = 1,ncells
             ! test for low mach
-            if(trim(method_inv_flux)=="roe_lm_w") then
+            if(imethod_inv_flux == IFLUX_ROE_LM) then
                 UR2inv = one / ur2(i)
             else
                 UR2inv = one 
@@ -319,7 +319,7 @@ module steady_solver
         call compute_residual
 
         do i = 1,ncells
-            if(trim(method_inv_flux)=="roe_lm_w") then
+            if(imethod_inv_flux == IFLUX_ROE_LM) then
                 UR2inv = one / ur2(i)
             else
                 UR2inv = one 
@@ -354,7 +354,7 @@ module steady_solver
 
         use common          , only : p2, half, one, zero
 
-        use config          , only : method_inv_flux
+        use utils           , only : imethod_inv_flux, IFLUX_ROE_LM
 
         use solution        , only : q, res, dtau, gammamo, gamma, gmoinv, ur2
 
@@ -374,7 +374,7 @@ module steady_solver
         ! Eventually we will be adding low-mach preconditioning so this allows for future adaptability
 
         do i = 1,ncells
-            if(trim(method_inv_flux)=="roe_lm_w") then
+            if(imethod_inv_flux == IFLUX_ROE_LM) then
                 UR2inv = one / ur2(i)
             else
                 UR2inv = one 

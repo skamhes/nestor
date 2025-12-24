@@ -108,7 +108,10 @@ module solution
     real(p2) :: nl_reduction
     integer  :: n_projections                   
 
-
+    interface compute_primative_jacobian
+        module procedure compute_primative_jacobian_std
+        module procedure compute_primative_jacobian_core
+    end interface compute_primative_jacobian
 
 
     ! Force values
@@ -137,7 +140,8 @@ module solution
                             gcr_max_projections, CFL
 
         use utils  , only : iturb_type, TURB_INVISCID, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
-                            igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
+                            igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX, &
+                            imethod_inv_flux, imethod_inv_jac, IFLUX_ROE_LM, IJAC_ROE_LM
 
         implicit none
 
@@ -164,9 +168,9 @@ module solution
             allocate(solution_update(nq,ncells))
         endif
 
-        if ( trim(method_inv_flux) == 'roe_lm_w' ) then
+        if ( imethod_inv_flux == IFLUX_ROE_LM ) then
             allocate(ur2(ncells))
-        elseif (trim(method_inv_jac) == 'roe_lm_w' ) then
+        elseif ( imethod_inv_jac == IJAC_ROE_LM) then
             write(*,*) "Weiss-Smith Low Mach Roe FDS can only be used for jacobians if it is also used for invicid flux."
             write(*,*) "method_inv_flux = ", trim(method_inv_flux)
             write(*,*) "method_inv_jac  = ", trim(method_inv_flux)
@@ -272,17 +276,28 @@ module solution
     
     end function q2u
 
-    pure function compute_primative_jacobian(qi) result(preconditioner)
+    pure function compute_primative_jacobian_std(qi) result(preconditioner)
+
+        use common , only : p2, one
+
+        real(p2), dimension(5),  intent(in) :: qi
+        real(p2), dimension(5,5)            :: preconditioner
+        
+        preconditioner = compute_primative_jacobian_core(qi, one)
+    end function compute_primative_jacobian_std
+
+    pure function compute_primative_jacobian_core(qi, uR2i) result(preconditioner)
 
         ! This function computes the Jacobian DU/DQ where U is the vector of conserved variables [rho rhoU rhoV rhoW rhoE] and W is
         ! the vector of primitive variables [p U V W T].  This is also written in a way that can allow implementation of Weiss-Smith
         ! Preconditioning
 
-        use common , only : p2, half
+        use common , only : p2, half, one
 
         implicit none
 
         real(p2), dimension(5),  intent(in) :: qi
+        real(p2),                intent(in) :: uR2i
         real(p2), dimension(5,5)            :: preconditioner
         
         real(p2), dimension(5,5) :: dwdq, pre_inv
@@ -293,7 +308,7 @@ module solution
         rho_p = gamma/qi(5)
         rho_T = - (qi(ip)*gamma)/(qi(iT)**2)
         rho = qi(ip)*gamma/qi(iT)
-        UR2inv = one ! will be 1/uR2(i)
+        UR2inv = one/uR2i
         theta = (UR2inv) - rho_T*(gammamo)/(rho)
         
         ! Note transposing this assignment would likely be marginally faster if slightly less easy to read
@@ -303,7 +318,7 @@ module solution
         preconditioner(4,:) = (/ theta*qi(iw),  zero,       zero,       rho,        rho_T*qi(iw)            /)
         preconditioner(5,:) = (/ theta*H-one,  rho*qi(iu), rho*qi(iv), rho*qi(iw), rho_T*H + rho/(gamma-one)/)
 
-    end function compute_primative_jacobian
+    end function compute_primative_jacobian_core
 
     subroutine compute_uR2
 
@@ -311,7 +326,7 @@ module solution
 
         use config , only : eps_weiss_smith, accuracy_order
 
-        use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
+        use config                  , only : Pr, ideal_gas_constant, Re_inf, M_inf
 
         use grid   , only : ncells, cell
 
@@ -321,28 +336,22 @@ module solution
 
         integer  :: icell
         real(p2) :: clength, dp, rho
-        real(p2) :: C0, mu, T
-        C0= sutherland_constant/reference_temp
+        real(p2) :: mu, T
 
         do icell = 1,ncells
-            ! if (accuracy_order == 2) then !dp term
-            !     ! clength = cell(icell)%vol**third
-            !     dp = abs (  sqrt(ccgradq(1,1,i)**2 + ccgradq(2,1,i)**2 + ccgradq(3,1,i)**2) )
-            !     rho = q(1,i) * gamma / q(5,i)
-            ! endif
-            ! ur2(i) = ( min( max( 0.001_p2, 0.1_p2 * sqrt(dp/rho),sqrt(q(2,i)**2 + q(3,i)**2 + q(4,i)**2) ), one) )**2
             clength = grid_spacing(icell)
             ! dp ~= dp/dx * dx ( just don't show this to a mathematician)
+            ! this represents the pressure change if you take a step of clength in the direction of the max gradient. Kinda gross...
             dp = clength * abs (  sqrt(ccgradq(1,1,icell)**2 + ccgradq(2,1,icell)**2 + ccgradq(3,1,icell)**2) )
             T = q(5,icell)
             rho = q(1,icell) * gamma / T
 
-            mu =  M_inf/Re_inf * (one + C0/T_inf) / (T + C0/T_inf)*T**(three_half)
+            mu =  M_inf/Re_inf * (one + C0) / (T + C0)*T**(three_half)
 
             ur2(icell) = ( min( max( eps_weiss_smith * sqrt(dp/rho), &
                                      mu/rho/clength , &
                                      sqrt(q(2,icell)**2 + q(3,icell)**2 + q(4,icell)**2) ), &
-                                     T ) )**2
+                            T ) )**2 ! Accoustic speed (a=T) is the upper limit
         end do
 
     end subroutine compute_uR2
@@ -365,9 +374,9 @@ module initialize
         use grid   , only : ncells
 
         use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
-                            high_ar_correction, method_inv_flux, method_inv_jac, sutherland_constant, reference_temp
+                            high_ar_correction, sutherland_constant, reference_temp
 
-        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT
+        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, imethod_inv_flux, IFLUX_ROE_LM
 
         use solution
 
@@ -408,7 +417,7 @@ module initialize
 
         C0 = sutherland_constant/reference_temp
 
-        if (trim(method_inv_flux) == 'roe_lm_w' .OR. trim(method_inv_jac) == 'roe_lm_w' ) then
+        if (imethod_inv_flux == IFLUX_ROE_LM) then
             call compute_grid_spacing
         endif
         

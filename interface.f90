@@ -13,7 +13,7 @@ module interface
 
         use config                 , only : accuracy_order
 
-        use utils                  , only : imethod_inv_flux, IFLUX_ROE
+        use utils                  , only : imethod_inv_flux, IFLUX_ROE, IFLUX_ROE_LM
 
         use solution               , only : q2u
 
@@ -43,8 +43,8 @@ module interface
         case(IFLUX_ROE)
             call roe(qL,qR,n12,num_flux,wsn)
 
-        elseif(trim(method_inv_flux)=="roe_lm_w") then
-            call roe_lm_w(uL,uR,ur2_1,ur2_2,n12, num_flux,wsn)
+        case(IFLUX_ROE_LM)
+            call roe_lm_w(qL,qR,ur2_1,ur2_2,n12, num_flux,wsn)
         !------------------------------------------------------------
         ! Other fluxes not yet implemneted.
         !------------------------------------------------------------

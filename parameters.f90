@@ -319,6 +319,8 @@ module config
       select case(trim(method_inv_flux))
       case('roe')
         imethod_inv_flux = IFLUX_ROE
+      case('roe_lm')
+        imethod_inv_flux = IFLUX_ROE_LM
       case default
         write(*,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
@@ -328,8 +330,21 @@ module config
       select case(trim(method_inv_jac))
       case('roe')
         imethod_inv_jac = IJAC_ROE
+      case('roe_lm')
+        imethod_inv_jac = IJAC_ROE_LM
       case default
         write(*,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
+        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        stop
+      end select
+
+      select case(trim(entropy_fix))
+      case('harten')
+        ientropy_fix = IHARTEN
+      case('mavriplis')
+        ientropy_fix = IMAVRIPLIS
+      case default
+        write(*,*) ' entropy_fix input "', trim(entropy_fix),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
         stop
       end select

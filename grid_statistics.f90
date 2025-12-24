@@ -129,9 +129,9 @@ module grid_statists
 
         if (.NOT.associated(grid_spacing)) allocate(grid_spacing(ncells))
 
-        grid_spacing = - one
+        grid_spacing = huge(p2)
 
-        do iface = 1,ncells
+        do iface = 1,nfaces
             c1 = face(1,iface)
             c2 = face(2,iface)
             
@@ -145,18 +145,9 @@ module grid_statists
 
             dist = sqrt((xc2-xc1)**2 + (yc2-yc1)**2 + (zc2-zc1)**2)
 
-            ! dist >= 0 will always be true.  So grid_spacing < 0 only occurs if the value is unassigned.
-            if ( grid_spacing(c1) < zero ) then
-                grid_spacing(c1) = dist
-            else
-                grid_spacing(c1) = min(grid_spacing(c1),dist)
-            endif
+            grid_spacing(c1) = min(grid_spacing(c1),dist)
 
-            if ( grid_spacing(c2) < zero ) then
-                grid_spacing(c2) = dist
-            else
-                grid_spacing(c2) = min(grid_spacing(c2),dist)
-            endif
+            grid_spacing(c2) = min(grid_spacing(c2),dist)
 
         enddo
 

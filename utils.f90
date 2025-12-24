@@ -10,9 +10,9 @@ module utils
     private
 
     public itime_method, TM_REMAINING, TM_ELAPSED
-    public imethod_inv_flux, imethod_inv_jac, isolver_type, ijacobian_method
-    public IFLUX_ROE, IJAC_ROE, SOLVER_RK, SOLVER_EXPLICIT, SOLVER_IMPLICIT, SOLVER_GCR, JAC_ANALYTIC
-    public IJAC_RHLL, IJAC_HLL, IJAC_RUSANOV
+    public imethod_inv_flux, imethod_inv_jac, ientropy_fix, isolver_type, ijacobian_method
+    public IFLUX_ROE, IFLUX_ROE_LM, IJAC_ROE, IJAC_ROE_LM, SOLVER_RK, SOLVER_EXPLICIT, SOLVER_IMPLICIT, SOLVER_GCR, JAC_ANALYTIC
+    public IJAC_RHLL, IJAC_HLL, IJAC_RUSANOV, IHARTEN, IMAVRIPLIS
     public ismoother, SMOOTH_GS
     public igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
     public iturb_type, TURB_DES, TURB_INVISCID, TURB_LAMINAR, TURB_LES, TURB_RANS
@@ -27,15 +27,20 @@ module utils
     integer, parameter :: TM_ELAPSED   = 1
 
     ! Solver settings
-    integer :: imethod_inv_flux, imethod_inv_jac, isolver_type, ijacobian_method
+    integer :: imethod_inv_flux, imethod_inv_jac, ientropy_fix, isolver_type, ijacobian_method
 
-    integer, parameter :: IFLUX_ROE = 0
+    integer, parameter :: IFLUX_ROE    = 0
+    integer, parameter :: IFLUX_ROE_LM = 1
     
     integer, parameter :: IJAC_ROE     = 0
-    integer, parameter :: IJAC_RUSANOV = 1
-    integer, parameter :: IJAC_HLL     = 2
-    integer, parameter :: IJAC_RHLL    = 3
+    integer, parameter :: IJAC_ROE_LM  = 1
+    integer, parameter :: IJAC_RUSANOV = 2
+    integer, parameter :: IJAC_HLL     = 3
+    integer, parameter :: IJAC_RHLL    = 4
 
+    integer, parameter :: IHARTEN      = 0
+    integer, parameter :: IMAVRIPLIS   = 1
+    
     integer, parameter :: SOLVER_RK       = 0
     integer, parameter :: SOLVER_EXPLICIT = 1
     integer, parameter :: SOLVER_IMPLICIT = 2
