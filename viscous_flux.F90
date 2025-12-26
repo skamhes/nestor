@@ -35,6 +35,7 @@ module viscous_flux
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
         real(p2)                     :: magds
+        real(p2), dimension(nq)      :: correction
         
         integer                      :: ivar
 
@@ -44,11 +45,11 @@ module viscous_flux
         dsds2 = ds/magds ! ds(:)/ds**2
         ! magds = sqrt(magds)
 
-        ! Equation 14
-        do ivar = 1,nq
-            gradq_face(:,ivar) = half * (gradq1(:,ivar) + gradq2(:,ivar)) ! arithemetic mean at the face
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (q2(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
-            ! ^ eliminates odd-even decoupling by replacing the normal part of the mean face gradient with a central difference.
+        ! Equation 14 (optimized to save ~1e-06 second per call) But like... this gets called a lot man.
+         gradq_face = half*(gradq1+gradq2)
+         correction = matmul(ds,gradq_face) - (q2-q1)
+         do ivar = 2,5
+             gradq_face(:,ivar) = gradq_face(:,ivar) - correction(ivar) * dsds2
          end do
 
         ! This subroutine only handles computing the interface gradient.
@@ -82,11 +83,11 @@ module viscous_flux
         real(p2), dimension(ndim,nq) :: gradq_face
         real(p2), dimension(ndim)    :: ds,  dsds2
         real(p2)                     :: magds
-        real(p2), dimension(nq)      :: qL, qR
+        real(p2), dimension(nq)      :: correction
 
         integer                      :: ivar
 
-        gradq_face = face_gradient
+        ! gradq_face = face_gradient
 
         ! Calculate the face gradients
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
@@ -94,12 +95,10 @@ module viscous_flux
         dsds2 = ds/magds ! ds(:)/ds**2
         ! magds = sqrt(magds)
 
-        ! Equation 14
-        do ivar = 1,nq
-            gradq_face(:,ivar) = gradq_face(:,ivar) + ( (qb(ivar) - q1(ivar)) - dot_product(gradq_face(:,ivar),ds)) * dsds2
+        correction = matmul(ds,face_gradient) - (qb-q1)
+        do ivar = 2,5
+            gradq_face(:,ivar) = face_gradient(:,ivar) - correction(ivar) * dsds2
         end do
-
-
         ! This is just a wrapper function since we already have the interface gradient computed.
         call compute_visc_num_flux(q1,qb,trb1,trb2,gradq_face,n12,num_flux)
 
@@ -109,7 +108,7 @@ module viscous_flux
     subroutine compute_visc_num_flux(q1,q2,trb1,trb2,interface_grad,n12,num_flux)
         use common                  , only : p2, half, zero, two_third, four_third, ix, iy, iz
 
-        use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT ! w2u, nq
+        use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT, C0 ! w2u, nq
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp, pr_t
 

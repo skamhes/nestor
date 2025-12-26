@@ -144,10 +144,10 @@ module config
     ! TURBULENCE SETTINGS (&turbulence)
       character(80)         :: turbulence_type       = 'inviscid'
       real(p2)              :: pr                    = 0.72_p2    ! Prandtl number for sea level air
-      real(p2)              :: Re_inf                = 10000      ! Free stream reynolds number
+      real(p2)              :: Re_inf                = 10000._p2  ! Free stream reynolds number
       real(p2)              :: sutherland_constant   = 110.5_p2   ! (K) Sutherland's constant (C) for air
       real(p2)              :: ideal_gas_constant    = 287.058_p2 ! ideal gas constant for air (R)
-      real(p2)              :: reference_temp        = 300        ! (K) T_inf in EQ 4.14.16 of I do Like CFD
+      real(p2)              :: reference_temp        = 300._p2    ! (K) T_inf in EQ 4.14.16 of I do Like CFD
       character(80)         :: rans_model            = 'sa'       ! Spalart-Allmaras Turbulence.
       integer               :: rans_accuracy         = 2          ! Second order accurate
       real(p2)              :: pr_t                  = 0.9_p2     ! Turbulent Prandlt number (I think 0.9 is the standard default?)

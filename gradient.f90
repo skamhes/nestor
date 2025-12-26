@@ -199,30 +199,44 @@ module gradient
 
         real(p2), dimension(3) :: unit_face_normal
         real(p2), dimension(5) :: q1, qb
-        real(p2), dimension(5) :: qk, qi
+        real(p2), dimension(5) :: qk, qi, dq
         real(p2)               :: qk_j
 
-        do icell=1,ncells
-            ! loop over the vertex neighboes
-            qi = q(:,icell)
-            do jvar = 1,nq
-                do kcell = 1,lsqc(icell)%n_nnghbrs
-                    ck = lsqc(icell)%nghbr_lsq(kcell)
-                    qk_j = q(jvar,ck)
-                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%cx(kcell,weight) * (qk_j - qi(jvar))
-                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%cy(kcell,weight) * (qk_j - qi(jvar))
-                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%cz(kcell,weight) * (qk_j - qi(jvar))
-                end do
-                do kcell = 1,lsqc(icell)%nbf
-                    ci = lsqc(icell)%gcells(1,kcell)
-                    ib = lsqc(icell)%gcells(2,kcell)
-                    qk_j = gcell(ib)%q(jvar,ci)
-                    ccgradq(ix,jvar,icell) = ccgradq(ix,jvar,icell) + lsqc(icell)%gcx(kcell,weight) * (qk_j - qi(jvar))
-                    ccgradq(iy,jvar,icell) = ccgradq(iy,jvar,icell) + lsqc(icell)%gcy(kcell,weight) * (qk_j - qi(jvar))
-                    ccgradq(iz,jvar,icell) = ccgradq(iz,jvar,icell) + lsqc(icell)%gcz(kcell,weight) * (qk_j - qi(jvar))
-                end do
-            end do
+        real(p2) :: dqx, dqy, dqz
+        real(p2), dimension(3) :: dqf
 
+        do icell=1,ncells
+            qi = q(:,icell)
+            do kcell = 1,lsqc(icell)%n_nnghbrs
+                ck = lsqc(icell)%nghbr_lsq(kcell)
+                qk = q(:,ck)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5 ! Hard code for loop unrolling
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(jvar)
+                end do
+                ! The loop unroller seems to be smarter than me doing this manually
+                ! ccgradq(:,1,icell) = ccgradq(:,1,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(1)
+                ! ccgradq(:,2,icell) = ccgradq(:,2,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(2)
+                ! ccgradq(:,3,icell) = ccgradq(:,3,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(3)
+                ! ccgradq(:,4,icell) = ccgradq(:,4,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(4)
+                ! ccgradq(:,5,icell) = ccgradq(:,5,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(5)
+            end do
+            do kcell = 1,lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,kcell)
+                ib = lsqc(icell)%gcells(2,kcell)
+                qk = gcell(ib)%q(:,ci)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
+                end do
+                ! ccgradq(:,1,icell) = ccgradq(:,1,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(1)
+                ! ccgradq(:,2,icell) = ccgradq(:,2,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(2)
+                ! ccgradq(:,3,icell) = ccgradq(:,3,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(3)
+                ! ccgradq(:,4,icell) = ccgradq(:,4,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(4)
+                ! ccgradq(:,5,icell) = ccgradq(:,5,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(5)
+            end do
         end do
 
 

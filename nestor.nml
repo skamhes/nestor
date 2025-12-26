@@ -15,15 +15,15 @@
   /
 
 &solver
-  CFL = 100000
+  CFL = 100
   solver_type = "implicit"
  perturb_initial = .true.
   solver_tolerance = 1e-14
   solver_max_itr = 1000
 !  method_inv_flux = "roe_lm_w"
 !   method_inv_jac = "roe_lm_w"
-gcr_max_projections = 20
-gcr_reduction_target = 0.05
+gcr_max_projections = 2
+gcr_reduction_target = 0.005
   /
 
 &amg
@@ -38,7 +38,7 @@ gcr_reduction_target = 0.05
 
 &gradient
   accuracy_order = 2
-  use_limiter    = .false.
+  use_limiter    = .true.
   lsq_stencil    = 'nn' ! node neighbor
   /
 

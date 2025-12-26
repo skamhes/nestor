@@ -18,7 +18,7 @@ module jacobian
         use utils               , only : iflow_type, FLOW_INVISCID, FLOW_RANS, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid                , only : ncells, nfaces, & 
-                                         face, cell, &
+                                         face, cell, gcell, &
                                          face_nrml_mag, face_nrml, &
                                          bound, nb, gcell
 
@@ -154,6 +154,10 @@ module jacobian
                 else ! ilsq_stencil == LSQ_STENCIL_NN
                     gradqb = ccgradq(1:3,1:5,c1)
                 endif
+
+                xc2  = gcell(ib)%xc(i)
+                yc2  = gcell(ib)%yc(i)
+                zc2  = gcell(ib)%zc(i)
                 
                 if (iflow_type == FLOW_RANS) then
                     trbv1 = turb_var(c1,:)

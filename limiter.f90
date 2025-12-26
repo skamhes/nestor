@@ -163,6 +163,84 @@ module limiter
                     
     end subroutine compute_limiter_turb
 
+    subroutine compute_limiter_new
+
+        use common          , only : p2, zero
+        
+        use grid            , only : ncells, cell, x, y, z, cell
+        
+        use solution        , only : ccgradq, phi, q
+      
+        ! use least_squares   , only : lsq 
+
+        implicit none
+        ! Some local vars
+        integer  :: i, ivar, j, k, nghbr_cell, iv
+        real(p2), dimension(5) :: qmin, qmax, qf, dqm, dqp
+        real(p2) :: xc, yc, zc, xp, yp, zp
+        real(p2) :: phi_vertex, phi_vertex_min, limiter_beps
+        real(p2) :: phi_var_min
+
+        !allocate(phi(ncells)) ! possible memory leak? Moved allocation to steady solve subroutine (only called once)
+        ! limiter_beps = 1.0e-14_p2
+
+        !loop over cells
+        cell_loop : do i = 1,ncells
+                ! Compute phi to enforce maximum principle at vertices (MLP)
+            xc = cell(i)%xc
+            yc = cell(i)%yc
+            zc = cell(i)%zc
+            qmin = q(:,i)
+            qmax = q(:,i)
+            nghbr_loop : do j = 1,cell(i)%nnghbrs
+                nghbr_cell = cell(i)%nghbr(j)
+                do k=1,5
+                    qmin(k) = min(qmin(k), q(k,nghbr_cell) )
+                    qmax(k) = max(qmax(k), q(k,nghbr_cell) )
+                end do
+            end do nghbr_loop
+            
+            ! Loop over vertices of the cell
+            phi_var_min = 1.e+10
+            vertex_loop : do k = 1,cell(i)%nvtx
+                iv = cell(i)%vtx(k)
+                xp = x(iv)
+                yp = y(iv)
+                zp = z(iv)
+
+                    ! ! Linear reconstruction to the vertex k
+                    ! qf = q(ivar,i) + ccgradq(1,ivar,i)*(xp-xc) + &
+                    !                  ccgradq(2,ivar,i)*(yp-yc) + &
+                    !                  ccgradq(3,ivar,i)*(zp-zc)
+
+                    ! ! compute dq^-
+                    ! dqm = qf - q(ivar,i)
+
+                dqm = ccgradq(1,:,i)*(xp-xc) + &
+                      ccgradq(2,:,i)*(yp-yc) + &
+                      ccgradq(3,:,i)*(zp-zc)
+
+                do ivar=1,5
+                    !Compute dq^+.
+                    if ( dqm(ivar) > zero ) then
+                        dqp(ivar) = qmax(ivar) - q(ivar,i)
+                    else
+                        dqp(ivar) = qmin(ivar) - q(ivar,i)
+                    endif
+
+                    ! Limiter function: Venkat limiter
+
+                    phi_vertex = vk_limiter(dqp(ivar), dqm(ivar), cell(i)%vol)
+ 
+                    phi_var_min = min(phi_var_min, phi_vertex)
+                end do 
+                
+            end do vertex_loop
+            phi(i) = phi_var_min
+        end do cell_loop
+                    
+    end subroutine compute_limiter_new
+
     !********************************************************************************
     !* -- Venkat Limiter Function--
     !*

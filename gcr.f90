@@ -55,7 +55,6 @@ module gcr
 
     end subroutine gcr_run
 
-
     subroutine gcr_solve_scratch(gcr_final_update, gcr_res_rms, iostat)
 
         use common      , only : p2, zero, one
@@ -397,7 +396,8 @@ module gcr
         real(p2)                            :: Rtau_rms, R0_rms
         real(p2)                            :: delQ_rms, Qn_rms
         real(p2)                            :: f_0, f_1, g_1     ! terms in the optimization equation 22
-        !real(p2), dimension(nq,ncells)      :: frechet_deriv
+        real(p2), dimension(nq,ncells)      :: frechet_deriv
+        real(p2)                            :: delQ_norm
         real(p2)                            :: ur_opt, ur_min
 
         integer :: icell
@@ -454,24 +454,25 @@ module gcr
         f_1 = Rtau_rms
 
         ! We need to compute the frechet derivative again for g_1
-        deallocate(q)
-        deallocate(res)
-        q   => q_n
-        res => r_0
-        nullify(q_n,r_0)
+        ! deallocate(q)
+        ! deallocate(res)
+        ! q   => q_n
+        ! res => r_0
+        ! nullify(q_n,r_0)
 
-        ! delQ_norm = l2norm(nq,ncells,sol_update)
-        ! call compute_frechet(sol_update,delQ_norm,Qn_rms,frechet_deriv)
+        delQ_norm = l2norm(nq,ncells,sol_update)
+        call compute_frechet(sol_update,delQ_norm,Qn_rms,frechet_deriv,iostat)
         
-        ! ! We will temporarily reuse the res vector to save memory space
-        ! do icell = 1,ncells
-        !     ! EQ 21 from FUN 3D paper where omega = 1
-        !     res(:,icell) = res(:,icell) + sol_update(:,icell) * cell(icell)%vol/dtau(icell) + frechet_deriv(:,icell)
-        ! end do
-        ! g_1 = rms(nq,ncells,res,inv_ncells)
+        ! We will temporarily reuse the res vector to save memory space
+        do icell = 1,ncells
+            ! EQ 21 from FUN 3D paper where omega = 1
+            res(:,icell) = r_0(:,icell) + matmul( compute_primative_jacobian(q_n(:,icell)) , sol_update(:,icell) ) *&
+                            cell(icell)%vol/dtau(icell) + frechet_deriv(:,icell)
+        end do
+        g_1 = rms(nq,ncells,res,inv_ncells)
         
         ! We already have the g_1 term from our last projection
-        g_1 = gcr_res_rms
+        ! g_1 = gcr_res_rms ! No we don't...
 
         ! Minimize the quadratic function a*ur**2 + b*ur + c
         ! where c = f_0, b = g_1-c, and a = f_1-b-c.
@@ -482,7 +483,7 @@ module gcr
 
         ! Because this passed the realizability check with ur = 1, we know -Q(j,i) < sol_update for j = 1,5 and any i.
         ! Therefore if abs(ur_opt) < 1, we now the updated solution w/ under-relaxation will also be realizable.
-        q = q + ur_opt * sol_update
+        q = q_n + ur_opt * sol_update
 
         ! Check convergence of the updated solution
         call compute_residual
@@ -498,12 +499,19 @@ module gcr
         if ( Rtau_rms / R0_rms < residual_reduct_target .OR. delQ_rms / Qn_rms < 1.0e-12_p2) then
             ! q and res have already been updated and the residual has reduced.
             iostat = GCR_CFL_FREEZE
+            deallocate(q_n) ! get rid of the previous q and res
+            deallocate(r_0)
             return
         endif
 
         ! If we've made it this far we failed :(
         ! Undo the solution update and report failure
-        q = q - ur_opt * sol_update
+        ! Revert the solution and residual to retry
+        deallocate(q)
+        deallocate(res)
+        q   => q_n
+        res => r_0
+        nullify(q_n,r_0)
         iostat = GCR_STALL
 
     end subroutine gcr_nl_control
@@ -544,6 +552,7 @@ module gcr
             endif
         elseif (gcr_status == GCR_CFL_FREEZE) then
             ! Nothing to actually do here other than report a successful update
+            CFL_used = CFL
             gcr_status = GCR_SUCCESS
         else ! fail
             do icell = 1,ncells

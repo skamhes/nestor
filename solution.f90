@@ -1,5 +1,5 @@
 module solution
-
+    real(p2)                            :: C0  ! term in sutherland viscosity equation
     contains
 
     subroutine define_problem
@@ -224,3 +224,6 @@ module solution
 
 end module solution
 
+, sutherland_constant, reference_temp
+
+C0 = sutherland_constant/reference_temp
