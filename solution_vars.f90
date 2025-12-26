@@ -41,6 +41,8 @@ module solution_vars
     real(p2), dimension(3)              :: vector_lift
 
     integer                             :: nlsq
+
+    real(p2)                            :: C0  ! term in sutherland viscosity equation
     ! Note: I don't currently plan to use u and w (and gradw).  Instead my working 
     ! vars will be q.  But I'm keeping them as an option in case I change my mind 
     ! down the road.

@@ -169,7 +169,7 @@ module limiter
         
         use grid            , only : ncells, cell, x, y, z, cell
         
-        use solution        , only : ccgradq, phi, q
+        use solution_vars   , only : ccgradq, phi, q
       
         ! use least_squares   , only : lsq 
 

@@ -130,9 +130,9 @@ subroutine roe_ddt(qcL, qcR, njk, dFdQ)
 
   use ad_operators
 
-  use common      , only : zero, one, two, half, p2
+  use common        , only : zero, one, two, half, p2
 
-  use solution    , only : gamma, gmoinv, gammamo
+  use solution_vars , only : gamma, gmoinv, gammamo
  
   implicit none
  

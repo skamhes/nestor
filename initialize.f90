@@ -70,6 +70,8 @@ module initialize
 
         if (iflow_type >= FLOW_RANS) call init_turb
 
+        C0 = sutherland_constant/reference_temp
+
     end subroutine set_initial_solution
 
     
