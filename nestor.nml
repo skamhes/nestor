@@ -18,12 +18,12 @@
   CFL = 1
   solver_type = "gcr"
   perturb_initial = .true.
-  solver_tolerance = 1e-2
+  solver_tolerance = 1e-12
   solver_max_itr = 1000
 !  method_inv_flux = "roe_lm_w"
 !   method_inv_jac = "roe_lm_w"
-gcr_max_projections = 20
-gcr_reduction_target = 0.05
+gcr_max_projections = 2
+gcr_reduction_target = 0.005
   /
 
 &amg
