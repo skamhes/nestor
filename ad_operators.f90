@@ -122,16 +122,17 @@
 !********************************************************************************
  module ad_operators
 
+    use common , only : p2
+
   implicit none
 
 ! Select the precision:
 !  selected_real_kind( 5) = single precision
 !  selected_real_kind(15) = double precision
 
-  integer           , parameter :: my_precision = selected_real_kind(15)
-  real(my_precision), parameter :: zero = 0.0_my_precision
-  real(my_precision), parameter :: half = 0.5_my_precision
-  real(my_precision), parameter ::  one = 1.0_my_precision
+  real(p2), parameter :: zero = 0.0_p2
+  real(p2), parameter :: half = 0.5_p2
+  real(p2), parameter ::  one = 1.0_p2
 
   private
 
@@ -141,8 +142,8 @@
   public :: derivative_data_type_df5
 
   type derivative_data_type_df5
-   real(my_precision)               ::  f ! function value
-   real(my_precision), dimension(5) :: df ! df/du
+   real(p2)               ::  f ! function value
+   real(p2), dimension(5) :: df ! df/du
   end type derivative_data_type_df5
 
 !--------------------------------------------------------------------------------
@@ -431,7 +432,7 @@
   pure elemental subroutine d_assign_r(d,r)
 
    type(derivative_data_type_df5),  intent(out) :: d
-   real(my_precision)        ,  intent( in) :: r
+   real(p2)        ,  intent( in) :: r
 
     d%f  = r
     d%df = zero
@@ -440,7 +441,7 @@
 !-------------------------------------------------------------------------------
   pure elemental subroutine r_assign_d(r,d)
 
-   real(my_precision)        ,  intent(out) :: r
+   real(p2)        ,  intent(out) :: r
    type(derivative_data_type_df5),  intent( in) :: d
 
     r = d%f
@@ -463,7 +464,7 @@
   pure elemental function d_plus_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5)             :: d_plus_r
 
     d_plus_r%f  = d%f  + r
@@ -474,7 +475,7 @@
   pure elemental function r_plus_d(r, d)
 
    type(derivative_data_type_df5),  intent(in) :: d
-   real(my_precision)        ,  intent(in) :: r
+   real(p2)        ,  intent(in) :: r
    type(derivative_data_type_df5)              :: r_plus_d
 
     r_plus_d%f  = d%f  + r
@@ -498,7 +499,7 @@
   pure elemental function d_minus_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5)             :: d_minus_r
 
     d_minus_r%f  = d%f - r
@@ -509,7 +510,7 @@
   pure elemental function r_minus_d(r, d)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5)             :: r_minus_d
 
     r_minus_d%f  = r - d%f
@@ -543,7 +544,7 @@
   pure elemental function d_times_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5)             :: d_times_r
 
     d_times_r%f  = r*d%f
@@ -554,7 +555,7 @@
   pure elemental function r_times_d(r, d)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5)             :: r_times_d
 
     r_times_d%f  = r*d%f
@@ -571,14 +572,20 @@
    type(derivative_data_type_df5)             :: d_divided_by_d
 
     d_divided_by_d%f  = d1%f / d2%f
-    d_divided_by_d%df = ( d1%df*d2%f - d2%df*d1%f ) / (d2%f*d2%f)
+    ! d_divided_by_d%df = ( d1%df*d2%f - d2%df*d1%f ) / (d2%f*d2%f)
+
+    ! This takes advantage of the op in the first line to remove 1 d*r and 1 r*r op.
+    ! d  f   f'g - g'f    f' - g'(f/g)<--computed in line 1
+    ! -- - = --------- = -------------
+    ! dx g     g**2           g
+    d_divided_by_d%df = ( d1%df - d2%df * d_divided_by_d%f) / d2%f
 
   end function d_divided_by_d
 !-------------------------------------------------------------------------------
   pure elemental function d_divided_by_r(d, r)
 
    type(derivative_data_type_df5),  intent(in) :: d
-   real(my_precision)        ,  intent(in) :: r
+   real(p2)        ,  intent(in) :: r
    type(derivative_data_type_df5)              :: d_divided_by_r
 
     d_divided_by_r%f  = d%f  / r
@@ -588,12 +595,13 @@
 !-------------------------------------------------------------------------------
   pure elemental function r_divided_by_d(r, d)
 
-   real(my_precision),    intent(in) :: r
+   real(p2),    intent(in) :: r
    type(derivative_data_type_df5),  intent(in) :: d
    type(derivative_data_type_df5)              :: r_divided_by_d
 
     r_divided_by_d%f  = r / d%f
-    r_divided_by_d%df = -d%df*r / (d%f*d%f) ! (r/f)'=(r'*f-f'*r)/f^2=-f'*r/f^2
+    ! r_divided_by_d%df = -d%df*r / (d%f*d%f) ! (r/f)'=(r'*f-f'*r)/f^2=-f'*r/f^2
+    r_divided_by_d%df = -d%df*r_divided_by_d%f/ d%f ! (r/f)'=(r'*f-f'*r)/f^2=-f'*r/f^2
 
   end function r_divided_by_d
 
@@ -607,11 +615,13 @@
 
     sqrt_d%f = sqrt(d%f)
 
-    avoid_zero_denominator : if ( sqrt_d%f > epsilon(one) ) then
-      sqrt_d%df = half * d%df / sqrt_d%f
-    else
-      sqrt_d%df = half * d%df / epsilon(one)
-    end if avoid_zero_denominator
+    sqrt_d%df = half * d%df / max(sqrt_d%f, epsilon(one))
+
+    ! avoid_zero_denominator : if ( sqrt_d%f > epsilon(one) ) then
+    !   sqrt_d%df = half * d%df / sqrt_d%f
+    ! else
+    !   sqrt_d%df = half * d%df / epsilon(one)
+    ! end if avoid_zero_denominator
 
   end function sqrt_d
 
@@ -650,7 +660,7 @@
     
     integer                                    ,intent(in) :: n
     type(derivative_data_type_df5),dimension(:),intent(in) :: d1
-    real(my_precision)            ,dimension(:),intent(in) :: d2
+    real(p2)            ,dimension(:),intent(in) :: d2
     type(derivative_data_type_df5)                         :: d_dot_r
     integer :: i
 
@@ -664,7 +674,7 @@
   pure function r_dot_d(d1, d2, n)
   
     integer                                    ,intent(in) :: n
-    real(my_precision)            ,dimension(:),intent(in) :: d1
+    real(p2)            ,dimension(:),intent(in) :: d1
     type(derivative_data_type_df5),dimension(:),intent(in) :: d2
     type(derivative_data_type_df5)                         :: r_dot_d
     integer :: i
@@ -695,7 +705,7 @@
   pure elemental function d_power_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5)             :: d_power_r
 
     d_power_r%f  = d%f**r
@@ -705,7 +715,7 @@
 !-------------------------------------------------------------------------------
   pure elemental function r_power_d(r, d)
 
-  real(my_precision)        , intent(in) :: r
+  real(p2)        , intent(in) :: r
   type(derivative_data_type_df5), intent(in) :: d
   type(derivative_data_type_df5)             :: r_power_d
 
@@ -721,7 +731,7 @@
    type(derivative_data_type_df5)             :: d_power_i
 
     d_power_i%f  = d%f**i
-    d_power_i%df = real(i,my_precision)*d%f**(i-1)*d%df
+    d_power_i%df = real(i,p2)*d%f**(i-1)*d%df
 
   end function d_power_i
 
@@ -748,7 +758,7 @@
 !*******************************************************************************
   pure elemental function sign_rd(r,d)
 
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5), intent(in) :: d
    type(derivative_data_type_df5)             :: sign_rd
 
@@ -780,7 +790,7 @@
 !-------------------------------------------------------------------------------
   pure elemental function max_of_d_and_r(d,r)
 
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5), intent(in) :: d
    type(derivative_data_type_df5)             :: max_of_d_and_r
 
@@ -795,7 +805,7 @@
 !-------------------------------------------------------------------------------
   pure elemental function max_of_r_and_d(r,d2)
 
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5), intent(in) :: d2
    type(derivative_data_type_df5)             :: max_of_r_and_d
 
@@ -826,7 +836,7 @@
 !-------------------------------------------------------------------------------
   pure elemental function min_of_d_and_r(d,r)
 
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5), intent(in) :: d
    type(derivative_data_type_df5)             :: min_of_d_and_r
 
@@ -841,7 +851,7 @@
 !-------------------------------------------------------------------------------
   pure elemental function min_of_r_and_d(r,d2)
 
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    type(derivative_data_type_df5), intent(in) :: d2
    type(derivative_data_type_df5)             :: min_of_r_and_d
 
@@ -869,7 +879,7 @@
   pure elemental function d_less_than_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: d_less_than_r
 
     d_less_than_r = ( d%f < r )
@@ -879,7 +889,7 @@
   pure elemental function r_less_than_d(r, d)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)                  , intent(in) :: r
+   real(p2)                  , intent(in) :: r
    logical                                :: r_less_than_d
 
     r_less_than_d = ( r < d%f )
@@ -901,7 +911,7 @@
   pure elemental function d_less_than_equal_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)                  , intent(in) :: r
+   real(p2)                  , intent(in) :: r
    logical                                :: d_less_than_equal_r
 
     d_less_than_equal_r = ( d%f <= r )
@@ -911,7 +921,7 @@
   pure elemental function r_less_than_equal_d(r, d)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: r_less_than_equal_d
 
     r_less_than_equal_d = ( r <= d%f )
@@ -933,7 +943,7 @@
   pure elemental function d_greater_than_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: d_greater_than_r
 
     d_greater_than_r = ( d%f > r )
@@ -943,7 +953,7 @@
   pure elemental function r_greater_than_d(r, d)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: r_greater_than_d
 
     r_greater_than_d = ( r > d%f )
@@ -965,7 +975,7 @@
   pure elemental function d_greater_than_equal_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: d_greater_than_equal_r
 
     d_greater_than_equal_r = ( d%f >= r )
@@ -975,7 +985,7 @@
   pure elemental function r_greater_than_equal_d(r, d)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: r_greater_than_equal_d
 
     r_greater_than_equal_d = ( r >= d%f )
@@ -997,7 +1007,7 @@
   pure elemental function d_equal_r(d, r)
 
    type(derivative_data_type_df5), intent(in) :: d
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: d_equal_r
 
     d_equal_r = ( abs(d%f-r) < epsilon(d%f) )
@@ -1007,7 +1017,7 @@
   pure elemental function r_equal_d(r, d2)
 
    type(derivative_data_type_df5), intent(in) :: d2
-   real(my_precision)        , intent(in) :: r
+   real(p2)        , intent(in) :: r
    logical                                :: r_equal_d
 
     r_equal_d = ( abs(r-d2%f) < epsilon(r) )
