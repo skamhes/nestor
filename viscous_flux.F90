@@ -116,6 +116,8 @@ module viscous_flux
 
         use turb                    , only : nturb, calcmut
 
+        use utils                   , only : iflow_type, FLOW_LAMINAR
+
         implicit none 
 
         real(p2), dimension(nq),      intent(in)    :: q1, q2
@@ -140,7 +142,7 @@ module viscous_flux
         
         qf = half * (q1 + q2)
 
-        p = qf(1)  ! p at the face
+        ! p = qf(1)  ! p at the face
         u = qf(2)  ! u at the face
         v = qf(3)  ! v at the face
         w = qf(4)  ! w at the face
@@ -148,10 +150,13 @@ module viscous_flux
         
         mu = compute_viscosity(T)
 
-        trb = half * (trb1 + trb2)
+        if (iflow_type > FLOW_LAMINAR) then
+            trb = half * (trb1 + trb2)
 
-        mut = calcmut(qf,mu,trb)
-
+            mut = calcmut(qf,mu,trb)
+        else
+            mut = zero
+        endif
         mu_effective = mu + mut
 
 #ifdef NANCHECK

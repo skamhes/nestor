@@ -146,6 +146,8 @@ module ad_viscous_flux
 
         use turb                    , only : nturb, calcmut
 
+        use utils                   , only : iflow_type, FLOW_LAMINAR
+
         implicit none
 
         type(derivative_data_type_df5), dimension(nq),      intent(in)    :: q1, q2
@@ -182,9 +184,15 @@ module ad_viscous_flux
         
         mu = compute_viscosity_ddt(T) ! for now we aren't counting this term towards the jacobian
 
-        trb = half * (trb1 + trb2)
+        if (iflow_type > FLOW_LAMINAR) then
+            trb = half * (trb1 + trb2)
 
-        mut = calcmut((/p%f,u%f,v%f,w%f,T%f/),mu%f,trb)
+            mut = calcmut((/p%f,u%f,v%f,w%f,T%f/),mu%f,trb)
+        else
+            mut = zero
+        endif
+
+        ! mut = calcmut((/p%f,u%f,v%f,w%f,T%f/),mu%f,trb)
 
         mu_effective = mu + mut
 

@@ -84,7 +84,7 @@ module gradient
                 vgradq = zero
                 call compute_vgradient_flow
             case(LSQ_STENCIL_NN) lsq
-                call compute_cgradient(weight)
+                call compute_cgradient_flow(weight)
             case default lsq
                 write(*,*) 'Unsupported gradient methodstencil.'
                 write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
@@ -177,7 +177,7 @@ module gradient
 
     end subroutine compute_vgradient_flow
 
-    subroutine compute_cgradient(weight)
+    subroutine compute_cgradient_flow(weight)
 
         use common , only : p2, ix, iy, iz
 
@@ -240,7 +240,7 @@ module gradient
         end do
 
 
-    end subroutine compute_cgradient
+    end subroutine compute_cgradient_flow
 
     subroutine boundary_value_flow(boundary_type, scalar, known, value)
         use common          , only : p2, zero
@@ -300,7 +300,7 @@ module gradient
 
         use config          , only : grad_method, lsq_stencil
         
-        use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX
+        use utils           , only : igrad_method, ilsq_stencil, GRAD_LSQ, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
 
         use turb            , only : ccgrad_turb_var, vgrad_turb_var
 
@@ -321,6 +321,8 @@ module gradient
 
                 call compute_vgradient_turb
             end if
+        case(LSQ_STENCIL_NN)
+            call compute_cgradient_turb(weight)
         case default
             write(*,*) 'Unsupported gradient method.'
             write(*,*) ' error in compute_gradient_turb in gradient.f90. Stopping...'
@@ -406,6 +408,62 @@ module gradient
         end do var_loop2
 
     end subroutine compute_vgradient_turb
+
+    subroutine compute_cgradient_turb(weight)
+
+        use common , only : p2, ix, iy, iz
+
+        use grid , only : nb, gcell, bound, ncells
+
+        use solution_vars , only : q, nq, nlsq
+
+        use utils , only : ibc_type
+
+        use least_squares , only : lsqc
+
+        use turb            , only : nturb, ccgrad_turb_var, turb_var
+
+        use turb_bc         , only : sa_rhstate
+        
+        implicit none
+
+        integer, intent(in) :: weight
+
+        integer :: ib, j, icell, kcell, ivar
+        integer :: c1
+        integer :: ck, ci
+
+        real(p2), dimension(3) :: unit_face_normal
+        real(p2)               :: t1, tb
+        real(p2)               :: tk, ti, dt
+        real(p2)               :: tk_j
+
+        real(p2) :: dqx, dqy, dqz
+        real(p2), dimension(3) :: dqf
+
+        var_loop : do ivar = 1, nturb
+            do icell=1,ncells
+                ti = turb_var(icell,ivar)
+                do kcell = 1,lsqc(icell)%n_nnghbrs
+                    ck = lsqc(icell)%nghbr_lsq(kcell)
+                    tk = q(ck,ivar)
+                    dt = tk - ti
+                    ! outer product
+                    ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%cf(:,kcell,weight) * dt
+                end do
+                do kcell = 1,lsqc(icell)%nbf
+                    ci = lsqc(icell)%gcells(1,kcell)
+                    ib = lsqc(icell)%gcells(2,kcell)
+                    ! tk = gcell(ib)%q(:,ci)
+                    call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
+                    dt = tk - ti
+                    ! outer product
+                    ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%gcf(:,kcell,weight) * dt
+                end do
+            end do
+        end do var_loop
+
+    end subroutine compute_cgradient_turb
 
     subroutine boundary_value_turb(boundary_type, unknown, bval)
         use common          , only : p2, zero

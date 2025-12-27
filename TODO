@@ -3,3 +3,5 @@ Poetentially add weighting to the cell gradient average step.
 
 
 Idea for speeding up the gradient computation: vecotrize the lsq computations.  Need to think about the structure of this a little.
+
+Turb computations are good through the flow residuals.  Next is the turb residuals.

@@ -126,7 +126,7 @@ module res_sa
             k = kth_nghbr_of_1(iface)
             turb_jac(cell1,1)%off_diag(k) = turb_jac(cell1,1)%off_diag(k) + num_jac1(2) * face_nrml_mag(iface)
             
-            ! Cell 2 Note the + sign because the flux sub already accounts sign
+            ! Cell 2 Note the + sign because the flux subroutine already accounts sign
             turb_res(cell2,1) =             turb_res(cell2,1)             + num_flux(2) * face_nrml_mag(iface)
 
             turb_jac(cell2,1)%diag =        turb_jac(cell2,1)%diag        + num_jac2(1) * face_nrml_mag(iface)

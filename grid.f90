@@ -123,9 +123,6 @@ module grid
             stop
         endif
 
-        ! set up the integer bc_type array
-        call bc_convert_c_to_i
-
     end subroutine read_grid
 
     subroutine read_grid_ugrid

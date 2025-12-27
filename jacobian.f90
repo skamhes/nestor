@@ -67,6 +67,8 @@ module jacobian
         end do
 
         mutf = zero
+        trbv1 = zero
+        trbv2 = zero
         ! Loop Faces
         loop_faces : do i = 1,nfaces
             c1 = face(1,i)
@@ -129,9 +131,9 @@ module jacobian
 
                 q1 = q(:,c1)
 
-                xc2  = gcell(ib)%xc(j)
-                yc2  = gcell(ib)%yc(j)
-                zc2  = gcell(ib)%zc(j)
+                xc2  = gcell(ib)%xc(i)
+                yc2  = gcell(ib)%yc(i)
+                zc2  = gcell(ib)%zc(i)
                 
                 call get_right_state(q1, unit_face_nrml, ibc_type(ib), qb)
 

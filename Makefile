@@ -15,7 +15,7 @@ FC = gfortran
 #       don't use it until you're sure bugs are removed.
 FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
-		 -fbacktrace -fall-intrinsics -Wargument-mismatch -DNANCHECK
+		 -fbacktrace -fall-intrinsics -DNANCHECK
 # FFLAGS = -O2 -pg
 # FFLAGS = -g -pg -O3 -march=native
 ##########################################################

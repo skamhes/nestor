@@ -5,10 +5,6 @@ module viscosity
     private
 
     public compute_viscosity, compute_viscosity_ddt
-    public C0, mu_norm
-    
-    real(p2) :: C0
-    real(p2) :: mu_norm
 
     contains 
 
@@ -19,6 +15,8 @@ module viscosity
         use common , only : three_half, one
 
         use config , only : M_inf, Re_inf, sutherland_constant, reference_temp
+        
+        use solution_vars , only : C0, mre
 
         implicit none
 
@@ -26,7 +24,7 @@ module viscosity
         real(p2)             :: mu
 
         ! note: C0 = C0 / T_inf in reality.  SEE: set_initial_solution in initialize.f90
-        mu =  mu_norm * (one + C0) / (T + C0)*T**(three_half)
+        mu =  mre * (one + C0) / (T + C0)*T**(three_half)
 
     end function compute_viscosity
 
@@ -35,6 +33,8 @@ module viscosity
         use common , only : three_half, one
 
         use config , only : M_inf, Re_inf, sutherland_constant, reference_temp
+        
+        use solution_vars , only : C0, mre
 
         use ad_operators
 
@@ -44,7 +44,7 @@ module viscosity
         type(derivative_data_type_df5)             :: mu
 
         ! note: C0 = C0 / T_inf in reality
-        mu =  mu_norm * (one + C0) / (T + C0)*T**(three_half)
+        mu =  mre * (one + C0) / (T + C0)*T**(three_half)
 
     end function compute_viscosity_ddt
 end module viscosity

@@ -22,9 +22,9 @@ module initialize
 
         use grid_statists , only : init_ar_array, compute_aspect_ratio
 
-        use viscosity , only : C0, mu_norm, compute_viscosity
+        use viscosity , only : compute_viscosity
 
-        use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, T_inf, mu_inf
+        use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, T_inf, mu_inf, mre, C0
 
         use turb , only : init_turb
 
@@ -68,9 +68,11 @@ module initialize
         !     mu(:) = mu_inf
         ! end if
 
-        if (iflow_type >= FLOW_RANS) call init_turb
-
         C0 = sutherland_constant/reference_temp
+        mre = M_inf / Re_inf
+        mu_inf = compute_viscosity(T_inf)
+
+        if (iflow_type >= FLOW_RANS) call init_turb
 
     end subroutine set_initial_solution
 
