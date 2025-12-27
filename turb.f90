@@ -57,6 +57,8 @@ module turb
 
         use solution_vars , only : kth_nghbr_of_1, kth_nghbr_of_2
 
+        use utils         , only : ilsq_stencil, LSQ_STENCIL_NN, LSQ_STENCIL_WVERTEX
+
         implicit none
 
         if (iflow_type > FLOW_RANS) then
@@ -75,8 +77,15 @@ module turb
         
         allocate(turb_update(ncells))
 
-        allocate(vgrad_turb_var( 3,nnodes,nturb))
-        allocate(ccgrad_turb_var(3,ncells,nturb))
+        select case(ilsq_stencil)
+        case(LSQ_STENCIL_WVERTEX)
+            allocate(vgrad_turb_var( 3,nnodes,nturb))
+        case(LSQ_STENCIL_NN)
+            allocate(ccgrad_turb_var(3,ncells,nturb))
+        case default
+            write(*,*) 'Invalid LSQ stencil. Stopping...'
+            stop
+        end select
 
         allocate(phi_turb(ncells))
 

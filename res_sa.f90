@@ -20,7 +20,7 @@ module res_sa
 
         use config  , only : use_limiter, CFL_turb
 
-        use utils   , only : ibc_type
+        use utils   , only : ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid    , only : ncells, cell,  &
                              nfaces, face,  &
@@ -209,12 +209,15 @@ module res_sa
                 face_sides = bound(ib)%bfaces(1,iface)
 
                 gradnutb = zero
-                do k = 1,face_sides
-                    nk = bound(ib)%bfaces(k+1,iface)
-                    gradnutb = gradnutb + vgrad_turb_var(:,nk,1)
-                end do
-                gradnutb = gradnutb / real(face_sides,p2)
-
+                if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                    do k = 1,face_sides
+                        nk = bound(ib)%bfaces(k+1,iface)
+                        gradnutb = gradnutb + vgrad_turb_var(:,nk,1)
+                    end do
+                    gradnutb = gradnutb / real(face_sides,p2)
+                else 
+                    gradnutb = ccgrad_turb_var(:,cell1,1)
+                endif
                 ! Diffusion Flux terms
                 call sa_viscFlux(                   nut1,     nutb, &
                                                       q1,       qb, &
