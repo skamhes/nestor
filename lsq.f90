@@ -348,6 +348,8 @@ module least_squares
             allocate(lsqc(icell)%cz(c2nn(icell)%n_nnghbr,nlsq))
             allocate(lsqc(icell)%cf(3,c2nn(icell)%n_nnghbr,nlsq))
 
+            nullify(lsqc(icell)%gcells) ! avoid memory error
+
             lsqc(icell)%nbf = 0
         end do
 
