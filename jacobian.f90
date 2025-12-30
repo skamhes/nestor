@@ -165,7 +165,7 @@ module jacobian
                     trbv1 = turb_var(c1,:)
                     call turb_rhstate(trbv1, ibc_type(ib), trbv2)
                 end if
-                call visc_flux_boundary_ddt(q1,qb,trbv1,trbv2,gradqb, &
+                call visc_flux_boundary_ddt(q1,qb,gradqb,trbv1,trbv2, &
                                                       unit_face_nrml, &
                                cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
                                                          xc2,yc2,zc2, &

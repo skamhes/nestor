@@ -15,7 +15,7 @@
   /
 
 &solver
-  CFL = 100
+  CFL = 1000
   solver_type = "implicit"
  perturb_initial = .true.
   solver_tolerance = 1e-14

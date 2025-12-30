@@ -11,14 +11,7 @@
             "cwd": "${workspaceRoot}",
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "make",
-            // "setupCommands": [
-            //     {
-            //         "description": "Attach to Valgrind's GDB server",
-            //         "text": "target remote | /usr/bin/vgdb" , // --pid=${command:bash ps -a -l | grep memcheck | awk -F' ' '{print $4}'}", note this will fail if multiple valgrind instances are running
-            //         "ignoreFailures": false
-            //     }
-            // ]
+            "preLaunchTask": "make"
         }
     ]
 }
