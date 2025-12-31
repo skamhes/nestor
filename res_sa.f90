@@ -31,7 +31,7 @@ module res_sa
         
         use gradient , only : compute_gradient_turb
 
-        use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var
+        use turb     , only : turb_res, turb_jac, turb_var, phi_turb, ccgrad_turb_var, vgrad_turb_var, twsn
 
         use solution_vars , only : ccgradq, q, kth_nghbr_of_1, kth_nghbr_of_2, wsn
 
@@ -73,6 +73,7 @@ module res_sa
         integer :: face_sides
 
         turb_res(:,:) = zero
+        itwsn = zero
         
         do icell = 1,ncells
             turb_jac(icell,1)%diag = zero
@@ -117,7 +118,7 @@ module res_sa
                                         face_centroid(2,iface), &
                                         face_centroid(3,iface), & !<- face midpoint
                                              phi1,        phi2, & !<- Limiter functions
-                               num_flux, num_jac1, num_jac2  ) !<- Output
+                           num_flux, num_jac1, num_jac2, itwsn  ) !<- Output
 
             !Cell 1
             turb_res(cell1,1) =             turb_res(cell1,1)             + num_flux(1) * face_nrml_mag(iface)
@@ -132,6 +133,9 @@ module res_sa
             turb_jac(cell2,1)%diag =        turb_jac(cell2,1)%diag        + num_jac2(1) * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
             turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) + num_jac2(2) * face_nrml_mag(iface)
+
+            twsn(cell1) = twsn(cell1) + itwsn * face_nrml_mag(iface)
+            twsn(cell2) = twsn(cell2) + itwsn * face_nrml_mag(iface)
 
             ! Add contribution to the wave speed which (assuming I understand the Rankine Hugonot relation correctly)
             ! is equivalent to the jacobian of the convective term.
@@ -198,13 +202,15 @@ module res_sa
              bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
              bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
                                                  phi1,        phi2, & !<- Limiter functions
-                                      num_flux, num_jac1, num_jac2  ) !<- Output
+                               num_flux, num_jac1, num_jac2, itwsn  ) !<- Output
 
                 !Cell 1 only
                 turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux(1) * face_mag
 
                 turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1(1) * face_mag
                 ! No off diagonal terms and the second term of num flux is ignored.
+
+                twsn(cell1) = twsn(cell1) + itwsn * face_nrml_mag(iface)
                 
                 face_sides = bound(ib)%bfaces(1,iface)
 
@@ -256,7 +262,8 @@ module res_sa
         do icell = 1,ncells
 
             ! TODO add pseudo-transient term to this
-            dtaui = CFL_turb * cell(icell)%vol/( half * wsn(icell) )
+            itwsn = wsn(icell)
+            dtaui = CFL_turb * cell(icell)%vol/( half * twsn(icell) )
             turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / dtaui
             ! turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL_turb
 
@@ -266,7 +273,7 @@ module res_sa
     end subroutine compute_res_sa
 
     subroutine sa_invFlux(nut1, nut2, q1, q2, gradnut1, gradnut2, n12, xc1, yc1, zc1, xc2, yc2, zc2, &
-                             xm, ym, zm, phi1, phi2, nut_flux, jac1, jac2 )
+                             xm, ym, zm, phi1, phi2, nut_flux, jac1, jac2, twsn )
 
         use config , only : rans_accuracy
 
@@ -286,6 +293,7 @@ module res_sa
 
         real(p2), dimension(2), intent(out):: nut_flux
         real(p2), dimension(2), intent(out):: jac1, jac2
+        real(p2),               intent(out):: twsn ! turbulent wavespeed
 
         real(p2) :: nutL, nutR
 
@@ -325,6 +333,13 @@ module res_sa
         ! if (abs(vF) < eig_min) then
         !     vF = half * ( (vF*vF / eig_min) + eig_min) * sign(one,vF)
         ! endif
+        ! I'm going to have to go back to Leveque's FVM for Hyperbolic Eqs. but I think we can essentially treat this as a Passive
+        ! tracer as far as the hyperbolic terms are concerned (all the coupling occurs in the diffusion terms).  The wave speed (the
+        ! eigen vector of the 6x6 Jacobian) is therefore just u (the local face speed).  Additionally I don't think we need to 
+        ! enforce an entropy condition for contact discontinuities because there cannot be an expansion shock.
+        !
+        ! So:
+        twsn = max(abs(vBar),1.0e-08_p2) ! avoid divide by zero errors.
 
     end subroutine sa_invFlux
 

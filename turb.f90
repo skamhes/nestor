@@ -20,6 +20,7 @@ module turb
     public nut_inf
     public turb_res_norm, turb_res_norm_init
     public turb_update
+    public twsn
 
     ! FUNCTIONS
     public allocate_rans
@@ -32,7 +33,7 @@ module turb
     real(p2), dimension(:,:,:), allocatable :: ccgrad_turb_var, vgrad_turb_var
     integer                                 :: nturb
     real(p2), dimension(:)    , allocatable :: phi_turb
-    real(p2), dimension(:)    , allocatable :: twsn, tdtau
+    real(p2), dimension(:)    , allocatable :: twsn!, tdtau
     real(p2)                                :: nut_inf = three ! 3*mu/rho
     real(p2), dimension(7)                  :: turb_res_norm, turb_res_norm_init
 
@@ -90,7 +91,7 @@ module turb
         allocate(phi_turb(ncells))
 
         allocate(twsn(ncells))
-        allocate(tdtau(ncells))
+        ! allocate(tdtau(ncells))
 
         ! This isn't actually used except to prevent a runtime error.
         if(.not.allocated(kth_nghbr_of_1)) then

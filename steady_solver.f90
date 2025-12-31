@@ -407,7 +407,7 @@ module steady_solver
 
         use common          , only : p2, half, one, zero
 
-        use config          , only : turb_ur
+        use config          , only : turb_ur, CFL_turb
 
         use utils           , only : iflow_type, FLOW_RANS
 
@@ -419,36 +419,22 @@ module steady_solver
 
         use direct_solve    , only : gewp_solve
 
-        use turb            , only : nturb, turb_var, turb_update, turb_res
+        use turb            , only : nturb, turb_var, turb_update, turb_res, twsn
+
+        use solution        , only : compute_primative_jacobian
 
         real(p2), dimension(5) :: update_q
         integer i, os, it, icell
-        real(p2) :: H, rho_p, rho_T, theta, rho, uR2inv
+        real(p2) :: H, rho_p, rho_T, theta, rho, dtaui
         real(p2), dimension(5,5) :: preconditioner, pre_inv
 
-        real(p2), dimension(ncells) :: resLoc, turbloc
-        
         ! Compute the precondition matrix as described in https://doi.org/10.2514/3.12946
         ! Note: because we are not performing low-mach correction this is equivalent to the jacobian dW/dQ in equation (2)
         ! Eventually we will be adding low-mach preconditioning so this allows for future adaptability
 
         do i = 1,ncells
-            ! test for low mach
-            ! else
-            uR2inv = one
-            ! fi
 
-            H = ((q(5,i))**2)*gmoinv + half * ( q(2,i)**2 + q(3,i)**2 + q(4,i)**2 )
-            rho_p = gamma/q(5,i)
-            rho_T = - (q(1,i)*gamma)/(q(5,i)**2)
-            rho = q(1,i)*gamma/q(5,i)
-            theta = (uR2inv) - rho_T*(gammamo)/(rho)
-            
-            preconditioner(1,:) = (/ theta,        zero,       zero,       zero,       rho_T                    /)
-            preconditioner(2,:) = (/ theta*q(2,i), rho,        zero,       zero,       rho_T*q(2,i)             /)
-            preconditioner(3,:) = (/ theta*q(3,i), zero,       rho,        zero,       rho_T*q(3,i)             /)
-            preconditioner(4,:) = (/ theta*q(4,i), zero,       zero,       rho,        rho_T*q(4,i)             /)
-            preconditioner(5,:) = (/ theta*H-one,  rho*q(2,i), rho*q(3,i), rho*q(4,i), rho_T*H + rho/(gamma-one)/)
+            preconditioner =  compute_primative_jacobian(q(:,i))
             
 
             call gewp_solve(preconditioner, 5, pre_inv, os)
@@ -467,11 +453,12 @@ module steady_solver
         do it = 1,nturb
 
             do icell = 1,ncells
-                turb_update(icell) = -(dtau(icell) / cell(icell)%vol) * turb_res(icell,it)
+                dtaui = CFL_turb * cell(icell)%vol/( half * twsn(icell) )
+                turb_update(icell) = -(dtaui / cell(icell)%vol) * turb_res(icell,it)
                 
                 turb_var(icell,it) = turb_var(icell,it) + turb_ur(it) * turb_update(icell)
-                resLoc(icell) = turb_res(icell,it) ! easier debuggin
-                turbLoc(icell) = turb_var(icell,it) ! easier debuggin
+                ! resLoc(icell) = turb_res(icell,it) ! easier debuggin
+                ! turbLoc(icell) = turb_var(icell,it) ! easier debuggin
             end do
         end do
 
