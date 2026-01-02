@@ -81,7 +81,7 @@ module res_sa
         end do
 
         ! update turbulent variable gradients
-        call compute_gradient_turb(0)
+        call compute_gradient_turb(1)
 
         ! hmmm I guess I still gotta sort the limiter out
         call compute_limiter_turb

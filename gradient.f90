@@ -316,19 +316,23 @@ module gradient
 
         select case(igrad_method)
         case(GRAD_LSQ)
-            if (ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+            lsq : select case(ilsq_stencil)
+            case(LSQ_STENCIL_WVERTEX) lsq
                 vgrad_turb_var = zero
-
                 call compute_vgradient_turb
-            end if
-        case(LSQ_STENCIL_NN)
-            call compute_cgradient_turb(weight)
+            case(LSQ_STENCIL_NN) lsq
+                call compute_cgradient_turb(weight)
+            case default lsq
+                write(*,*) 'Unsupported gradient method stencil.'
+                write(*,*) ' error in compute_gradients in gradient.f90. Stopping...'
+                stop    
+            end select lsq
         case default
             write(*,*) 'Unsupported gradient method.'
-            write(*,*) ' error in compute_gradient_turb in gradient.f90. Stopping...'
+            write(*,*) ' error in compute_gradient_flow in gradient.f90. Stopping...'
             stop
         end select
-
+        
     end subroutine compute_gradient_turb
 
     subroutine compute_vgradient_turb
@@ -415,7 +419,7 @@ module gradient
 
         use grid , only : nb, gcell, bound, ncells
 
-        use solution_vars , only : q, nq, nlsq
+        use solution_vars , only : nq, nlsq
 
         use utils , only : ibc_type
 
@@ -446,7 +450,7 @@ module gradient
                 ti = turb_var(icell,ivar)
                 do kcell = 1,lsqc(icell)%n_nnghbrs
                     ck = lsqc(icell)%nghbr_lsq(kcell)
-                    tk = q(ck,ivar)
+                    tk = turb_var(ck,ivar)
                     dt = tk - ti
                     ! outer product
                     ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%cf(:,kcell,weight) * dt
