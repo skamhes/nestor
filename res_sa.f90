@@ -49,6 +49,8 @@ module res_sa
 
         use viscosity , only : compute_viscosity
 
+        use mms, only : sa_fMMS
+
         ! Grid Vars
         integer                     :: cell1, cell2
         real(p2), dimension(3)      :: unit_face_normal, bface_centroid
@@ -61,7 +63,8 @@ module res_sa
         real(p2)                    :: d1
         real(p2)                    :: nu1
         real(p2)                    :: rho1
-        real(p2)                    :: itwsn, dtaui
+        real(p2)                    :: itwsn
+        real(p2), dimension(2)      :: dtaui
 
         ! real(p2)                    :: num_flux, num_jac1, num_jac2
         real(p2)                    :: num_jacsrc
@@ -134,8 +137,8 @@ module res_sa
             k = kth_nghbr_of_2(iface)
             turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) + num_jac2(2) * face_nrml_mag(iface)
 
-            twsn(cell1) = twsn(cell1) + itwsn * face_nrml_mag(iface)
-            twsn(cell2) = twsn(cell2) + itwsn * face_nrml_mag(iface)
+            twsn(1,cell1) = twsn(1,cell1) + itwsn * face_nrml_mag(iface)
+            twsn(1,cell2) = twsn(1,cell2) + itwsn * face_nrml_mag(iface)
 
             ! Add contribution to the wave speed which (assuming I understand the Rankine Hugonot relation correctly)
             ! is equivalent to the jacobian of the convective term.
@@ -149,7 +152,7 @@ module res_sa
                                               unit_face_normal, &
                 cell(cell1)%xc, cell(cell1)%yc, cell(cell1)%zc, & !<- Left  cell centroid
                 cell(cell2)%xc, cell(cell2)%yc, cell(cell2)%zc, & !<- Right cell centroid
-                                  num_flux, num_jac1, num_jac2  ) !<- Output
+                           itwsn, num_flux, num_jac1, num_jac2  ) !<- Output
 
             !Cell 1
             turb_res(cell1,1)             = turb_res(cell1,1)             + num_flux(1) * face_nrml_mag(iface)
@@ -164,7 +167,10 @@ module res_sa
             turb_jac(cell2,1)%diag        = turb_jac(cell2,1)%diag        + num_jac2(1) * face_nrml_mag(iface)
             k = kth_nghbr_of_2(iface)
             turb_jac(cell2,1)%off_diag(k) = turb_jac(cell2,1)%off_diag(k) + num_jac1(2) * face_nrml_mag(iface)
-                      
+          
+            twsn(2,cell1) = twsn(2,cell1) + itwsn * face_nrml_mag(iface)
+            twsn(2,cell2) = twsn(2,cell2) + itwsn * face_nrml_mag(iface)
+            
         end do loop_faces
         
         gradnut2 = zero
@@ -210,7 +216,7 @@ module res_sa
                 turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1(1) * face_mag
                 ! No off diagonal terms and the second term of num flux is ignored.
 
-                twsn(cell1) = twsn(cell1) + itwsn * face_nrml_mag(iface)
+                twsn(1,cell1) = twsn(1,cell1) + itwsn * face_nrml_mag(iface)
                 
                 face_sides = bound(ib)%bfaces(1,iface)
 
@@ -231,13 +237,14 @@ module res_sa
                                                   unit_face_normal, &
                     cell(cell1)%xc, cell(cell1)%yc, cell(cell1)%zc, & !<- Left  cell centroid
              bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
-                                      num_flux, num_jac1, num_jac2  ) !<- Output
+                               itwsn, num_flux, num_jac1, num_jac2  ) !<- Output
 
                 !Cell 1
                 turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux(1) * face_mag
 
                 turb_jac(cell1,1)%diag = turb_jac(cell1,1)%diag        + num_jac1(1) * face_mag
 
+                twsn(1,cell1) = twsn(1,cell1) + itwsn * face_nrml_mag(iface)
             end do bfaces_loop
 
         end do bound_loop
@@ -263,8 +270,9 @@ module res_sa
 
             ! TODO add pseudo-transient term to this
             itwsn = wsn(icell)
-            dtaui = CFL_turb * cell(icell)%vol/( half * twsn(icell) )
-            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / dtaui
+            dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
+            dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
+            turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + cell(icell)%vol / minval(dtaui)
             ! turb_jac(icell,1)%diag = turb_jac(icell,1)%diag + half * wsn(icell) / CFL_turb
 
             turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
@@ -343,7 +351,7 @@ module res_sa
 
     end subroutine sa_invFlux
 
-    subroutine sa_viscFlux(nut1,nut2,q1,q2,gradnut1,gradnut2,n12,xc1,yc1,zc1,xc2,yc2,zc2, nut_flux, jac1, jac2 )
+    subroutine sa_viscFlux(nut1,nut2,q1,q2,gradnut1,gradnut2,n12,xc1,yc1,zc1,xc2,yc2,zc2, wsn, nut_flux, jac1, jac2 )
 
         use common , only : half
 
@@ -360,6 +368,7 @@ module res_sa
         real(p2),               intent(in) :: xc1, yc1, zc1, xc2, yc2, zc2
         real(p2), dimension(:), intent(in) :: q1,q2
         
+        real(p2),               intent(out):: wsn
         real(p2), dimension(2), intent(out):: nut_flux
         real(p2), dimension(2), intent(out):: jac1, jac2
 
@@ -394,13 +403,15 @@ module res_sa
 
         normal_face_grad = dot_product( gradnut_face, n12 )
 
-        nut_flux(1) = iSIGMA * (term1 - term21) * normal_face_grad
-        jac1(:)     = iSIGMA * (one + cb2) * normal_face_grad * half
+        nut_flux(1) = - iSIGMA * (term1 - term21) * normal_face_grad
+        jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half
         jac1(1)     = (jac1(1) - cb2 * iSIGMA * normal_face_grad)
 
-        nut_flux(2) = -( iSIGMA * (term1 - term22) * normal_face_grad )
-        jac2(:)     = - ( iSIGMA * (one + cb2) * normal_face_grad ) * half
+        nut_flux(2) =  ( iSIGMA * (term1 - term22) * normal_face_grad )
+        jac2(:)     =   ( iSIGMA * (one + cb2) * normal_face_grad ) * half
         jac2(1)     =   ( jac2(1) + cb2 * iSIGMA * normal_face_grad ) ! have to be a little careful with the signs here
+
+        wsn = abs(iSIGMA * (nuf + nutf))
 
     end subroutine sa_viscFlux
 
@@ -524,6 +535,8 @@ module res_sa
         dprm  = d
         d     = d * nut
         dest  = d * nut
+
+        dest = (cw1 * fw - (cb1/(KAPPA**2))*ft2)*(nut/distance)**2
         ! ddest = ( ( cw1 * dfw - cb1 * dft2 / KAPPA**2) * (nut / distance)**2 ) + &
         !         ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * two * nut / distance**2
 
