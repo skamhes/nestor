@@ -35,13 +35,15 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 .SUFFIXES : .o .f90 .F90
 .f90.o:
 	$(FC) $(FFLAGS) -c $<
-.F90.o:
-	$(FC) $(FFLAGS) -c $<
+
+%.o: %.F90 # run c preprocessor
+	$(FC) -cpp $(FFLAGS) -c $<
 
 ##########################################################
 SDIR = .
 
 OBCTS = $(SDIR)/lowlevel.o\
+		$(SDIR)/messages.o\
 		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
 		$(SDIR)/ad_operators.o\

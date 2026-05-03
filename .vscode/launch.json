@@ -13,5 +13,5 @@
             "MIMode": "gdb",
             "preLaunchTask": "make"
         }
-    ]
+   ]
 }

@@ -1,0 +1,9 @@
+{
+    "files.exclude": {
+    "*.bcmap": true,           
+    "*.ugrid": true,
+    "*.out"  : true,
+    "*.dat"  : true,
+    
+  }
+}

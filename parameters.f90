@@ -309,6 +309,10 @@ module config
 
       use utils
 
+      use messages , only : print_error_location
+
+      use iso_fortran_env , only : ERROR_UNIT
+
       implicit none
 
       call initialize_isettings
@@ -321,8 +325,8 @@ module config
       case('elapsed')
         itime_method = TM_ELAPSED
       case default
-        write(*,*) ' time_method input "', trim(time_method),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' time_method input "', trim(time_method),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
 
@@ -330,8 +334,8 @@ module config
       case('roe')
         imethod_inv_flux = IFLUX_ROE
       case default
-        write(*,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
       
@@ -339,8 +343,8 @@ module config
       case('roe')
         imethod_inv_jac = IJAC_ROE
       case default
-        write(*,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
       
@@ -354,8 +358,8 @@ module config
       case('gcr')
         isolver_type = SOLVER_GCR
       case default
-        write(*,*) ' solver_type input "', trim(solver_type),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' solver_type input "', trim(solver_type),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
       
@@ -363,8 +367,8 @@ module config
       case('analytical')
         ijacobian_method = JAC_ANALYTIC
       case default
-        write(*,*) ' jacobian_method input "', trim(jacobian_method),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' jacobian_method input "', trim(jacobian_method),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
       
@@ -372,8 +376,8 @@ module config
       case('gs')
         ismoother = SMOOTH_GS
       case default
-        write(*,*) ' smoother input "', trim(jacobian_method),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' smoother input "', trim(smoother),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
 
@@ -381,8 +385,8 @@ module config
       case('lsq')
         igrad_method = GRAD_LSQ
       case default
-        write(*,*) ' grad_method input "', trim(jacobian_method),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' grad_method input "', trim(grad_method),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
 
@@ -392,8 +396,8 @@ module config
       case('nn')
         ilsq_stencil = LSQ_STENCIL_NN
       case default
-        write(*,*) ' lsq_stencil input "', trim(jacobian_method),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' lsq_stencil input "', trim(lsq_stencil),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
 
@@ -405,8 +409,8 @@ module config
       case('rans')
         iflow_type = FLOW_RANS
       case default
-        write(*,*) ' turbulence_type input "', trim(turbulence_type),'" is invalid'
-        write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
+        write(ERROR_UNIT,*) ' turbulence_type input "', trim(turbulence_type),'" is invalid'
+        call print_error_location('update_isettings',__LINE__,__FILE__)
         stop
       end select
 
@@ -414,7 +418,7 @@ module config
       case('sa')
         iturb_model = TURB_SA
       case default
-        write(*,*) ' turbulence_type input "', trim(rans_model),'" is invalid'
+        write(ERROR_UNIT,*) ' turbulence_type input "', trim(rans_model),'" is invalid'
         write(*,*) ' error occured in update_isettings in utils.f90. Stopping...'
         stop
       end select
