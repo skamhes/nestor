@@ -91,7 +91,7 @@ module steady_solver
         write(*,*) "    solver_type = ", trim(solver_type)
         write(*,'(a,i1)') "  accuracy_order = ", accuracy_order
         write(*,*) " inviscid_flux  = ", trim(method_inv_flux)
-        if (iturb_type > TURB_INVISCID) write(*,'(a,es13.4)') "          Re_inf = ", Re_inf
+        if (iflow_type > FLOW_INVISCID) write(*,'(a,es13.4)') "          Re_inf = ", Re_inf
         
 
         if (CFL_ramp) then
@@ -454,7 +454,7 @@ module steady_solver
         do it = 1,nturb
 
             do icell = 1,ncells
-                dtaui = CFL_turb * cell(icell)%vol/( half * twsn(icell) )
+                dtaui = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
                 turb_update(icell) = -(dtaui / cell(icell)%vol) * turb_res(icell,it)
                 
                 turb_var(icell,it) = turb_var(icell,it) + turb_ur(it) * turb_update(icell)

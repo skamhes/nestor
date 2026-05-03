@@ -69,9 +69,6 @@ module residual
         real(p2), dimension(5)      :: qb
         real(p2)                    :: wave_speed
         real(p2)                    :: phi1, phi2
-        real(p2)                    :: xc,   yc,   zc
-        ! real(p2)                    :: fxc,  fyc,  fzc
-        ! real(p2)                    :: dxc2, dyc2, dzc2
         real(p2)                    :: xc2,  yc2,  zc2
         
 

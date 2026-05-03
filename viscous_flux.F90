@@ -108,7 +108,7 @@ module viscous_flux
     subroutine compute_visc_num_flux(q1,q2,trb1,trb2,interface_grad,n12,num_flux)
         use common                  , only : p2, half, zero, two_third, four_third, ix, iy, iz
 
-        use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT, C0 ! w2u, nq
+        use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT
         
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp, pr_t
 

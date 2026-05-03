@@ -353,7 +353,7 @@ module res_sa
 
     subroutine sa_viscFlux(nut1,nut2,q1,q2,gradnut1,gradnut2,n12,xc1,yc1,zc1,xc2,yc2,zc2, wsn, nut_flux, jac1, jac2 )
 
-        use common , only : half
+        use common , only : half!, zero
 
         use solution_vars,only : ndim, nq
 
@@ -373,7 +373,7 @@ module res_sa
         real(p2), dimension(2), intent(out):: jac1, jac2
 
         ! Local
-        real(p2), dimension(ndim)   :: gradnut_face
+        real(p2), dimension(ndim)   :: gradnut_face!, dnut_ds
         real(p2), dimension(ndim)   :: ds,  dsds2
         real(p2)                    :: T, rho
         real(p2), dimension(nq)     :: u
@@ -382,13 +382,16 @@ module res_sa
         real(p2)                    :: nutf ! face nut
         real(p2)                    :: normal_face_grad
         real(p2)                    :: term1, term21, term22
+        ! real(p2)                    :: dnut ! nut2 - nut1
+        ! real(p2)                    :: dnut_face
 
         ! Calculate the face gradients
         ds = (/xc2-xc1, yc2-yc1, zc2-zc1/) ! vector pointing from center of cell 1 to cell 2
         dsds2 = ds/(ds(1)**2 + ds(2)**2 + ds(3)**2) ! ds(:)/ds**2
 
         gradnut_face(:) = half * (gradnut1(:) + gradnut2(:))
-        gradnut_face(:) = gradnut_face(:) + ( (nut2 - nut1) - dot_product(gradnut_face(:),ds)) * dsds2
+        ! dnut = nut2 - nut1
+        gradnut_face(:) = gradnut_face(:) + ( dnut - dot_product(gradnut_face(:),ds)) * dsds2
         
         T   = half * ( q1( 5 ) + q2( 5 ) )
         u   = half * ( q2u(q1) + q2u(q2) )
@@ -401,8 +404,15 @@ module res_sa
         term21 = cb2 * (nuf + nut1) ! cross diffusion term doesn't use the face gradient it uses the cell value
         term22 = cb2 * (nuf + nut2)
 
+        ! ! Isolate the non tangent gradient based on left and right difference (delta_nut / ds)
+        ! where (abs(ds) > 1.0E-18_p2)
+        !     dnut_ds = dnut / ds
+        ! elsewhere
+        !     dnut_ds = zero
+        ! end where
         normal_face_grad = dot_product( gradnut_face, n12 )
 
+        ! dnut_face = dot_product( gradnut_face, n12 )
         nut_flux(1) = - iSIGMA * (term1 - term21) * normal_face_grad
         jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half
         jac1(1)     = (jac1(1) - cb2 * iSIGMA * normal_face_grad)
