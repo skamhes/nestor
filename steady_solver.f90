@@ -29,7 +29,7 @@ module steady_solver
 
         use config    , only : accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag, solver_type
+                                lift, drag, solver_type, Re_inf
 
         use utils     , only : isolver_type, iturb_type, TURB_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
                                itime_method, TM_REMAINING, TM_ELAPSED
@@ -83,8 +83,9 @@ module steady_solver
         write(*,*) 
         write(*,*)
         write(*,*) "    solver_type = ", trim(solver_type)
-        write(*,'(a,i1)') " accuracy_order = ", accuracy_order
+        write(*,'(a,i1)') "  accuracy_order = ", accuracy_order
         write(*,*) " inviscid_flux  = ", trim(method_inv_flux)
+        if (iturb_type > TURB_INVISCID) write(*,'(a,es13.4)') "          Re_inf = ", Re_inf
         
 
         if (CFL_ramp) then
@@ -94,14 +95,14 @@ module steady_solver
             ! After each iter: CFL = CFL * CFL_mult
             CFL_multiplier = (CFL_final/CFL_init)**(one/CFL_ramp_steps)
             write(*,*) '    CFL Ramping = ENABLED'
-            write(*,*) '    Initial CFL = ', CFL_init
-            write(*,*) ' # of CFL Steps = ', CFL_ramp_steps
-            write(*,*) ' CFL multiplier = ', CFL_multiplier
+            write(*,'(a,es13.4)') '    Initial CFL = ', CFL_init
+            write(*,'(a,es13.4)') ' # of CFL Steps = ', CFL_ramp_steps
+            write(*,'(a,es13.4)') ' CFL multiplier = ', CFL_multiplier
             write(*,*)
             write(*,*)
         else
-            write(*,*) '    CFL Ramping = DISABLED'
-            write(*,*) "            CFL = ", CFL
+            write(*,*) '   CFL Ramping = DISABLED'
+            write(*,'(a,es13.4)') "            CFL = ", CFL
             write(*,*)
             write(*,*)
         endif
