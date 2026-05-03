@@ -13,11 +13,11 @@
 FC = gfortran
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
-# FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
+FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -Wargument-mismatch
 # FFLAGS = -O2 -pg
-FFLAGS = -g -pg -O3 -march=native
+# FFLAGS = -g -pg -O3 -march=native
 ##########################################################
 # VPATH = ..
 ##########################################################
@@ -35,11 +35,15 @@ FFLAGS = -g -pg -O3 -march=native
 .SUFFIXES : .o .f90
 .f90.o:
 	$(FC) $(FFLAGS) -c $<
+	
+%.o: %.F90 # run c preprocessor
+	$(FC) -cpp $(FFLAGS) -c $<
 
 ##########################################################
 SDIR = .
 
 OBCTS = $(SDIR)/lowlevel.o\
+		$(SDIR)/messages.o\
 		$(SDIR)/utils.o\
 		$(SDIR)/parameters.o\
 		$(SDIR)/sort_routines.o\
