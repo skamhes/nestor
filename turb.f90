@@ -10,22 +10,22 @@ module turb
     private
 
     ! VARS
-    public turb_var
-    public turb_jac
-    public turb_res
-    public ccgrad_turb_var, vgrad_turb_var
-    public nturb
-    public phi_turb
-    public turb_jacobian_type
-    public nut_inf
-    public turb_res_norm, turb_res_norm_init
-    public turb_update
-    public twsn
+    public :: turb_var
+    public :: turb_jac
+    public :: turb_res
+    public :: ccgrad_turb_var, vgrad_turb_var
+    public :: nturb
+    public :: phi_turb
+    public :: turb_jacobian_type
+    public :: nut_inf
+    public :: turb_res_norm, turb_res_norm_init
+    public :: turb_update
+    public :: twsn
 
     ! FUNCTIONS
-    public allocate_rans
-    public init_turb
-    public calcmut
+    public :: allocate_rans
+    public :: init_turb
+    public :: calcmut
 
     real(p2), dimension(:,:)  , allocatable :: turb_var
     real(p2), dimension(:,:)  , allocatable :: turb_res
@@ -160,37 +160,37 @@ module turb
 
     pure function calcmut_SA(q,mu,nut) result(mut)
 
-    use common , only : half
+        use common , only : half
 
-    use solution_vars , only : nq, gamma, ip, iT
+        use solution_vars , only : nq, gamma, ip, iT
 
-    use viscosity , only : compute_viscosity
+        use viscosity , only : compute_viscosity
 
-    use sa_vars , only : cv13
+        use sa_vars , only : cv13
 
-    implicit none
+        implicit none
 
-    real(p2), dimension(nq), intent(in) :: q
-    real(p2),                intent(in) :: mu
-    real(p2),                intent(in) :: nut
+        real(p2), dimension(nq), intent(in) :: q
+        real(p2),                intent(in) :: mu
+        real(p2),                intent(in) :: nut
 
-    real(p2)                               :: mut
+        real(p2)                               :: mut
 
-    ! Local Vars
-    real(p2) :: rho
-    real(p2) :: nu
-    real(p2) :: chi3, fv1
+        ! Local Vars
+        real(p2) :: rho
+        real(p2) :: nu
+        real(p2) :: chi3, fv1
 
-    rho = q(ip)*gamma / q(iT)
-    
-    nu = mu / rho
+        rho = q(ip)*gamma / q(iT)
+        
+        nu = mu / rho
 
-    chi3 = ( nut / nu )**3
+        chi3 = ( nut / nu )**3
 
-    fv1 = chi3 / ( chi3 + cv13 )
+        fv1 = chi3 / ( chi3 + cv13 )
 
-    mut = rho * nut * fv1
-    
-end function calcmut_SA
+        mut = rho * nut * fv1
+        
+        end function calcmut_SA
 
-end module turb
+end module
