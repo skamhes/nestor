@@ -27,8 +27,8 @@ module turb
     public :: init_turb
     public :: calcmut
 
-    real(p2), dimension(:,:)  , allocatable :: turb_var
-    real(p2), dimension(:,:)  , allocatable :: turb_res
+    real(p2), dimension(:,:)  , pointer     :: turb_var
+    real(p2), dimension(:,:)  , pointer     :: turb_res
     real(p2), dimension(:)    , allocatable :: turb_update
     real(p2), dimension(:,:,:), allocatable :: ccgrad_turb_var, vgrad_turb_var
     integer                                 :: nturb

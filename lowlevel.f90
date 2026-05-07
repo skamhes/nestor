@@ -100,4 +100,26 @@ module lowlevel
 
     end subroutine ip_swap
 
+    subroutine merge_array(A, B, m, n1, n2, C)
+        ! Merge and stitch A and B into C and B needs to be transposed first.
+
+        ! m >> n1, n2
+        implicit none
+        integer , parameter :: p2 = selected_real_kind(P=15) !Double precision
+        integer                  ,    intent(in) :: m, n1, n2
+        real(p2), dimension(n1,m),    intent(in) :: A
+        real(p2), dimension(m,n2),    intent(in) :: B
+        real(p2), dimension(n1+n2,m), intent(out) :: C
+
+        integer :: i, j
+
+        do i = 1,m
+            C(1:n1,i)  = A(:,i)
+            do j = n1+1,n1+n2
+                C(j,i) = B(m,j-n1)
+            end do
+        end do
+
+        end subroutine
+
 end module lowlevel

@@ -26,7 +26,7 @@ module initialize
 
         use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, T_inf, mu_inf, mre, C0
 
-        use turb , only : init_turb
+        use turb , only : init_turb, nturb, turb_var, turb_res
 
         implicit none
 
@@ -72,7 +72,13 @@ module initialize
         mre = M_inf / Re_inf
         mu_inf = compute_viscosity(T_inf)
 
-        if (iflow_type >= FLOW_RANS) call init_turb
+
+        nullify(turb_var, turb_res)
+        if (iflow_type >= FLOW_RANS) then
+            call init_turb
+        else 
+            nturb = 0 ! gonna use this in the GCR to be a little clever
+        endif
 
     end subroutine set_initial_solution
 

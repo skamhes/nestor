@@ -49,8 +49,6 @@ module res_sa
 
         use viscosity , only : compute_viscosity
 
-        use mms, only : sa_fMMS
-
         ! Grid Vars
         integer                     :: cell1, cell2
         real(p2), dimension(3)      :: unit_face_normal, bface_centroid
@@ -391,7 +389,7 @@ module res_sa
 
         gradnut_face(:) = half * (gradnut1(:) + gradnut2(:))
         ! dnut = nut2 - nut1
-        gradnut_face(:) = gradnut_face(:) + ( dnut - dot_product(gradnut_face(:),ds)) * dsds2
+        gradnut_face(:) = gradnut_face(:) + ( (nut2 - nut1) - dot_product(gradnut_face(:),ds)) * dsds2
         
         T   = half * ( q1( 5 ) + q2( 5 ) )
         u   = half * ( q2u(q1) + q2u(q2) )
@@ -568,28 +566,5 @@ module res_sa
         ! dsource = min(dprod, zero) - max(ddest, zero)
         
     end subroutine sa_source
-
-
-    
-    ! pure function sa_prod(nut,ft2,strain_rate) result(source)
-
-    !     use common , only : one
-
-    !     real(p2), intent(in)  :: nut, ft2, strain_rate
-    !     real(p2)              :: source
-
-    !     source = cb1 * (one - ft2) * strain_rate * nut
-
-    ! end function sa_prod
-
-    ! pure function sa_dest(nut,distance,fw,ft2) result(dest)
-
-    !     real(p2), intent(in) :: nut, distance, fw, ft2
-    !     real(p2)             :: dest
-
-    !     dest = ( cw1 * fw - (cb1 / KAPPA**2) * ft2 ) * (nut / distance)**2
-
-    ! end function sa_dest
-
 
 end module res_sa

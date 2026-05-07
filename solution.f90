@@ -72,12 +72,16 @@ module solution
             vector_drag(3) =  sin(aoa*pi/180.0_p2)
         endif
 
-        inv_ncells = one / real(ncells*nq,p2) 
+
 
         CFL_used = CFL
 
+        nturb = 0
+
         if (iflow_type >= FLOW_RANS) call allocate_rans
 
+        inv_ncells = one / real(ncells*(nq + nturb),p2) 
+        
     end subroutine allocate_solution_vars
 
     subroutine compute_local_time_step_dtau

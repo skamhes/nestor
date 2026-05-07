@@ -107,7 +107,7 @@ module solution_vars
     ! real(p2), dimension(:,:,:), pointer :: gcr_precond_correction
     ! real(p2), dimension(:,:),   pointer :: gcr_final_correction
     ! real(p2), dimension(:,:,:), pointer :: gcr_search_direction
-    real(p2) :: inv_ncells ! 1/ncells/nq
+    real(p2) :: inv_ncells ! 1/ncells/(nq+nturb)
     real(p2) :: nl_reduction
     integer  :: n_projections                   
 
