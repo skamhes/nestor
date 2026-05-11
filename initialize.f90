@@ -72,7 +72,6 @@ module initialize
         mre = M_inf / Re_inf
         mu_inf = compute_viscosity(T_inf)
 
-
         nullify(turb_var, turb_res)
         if (iflow_type >= FLOW_RANS) then
             call init_turb

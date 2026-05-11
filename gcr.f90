@@ -153,9 +153,7 @@ module gcr
         gcr_final_update_f = zero
         ! call merge_array(-res,-turb_res, ncells, nq, nturb, r_k)
         r_k              = -Qcomb%res
-        rms_r_0          = rms(nq,nturb,ncells,Qcomb%res,Qcomb%turb_res,inv_ncells)
-        rms_Q_n          = rms(nq,nturb,ncells,Qcomb%q,  Qcomb%turb    ,inv_ncells)
-
+ 
         ! Build M (A Approx) for precondition solve of flow variables
         allocate(R(ncells+1))
         allocate(Dinv(5,5,ncells))
@@ -171,6 +169,10 @@ module gcr
             gcr_final_update_t = zero
         end if
         
+        rms_r_0          = rms(nq,nturb,ncells,r_k,r_k_t,inv_ncells)
+        rms_Q_n          = rms(nq,nturb,ncells,Qcomb%q,  Qcomb%turb    ,inv_ncells)
+
+
         ! Solve the preconditioner
         cycle_type = convert_amg_c_to_i(amg_cycle)
 
@@ -217,9 +219,9 @@ module gcr
             norm_b_k_inv = one / l2norm(nq,nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir))
             
             b_k(  :,:,kdir) = b_k(  :,:,kdir) * norm_b_k_inv
-            b_k_t(:,:,kdir) = b_k_t(:,:,kdir) * norm_b_k_inv
+            dQ_k(  :,:,kdir) = dQ_k(  :,:,kdir) * norm_b_k_inv
             if (iflow_type > FLOW_LAMINAR) then
-                dQ_k(  :,:,kdir) = dQ_k(  :,:,kdir) * norm_b_k_inv
+                b_k_t(:,:,kdir) = b_k_t(:,:,kdir) * norm_b_k_inv
                 dQ_k_t(:,:,kdir) = dQ_k_t(:,:,kdir) * norm_b_k_inv
             endif
             do jdir = 1,kdir - 1
@@ -288,7 +290,7 @@ module gcr
 
     subroutine compute_frechet(dQ_f,dQ_t,QC,mag_dQ,sol_rms,frechet_deriv_f,frechet_deriv_t,os)
 
-        use common , only : p2, one
+        use common , only : p2, one, half
 
         use utils , only : iflow_type, FLOW_LAMINAR
 
@@ -298,11 +300,13 @@ module gcr
         
         use solution , only : compute_primative_jacobian
 
-        use config , only : gcr_verbosity
+        use config , only : gcr_verbosity, CFL_turb
 
         use grid , only : ncells, cell
 
         use residual , only : compute_residual
+
+        use turb , only : twsn
 
         implicit none
 
@@ -320,6 +324,7 @@ module gcr
         real(p2), dimension(5,5)          :: prim_jac
         real(p2)                          :: eps_frechet
         real(p2)                          :: frech_min_bound = 1.0e-07_p2
+        real(p2), dimension(2)            :: dtaui
 
         integer :: icell, it
 
@@ -371,13 +376,13 @@ module gcr
         frechet_deriv_f = mag_dQ * ( res - QC%res ) / eps_frechet
         
         ! write(*,*) "  Pre psuedo time:", l2norm(nq,ncells,frechet_deriv(:,:))
-        ! I came up with a reason why this section was needed when I originally did it but I can't remember it now and looking at
+        ! Nevermind its equation 14
         ! it including it seems incorrect
-        ! do icell = 1,ncells
-        !     prim_jac = compute_primative_jacobian(q(:,icell))
-        !     frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * matmul(prim_jac,sol_update(:,icell))
-        !     ! frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * sol_update(:,icell)
-        ! end do
+        do icell = 1,ncells
+            prim_jac = compute_primative_jacobian(q(:,icell))
+            frechet_deriv_f(:,icell) = frechet_deriv_f(:,icell) + cell(icell)%vol/dtau(icell) * matmul(prim_jac,dQ_f(:,icell))
+            ! frechet_deriv(:,icell) = frechet_deriv(:,icell) + cell(icell)%vol/dtau(icell) * sol_update(:,icell)
+        end do
         ! write(*,*) " Post psuedo time:", l2norm(nq,ncells,frechet_deriv(:,:))
 
         deallocate(  q)
@@ -390,6 +395,11 @@ module gcr
 
         if (iflow_type > FLOW_LAMINAR) then 
             frechet_deriv_t = mag_dQ * ( turb_res - QC%turb_res ) / eps_frechet
+
+            dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
+            dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
+            turb_var(icell,it) = turb_var(icell,it) + dQ_t(icell,it) * cell(icell)%vol / minval(dtaui)
+
             turb_var => QC%turb
             turb_res => QC%turb_res
         end if
