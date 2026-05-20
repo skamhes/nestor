@@ -23,18 +23,10 @@ module gcr
     integer, parameter :: GCR_REAL_FAIL = 5
     integer, parameter :: GCR_PREAL_FAIL = 6
 
-    type :: full_flow
-        real(p2), dimension(:,:), pointer :: turb, turb_res
-        real(p2), dimension(:,:), pointer :: q, res
-    end type full_flow
-
     interface clear_jacobian_arrays
         module procedure clear_jacobian_arrays_B
         module procedure clear_jacobian_arrays_S
     end interface clear_jacobian_arrays
-
-    type(full_flow) :: Qcomb
-
 
     contains
 
@@ -56,12 +48,15 @@ module gcr
         real(p2), dimension(ncells,nturb) :: sol_update_t
         real(p2)                          :: gcr_res_rms
 
-        ! Initialize QComb
-        Qcomb%q        => q
-        Qcomb%res      => res
+        real(p2), dimension(:,:), pointer :: q_0, r_n ! Initial solution (q0) and res (r_n)
+        real(p2), dimension(:,:), pointer :: t_0, tr_n ! Ditto for turb vars
 
-        if (associated(turb_var)) Qcomb%turb     => turb_var
-        if (associated(turb_res)) Qcomb%turb_res => turb_res
+
+        q_0 => q
+        r_n => res
+
+        if (associated(turb_var)) t_0  => turb_var
+        if (associated(turb_res)) tr_n => turb_res
         
         call gcr_solve_scratch(sol_update_f,sol_update_t,gcr_res_rms,iostat)
 
@@ -72,13 +67,6 @@ module gcr
         if (iostat /= GCR_SUCCESS) return
 
         call gcr_nl_control(sol_update_f,sol_update_t,gcr_res_rms,iostat)
-
-        ! Clear out Qcomb
-        nullify(Qcomb%q)
-        nullify(Qcomb%res)
-        nullify(Qcomb%turb) ! don't need to check associated to nullify
-        nullify(Qcomb%turb_res)
-
 
     end subroutine gcr_run
 
@@ -152,7 +140,7 @@ module gcr
         ! Initialize some variables
         gcr_final_update_f = zero
         ! call merge_array(-res,-turb_res, ncells, nq, nturb, r_k)
-        r_k              = -Qcomb%res
+        r_k              = -res
  
         ! Build M (A Approx) for precondition solve of flow variables
         allocate(R(ncells+1))
@@ -165,12 +153,12 @@ module gcr
             allocate(Dinvt(ncells,nturb))
             call build_A_BCSM(ncells,cell,turb_jac,Vt,Ct,Rt,nturb,nnz=nnzt)
             call build_Dinv_array(ncells,turb_jac,nturb,Dinvt)
-            r_k_t = -Qcomb%turb_res
+            r_k_t = -turb_res
             gcr_final_update_t = zero
         end if
         
-        rms_r_0          = rms(nq,nturb,ncells,r_k,r_k_t,inv_ncells)
-        rms_Q_n          = rms(nq,nturb,ncells,Qcomb%q,  Qcomb%turb    ,inv_ncells)
+        rms_r_0          = rms(nq,nturb,ncells,r_k,r_k_t   ,inv_ncells)
+        rms_Q_n          = rms(nq,nturb,ncells,q  ,turb_var,inv_ncells)
 
 
         ! Solve the preconditioner
@@ -183,7 +171,7 @@ module gcr
             call multilevel_cycle(ncells,nq, V, C, R, -r_k, Dinv,cycle_type,.true.,dQ_k(:,:,kdir),os)
             ! Compute correction for turbulence eqs
             do iturb = 1,nturb ! nturb is set to zero for laminar/inviscid flow
-                call multilevel_cycle(ncells, Vt(:,iturb), Ct, Rt, turb_res(:,iturb), Dinvt(:,iturb), cycle_type, &
+                call multilevel_cycle(ncells, Vt(:,iturb), Ct, Rt, -r_k_t(:,iturb), Dinvt(:,iturb), cycle_type, &
                                       .true., dQ_k_t(:,iturb,kdir), os)
             end do
 
@@ -205,7 +193,8 @@ module gcr
             ! Generate the new search direction
             norm_dQ_k = l2norm(nq,nturb,ncells,dQ_k(:,:,kdir),dQ_k_t(:,:,kdir))
 
-            call compute_frechet(dQ_k(:,:,kdir),dQ_k_t(:,:,kdir),Qcomb,norm_dQ_k,rms_Q_n,b_k(:,:,kdir),b_k_t(:,:,kdir),os)
+            call compute_frechet(q,res,turb_var,turb_res, dQ_k(:,:,kdir),dQ_k_t(:,:,kdir),norm_dQ_k,rms_Q_n, &
+                                    b_k(:,:,kdir),b_k_t(:,:,kdir),os)
 
             if (os == GCR_PREAL_FAIL) then
                 iostat = GCR_PREAL_FAIL
@@ -288,15 +277,15 @@ module gcr
         return
     end subroutine gcr_solve_scratch
 
-    subroutine compute_frechet(dQ_f,dQ_t,QC,mag_dQ,sol_rms,frechet_deriv_f,frechet_deriv_t,os)
+    subroutine compute_frechet(q,res,qT,resT,dQ_f,dQ_t,mag_dQ,sol_rms,frechet_deriv_f,frechet_deriv_t,os)
 
         use common , only : p2, one, half
 
         use utils , only : iflow_type, FLOW_LAMINAR
 
-        use solution_vars , only : nq, q, res, dtau
+        use solution_vars , only : nq, dtau
 
-        use turb , only : turb_var, turb_res, nturb
+        use turb , only : nturb
         
         use solution , only : compute_primative_jacobian
 
@@ -310,17 +299,18 @@ module gcr
 
         implicit none
 
-        real(p2), dimension(:,:),       intent(in) :: dQ_f
-        real(p2), dimension(:,:),       intent(in) :: dQ_t
-        type(full_flow),                intent(in) :: QC ! QC aliased
-        real(p2),                       intent(in) :: mag_dQ
-        real(p2),                       intent(in) :: sol_rms
-        real(p2), dimension(:,:),       intent(out):: frechet_deriv_f
-        real(p2), dimension(:,:),       intent(out):: frechet_deriv_t
-        integer,                        intent(out):: os
+        real(p2), dimension(:,:), pointer, intent(inout) :: q, res ! Flow values
+        real(p2), dimension(:,:), pointer, intent(inout) :: qT, resT ! Turbulent Flow values
+        real(p2), dimension(:,:),          intent(in)    :: dQ_f
+        real(p2), dimension(:,:),          intent(in)    :: dQ_t
+        real(p2),                          intent(in)    :: mag_dQ
+        real(p2),                          intent(in)    :: sol_rms
+        real(p2), dimension(:,:),          intent(out)   :: frechet_deriv_f
+        real(p2), dimension(:,:),          intent(out)   :: frechet_deriv_t
+        integer,                           intent(out)   :: os
 
-        ! real(p2), dimension(:,:), pointer :: q_n
-        ! real(p2), dimension(:,:), pointer :: r_0
+        real(p2), dimension(:,:), pointer :: q_n, r_0
+        real(p2), dimension(:,:), pointer :: t_n, tr_0
         real(p2), dimension(5,5)          :: prim_jac
         real(p2)                          :: eps_frechet
         real(p2)                          :: frech_min_bound = 1.0e-07_p2
@@ -333,9 +323,10 @@ module gcr
         ! compute eps to be used in the frechet derivative
         eps_frechet = max(sol_rms,one)*frech_min_bound
 
+
         ! move the lates solution vector to the temp vector q_n
-        ! q_n => q
-        ! r_0 => res
+        q_n => q
+        r_0 => res
 
         ! Set q = q + eps * dq/|dq|
         ! I think nullifying and reallocating the solution and residual vectors should be faster than directly copying them to 
@@ -346,26 +337,29 @@ module gcr
         allocate(res(nq,ncells))
 
         do icell = 1,ncells
-            q(:,icell) = QC%q(:,icell) + eps_frechet * dQ_f(:,icell) / mag_dQ
+            q(:,icell) = q_n(:,icell) + eps_frechet * dQ_f(:,icell) / mag_dQ
             if ( (q(1,icell) <= 0) .or. ( q(5,icell) <= 0 ) ) then
                 ! solution does not pass realizeability check
                 deallocate(  q)
                 deallocate(res)
 
-                q   => QC%q
-                res => QC%res
+                q   => q_n
+                res => r_0
                 
                 os = GCR_PREAL_FAIL
                 return
             endif
         end do
         if (iflow_type > FLOW_LAMINAR) then
-            nullify(turb_var, turb_res)
-            allocate(turb_var(ncells,nturb))
-            allocate(turb_res(ncells,nturb))
+            ! move the lates solution vector to the temp vector
+            t_n  => qT
+            tr_0 => resT
+            nullify(qT, resT)
+            allocate(qT(ncells,nturb))
+            allocate(resT(ncells,nturb))
             ltrb: do it = 1,nturb 
                 do icell = 1,ncells
-                    turb_var(icell,it) = QC%turb(icell,it) + eps_frechet * dQ_f(icell,it) / mag_dQ
+                    qT(icell,it) = t_n(icell,it) + eps_frechet * dQ_t(icell,it) / mag_dQ
                 end do 
             end do ltrb
             ! Currently there are no realizeability checks for the turbulent variables
@@ -373,7 +367,7 @@ module gcr
 
         call compute_residual
 
-        frechet_deriv_f = mag_dQ * ( res - QC%res ) / eps_frechet
+        frechet_deriv_f = mag_dQ * ( res - r_0 ) / eps_frechet
         
         ! write(*,*) "  Pre psuedo time:", l2norm(nq,ncells,frechet_deriv(:,:))
         ! Nevermind its equation 14
@@ -388,20 +382,24 @@ module gcr
         deallocate(  q)
         deallocate(res)
 
-        q   => QC%q
-        res => QC%res
+        q   => q_n
+        res => r_0
 
-        ! nullify(q_n,r_0)
+        ! nullify(q_n,r_0) ! These are nullified when they go out of scope
 
         if (iflow_type > FLOW_LAMINAR) then 
-            frechet_deriv_t = mag_dQ * ( turb_res - QC%turb_res ) / eps_frechet
-
-            dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
-            dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
-            turb_var(icell,it) = turb_var(icell,it) + dQ_t(icell,it) * cell(icell)%vol / minval(dtaui)
-
-            turb_var => QC%turb
-            turb_res => QC%turb_res
+            frechet_deriv_t = mag_dQ * ( resT - tr_0 ) / eps_frechet
+            do it = 1,nturb
+                do icell = 1,ncells
+                    dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
+                    dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
+                    qT(icell,it) = qT(icell,it) + dQ_t(icell,it) * cell(icell)%vol / minval(dtaui)
+                end do
+            end do
+            deallocate(resT,qT)
+            qT => t_n
+            resT => tr_0
+            ! nullify(t_n, tr_0)
         end if
 
     end subroutine compute_frechet
@@ -487,8 +485,8 @@ module gcr
         real(p2),                          intent(in) :: gcr_res_rms
         integer,                           intent(out):: iostat
 
-        ! real(p2), dimension(:,:), pointer   :: q_n
-        ! real(p2), dimension(:,:), pointer   :: r_0
+        real(p2), dimension(:,:), pointer   :: q_n, r_0
+        real(p2), dimension(:,:), pointer   :: t_n, tr_0
         real(p2)                            :: residual_reduct_target
         real(p2)                            :: Rtau_rms, R0_rms
         real(p2)                            :: delQ_rms, Qn_rms
@@ -501,8 +499,8 @@ module gcr
 
         integer :: icell, it
 
-        ! q_n => q
-        ! r_0 => res
+        q_n => q
+        r_0 => res
 
         nullify(q,res)
 
@@ -510,13 +508,15 @@ module gcr
         allocate(res(nq,ncells))
 
         ! We don't need to perform a realizability check here because we did it in gcr_real_check
-        q = Qcomb%q + sol_update_f
+        q = q_n + sol_update_f
 
         if (iflow_type > FLOW_LAMINAR) then
+            t_n  => turb_var
+            tr_0 => turb_res
             nullify(turb_var, turb_res)
             allocate(turb_var(ncells,nturb))
             allocate(turb_res(ncells,nturb))
-            turb_var = Qcomb%turb + sol_update_t
+            turb_var = t_n + sol_update_t
         endif
         
 
@@ -533,7 +533,7 @@ module gcr
                 ! TODO add pseudo-transient term to this
                 dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
                 dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
-                turb_var(icell,it) = turb_var(icell,it) + sol_update_t(icell,it) * cell(icell)%vol / minval(dtaui)
+                turb_res(icell,it) = turb_res(icell,it) + sol_update_t(icell,it) * cell(icell)%vol / minval(dtaui)
             end do
         end do
 
@@ -541,16 +541,16 @@ module gcr
         residual_reduct_target = half * (one + gcr_reduction_target)
 
         Rtau_rms = rms(nq,nturb,ncells,res,turb_res,inv_ncells)
-        R0_rms   = rms(nq,nturb,ncells,Qcomb%res,Qcomb%turb_res,inv_ncells)
+        R0_rms   = rms(nq,nturb,ncells,r_0,tr_0,inv_ncells)
 
         if ( Rtau_rms / R0_rms < residual_reduct_target ) then
             ! The reduction is acceptable without underrelaxation
             ! Additionally q and res have already been updated.
-            deallocate(Qcomb%q)
-            deallocate(Qcomb%res)
+            deallocate(q_n)
+            deallocate(r_0)
             if (iflow_type > FLOW_LAMINAR) then
-                deallocate(Qcomb%turb)
-                deallocate(Qcomb%turb_res)
+                deallocate(t_n)
+                deallocate(tr_0)
             endif
             iostat = GCR_SUCCESS
             return
@@ -558,17 +558,17 @@ module gcr
 
         ! If the change isn't succesful first we will check if the change is comperable to the computer percision
         delQ_rms = rms(nq,nturb,ncells,sol_update_f,sol_update_t,inv_ncells)
-        Qn_rms   = rms(nq,nturb,ncells,Qcomb%q     ,Qcomb%turb  ,inv_ncells)
+        Qn_rms   = rms(nq,nturb,ncells,q_n         ,t_n         ,inv_ncells)
 
         ! write(*,"(a,es12.6)") "delQ_rms/Qn_rms = ", delQ_rms / Qn_rms 
         if ( delQ_rms / Qn_rms < 1.0e-12_p2) then
             if ( Rtau_rms / R0_rms < one) then
                 ! Any reduction will be considered a success at this point, but we don't want to make the CFL any bigger
-                deallocate(Qcomb%q)
-                deallocate(Qcomb%res)
+                deallocate(q_n)
+                deallocate(r_0)
                 if (iflow_type > FLOW_LAMINAR) then
-                    deallocate(Qcomb%turb)
-                    deallocate(Qcomb%turb_res)
+                    deallocate(t_n)
+                    deallocate(tr_0)
                 endif
                 iostat = GCR_CFL_FREEZE
                 return
@@ -579,27 +579,28 @@ module gcr
         f_0 = R0_rms
         f_1 = Rtau_rms
 
-        ! We need to compute the frechet derivative again for g_1
-        ! deallocate(q)
-        ! deallocate(res)
-        ! q   => q_n
-        ! res => r_0
-        ! nullify(q_n,r_0)
+        ! At this point:
+        ! q_n, r_0 => Previous (outer) iteration value
+        ! q, res   => Proposed updated solution (w/o underrelaxation)
+        ! ditto for the turb variables
 
+        ! We want the frechet derivitive evaluated at the previous solution
         delQ_norm = l2norm(nq,nturb,ncells,sol_update_f, sol_update_t)
-        call compute_frechet(sol_update_f,sol_update_t,Qcomb,delQ_norm,Qn_rms,frechet_deriv_f,frechet_deriv_t,iostat)
+        call compute_frechet(q_n,r_0,t_n,tr_0,sol_update_f,sol_update_t,delQ_norm,Qn_rms,frechet_deriv_f,frechet_deriv_t,iostat)
+
+        ! TODO: add error handling for nonzero frechet iostat
         
         ! We will temporarily reuse the res vector to save memory space
         do icell = 1,ncells
             ! EQ 21 from FUN 3D paper where omega = 1
-            res(:,icell) = Qcomb%res(:,icell) + matmul( compute_primative_jacobian(Qcomb%q(:,icell)) , sol_update_f(:,icell) ) *&
+            res(:,icell) = r_0(:,icell) + matmul( compute_primative_jacobian(q(:,icell)) , sol_update_f(:,icell) ) *&
                             cell(icell)%vol/dtau(icell) + frechet_deriv_f(:,icell)
         end do
         do it = 1,nturb
             do icell = 1,ncells
                 dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
                 dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
-                turb_res(icell,it) = Qcomb%turb_res(icell,it) + cell(icell)%vol / minval(dtaui) * sol_update_t(icell,it) &
+                turb_res(icell,it) = tr_0(icell,it) + cell(icell)%vol / minval(dtaui) * sol_update_t(icell,it) &
                                      + frechet_deriv_t(icell,it)
             end do
         end do
@@ -617,8 +618,8 @@ module gcr
 
         ! Because this passed the realizability check with ur = 1, we know -Q(j,i) < sol_update for j = 1,5 and any i.
         ! Therefore if abs(ur_opt) < 1, we now the updated solution w/ under-relaxation will also be realizable.
-        q = Qcomb%q + ur_opt * sol_update_f
-        if (iflow_type > FLOW_LAMINAR) turb_var = Qcomb%turb + ur_opt * sol_update_t
+        q = q_n + ur_opt * sol_update_f
+        if (iflow_type > FLOW_LAMINAR) turb_var = t_n + ur_opt * sol_update_t
 
         ! Check convergence of the updated solution
         call compute_residual
@@ -632,7 +633,7 @@ module gcr
             do icell = 1,ncells
                 dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
                 dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
-                turb_res(icell,it) = Qcomb%res(icell,it) + cell(icell)%vol / minval(dtaui) * sol_update_t(icell,it)
+                turb_res(icell,it) = turb_res(icell,it) + cell(icell)%vol / minval(dtaui) * sol_update_t(icell,it)
             end do
         end do
         Rtau_rms = rms(nq,nturb,ncells,res,turb_res,inv_ncells)
@@ -640,11 +641,12 @@ module gcr
         if ( Rtau_rms / R0_rms < residual_reduct_target .OR. delQ_rms / Qn_rms < 1.0e-12_p2) then
             ! q and res have already been updated and the residual has reduced.
             iostat = GCR_CFL_FREEZE
-            deallocate(Qcomb%q)
-            deallocate(Qcomb%res)
+            ! along some of the paths the qcombs get pointed back to their counter parts.  In this case we need to just nullify
+            deallocate(q_n)
+            deallocate(r_0)
             if (iflow_type > FLOW_LAMINAR) then
-                deallocate(Qcomb%turb)
-                deallocate(Qcomb%turb_res)
+                deallocate(t_n)
+                deallocate(tr_0)
             endif
             return
         endif
@@ -654,13 +656,13 @@ module gcr
         ! Revert the solution and residual to retry
         deallocate(q)
         deallocate(res)
-        q   => Qcomb%q
-        res => Qcomb%res
+        q   => q_n ! q_n will be nullified when it goes out of scope
+        res => r_0 ! r_0 will be nullified when it goes out of scope
             if (iflow_type > FLOW_LAMINAR) then
                 deallocate(turb_res)
                 deallocate(turb_var)
-                turb_var   => Qcomb%turb
-                turb_res => Qcomb%turb_res
+                turb_var   => t_n
+                turb_res => tr_0
             endif
         iostat = GCR_STALL
 
