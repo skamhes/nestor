@@ -412,10 +412,14 @@ module res_sa
 
         ! dnut_face = dot_product( gradnut_face, n12 )
         nut_flux(1) = - iSIGMA * (term1 - term21) * normal_face_grad
+        nut_flux(2) =  ( iSIGMA * (term1 - term22) * normal_face_grad )
+
+        gradnut_face = (nut2 - nut1) * dsds2
+
         jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half
         jac1(1)     = (jac1(1) - cb2 * iSIGMA * normal_face_grad)
 
-        nut_flux(2) =  ( iSIGMA * (term1 - term22) * normal_face_grad )
+        
         jac2(:)     =   ( iSIGMA * (one + cb2) * normal_face_grad ) * half
         jac2(1)     =   ( jac2(1) + cb2 * iSIGMA * normal_face_grad ) ! have to be a little careful with the signs here
 

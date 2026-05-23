@@ -670,9 +670,9 @@ module gcr
 
     subroutine gcr_CFL_control(gcr_status)
 
-        use common          , only : p2, two
+        use common          , only : p2, two, half
         
-        use config          , only : CFL, CFL_max, CFL_min
+        use config          , only : CFL, CFL_max, CFL_min, CFL_turb
 
         use grid            , only : ncells, cell
 
@@ -680,7 +680,9 @@ module gcr
 
         use solution        , only : compute_primative_jacobian, compute_local_time_step_dtau
 
-        use direct_solve    , only : gewp_solve
+        use direct_solve    , only : gewp_solve, safe_invert_scalar
+
+        use turb            , only : nturb, turb_jac, twsn, turb_var
 
         implicit none
 
@@ -688,8 +690,10 @@ module gcr
 
         real(p2), dimension(nq,nq) :: preconditioner
 
-        integer :: icell, k, j
+        integer :: icell, k, j, it
         integer :: idestat
+
+        real(p2), dimension(2) :: dtaui
 
 
         if (gcr_status == GCR_SUCCESS) then
@@ -699,6 +703,7 @@ module gcr
             endif
             CFL_used = CFL
             CFL = min(CFL * two, CFL_max)
+            CFL_turb = CFL
             if (gcr_verbosity >= 3) then
                 write(*,*) "CFL update: ", CFL
             endif
@@ -715,11 +720,20 @@ module gcr
                 
             end do
 
+            do it = 1,nturb
+                do icell = 1,ncells
+                    dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
+                    dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
+                    turb_jac(icell,it)%diag = turb_jac(icell,it)%diag - cell(icell)%vol / minval(dtaui) * turb_var(icell,it)
+                end do
+            end do
+
             if (gcr_verbosity >= 3) then
                 write(*,*) "Stall detected:"
                 write(*,*) "CFL old: ", CFL
             endif
             CFL = max(CFL / 10.0_p2, CFL_min)
+            CFL_turb = CFL
             if (gcr_verbosity >= 3) then
                 write(*,*) "CFL new: ", CFL
             endif
@@ -749,6 +763,14 @@ module gcr
 
             end do
 
+            do it = 1,nturb
+                do icell = 1,ncells
+                    dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
+                    dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
+                    turb_jac(icell,it)%diag = turb_jac(icell,it)%diag + cell(icell)%vol / minval(dtaui) * turb_var(icell,it)
+                    turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
+                end do
+            end do
         endif
 
     end subroutine gcr_CFL_control

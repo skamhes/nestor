@@ -15,7 +15,7 @@
   /
 
 &solver
-  CFL = 1000
+  CFL = 1
   solver_type = "implicit"
  perturb_initial = .true.
   solver_tolerance = 1e-14
@@ -43,7 +43,7 @@ gcr_reduction_target = 0.05
   /
 
 &turbulence
-  turbulence_type = 'rans'
+  turbulence_type = 'laminar'
   rans_model = 'sa'
   turb_ur = 0.8
   /

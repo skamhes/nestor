@@ -11,7 +11,19 @@
             "cwd": "${workspaceRoot}",
             "externalConsole": false,
             "MIMode": "gdb",
-            "preLaunchTask": "make"
+            "preLaunchTask": "make",
+            "setupCommands": [
+                {
+                    "description": "Enable Intel disassembly flavor",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
    ]
 }
