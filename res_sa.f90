@@ -201,7 +201,7 @@ module res_sa
 
                 call sa_invFlux(                    nut1,     nutb, &
                                                       q1,       qb, &
-                                                gradnut1, gradnut2, &
+                                                gradnut1, gradnutb, &
                                                   unit_face_normal, &
                     cell(cell1)%xc, cell(cell1)%yc, cell(cell1)%zc, & !<- Left  cell centroid
              bface_centroid(1),bface_centroid(2),bface_centroid(3), & !<- Face midpoint
