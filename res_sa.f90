@@ -74,6 +74,7 @@ module res_sa
         integer :: face_sides
 
         turb_res(:,:) = zero
+        twsn(:,:) = zero
         itwsn = zero
         
         do icell = 1,ncells
