@@ -1,5 +1,6 @@
 module wall_distance
 
+    ! Method based on: https://iccfd.org/iccfd12/assets/pdf/papers/ICCFD12_Paper_7-D-01.pdf
     use common , only : p2
 
     implicit none
@@ -65,7 +66,7 @@ module wall_distance
         real(p2), dimension(:), allocatable :: wnx, wny, wnz ! coordinates of wall nodes
         integer,  dimension(:), allocatable :: wns
         integer,  dimension(:), allocatable :: gnode_to_wnode ! pointer for translating between global nodes and wall nodes 
-        integer,  dimension(:), allocatable :: nf ! number of attached wall faces
+        integer,  dimension(:), allocatable :: nf ! number of wall faces attached to each node
 
         type(bounding_box), pointer :: root_box
         ! type(bounding_box)          :: testbox
@@ -134,6 +135,7 @@ module wall_distance
         ! allocate(wn_sorty(nwall_nodes))
         ! allocate(wn_sortz(nwall_nodes))
 
+        ! Get some statistics about the wall nodes
         nwall_nodes = 0
         is_wall = .false.
         bloop2 : do ib = 1,nb
@@ -142,7 +144,7 @@ module wall_distance
             do iface = 1,bound(ib)%nbfaces
                 add_node_loop : do inode = 2,bound(ib)%bfaces(1,iface) + 1
                     ni = bound(ib)%bfaces(inode,iface)
-                    if (.not.is_wall(ni)) then
+                    if (.not.is_wall(ni)) then ! Initialize wall nodes but avoid duplicates
                         is_wall(ni) = .true.
                         nwall_nodes = nwall_nodes + 1
                         wall_nodes(nwall_nodes) = ni
@@ -172,11 +174,13 @@ module wall_distance
         ! Set the split direction for the first bounding box
         call sort_longest(nwall_nodes,wnx,wny,wnz,wall_nodes,root_box,wns)
 
+        ! Create a binary tree of branches until we reach a leaf (recursive)
         call construct_bounding_box(nwall_nodes,wall_nodes,root_box)
 
         allocate(bbox_leafs(nleafs))
 
         nleafs = 0
+        ! extract the binary tree into an array of just the leafs (also recursive)
         call extract_leafs(nleafs, root_box, bbox_leafs)
 
         deallocate(root_box)
@@ -187,6 +191,7 @@ module wall_distance
         allocate(tmpinterior_cells(nleafs))
         allocate(tmpicell_box_dist(nleafs))
 
+        ! Calculate the distance to the bounding box of each leaf
         cloop : do icell = 1,ncells
             do ibox = 1,nleafs
                 tmpinterior_cells(ibox) = ibox
@@ -500,17 +505,19 @@ module wall_distance
         real(p2), dimension(:), intent(in) :: wnx, wny, wnz
         integer,  dimension(:), intent(in) :: wn
 
-        type(bounding_box),     intent(out):: box
-        integer,  dimension(:), intent(out):: wns
+        type(bounding_box),   intent(inout) :: box
+        integer,  dimension(:), intent(out) :: wns
 
         real(p2) :: dx, dy, dz
 
         ! calculate the domain of the wall boundaries for branch 1
         box%xmin = minval(wnx)
         box%xmax = maxval(wnx)
+
         box%ymin = minval(wny)
         box%ymax = maxval(wny)
-        box%zmin = minval(wny)
+
+        box%zmin = minval(wnz)
         box%zmax = maxval(wnz)
 
         if (n <= sqrt_nwall_nodes) then
