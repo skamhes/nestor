@@ -1,3 +1,8 @@
+! #if defined(__AVX512F__) && defined(__AVX512DQ__)
+!     #define __USE_VINTRINSICS
+!     test
+! #endif
+
 module gradient
 
     use common , only : p2
@@ -188,14 +193,25 @@ module gradient
         use utils , only : ibc_type
 
         use least_squares , only : lsqc
+
+#if defined(__USE_VINTRINSICS)
+        use iso_c_binding , only : c_int
+
+        use vi_interface , only : intrinsic_grad
+#endif
         
         implicit none
 
         integer, intent(in) :: weight
 
-        integer :: ib, j, icell, kcell, jvar
+#if defined(__USE_VINTRINSICS)
+        integer(c_int) :: icell, ck, ci
+#else
+        integer        :: icell, ck, ci
+#endif
+    
+        integer :: ib, j, kcell, jvar
         integer :: c1
-        integer :: ck, ci
 
         real(p2), dimension(3) :: unit_face_normal
         real(p2), dimension(5) :: q1, qb
@@ -204,6 +220,13 @@ module gradient
 
         real(p2) :: dqx, dqy, dqz
         real(p2), dimension(3) :: dqf
+
+        ! benchmarking
+        real(p2), dimension(:,:,:), allocatable :: tmp_ccgradq
+        real, dimension(2) :: values
+        real :: time
+
+        call dtime(values,time)
 
         do icell=1,ncells
             qi = q(:,icell)
@@ -215,31 +238,29 @@ module gradient
                 do jvar = 1,5 ! Hard code for loop unrolling
                     ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(jvar)
                 end do
-                ! The loop unroller seems to be smarter than me doing this manually
-                ! ccgradq(:,1,icell) = ccgradq(:,1,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(1)
-                ! ccgradq(:,2,icell) = ccgradq(:,2,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(2)
-                ! ccgradq(:,3,icell) = ccgradq(:,3,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(3)
-                ! ccgradq(:,4,icell) = ccgradq(:,4,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(4)
-                ! ccgradq(:,5,icell) = ccgradq(:,5,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(5)
             end do
-            do kcell = 1,lsqc(icell)%nbf
-                ci = lsqc(icell)%gcells(1,kcell)
-                ib = lsqc(icell)%gcells(2,kcell)
-                qk = gcell(ib)%q(:,ci)
-                dq(:) = qk - qi
-                ! outer product
-                do jvar = 1,5
-                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
-                end do
-                ! ccgradq(:,1,icell) = ccgradq(:,1,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(1)
-                ! ccgradq(:,2,icell) = ccgradq(:,2,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(2)
-                ! ccgradq(:,3,icell) = ccgradq(:,3,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(3)
-                ! ccgradq(:,4,icell) = ccgradq(:,4,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(4)
-                ! ccgradq(:,5,icell) = ccgradq(:,5,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(5)
-            end do
+            ! do kcell = 1,lsqc(icell)%nbf
+            !     ci = lsqc(icell)%gcells(1,kcell)
+            !     ib = lsqc(icell)%gcells(2,kcell)
+            !     qk = gcell(ib)%q(:,ci)
+            !     dq(:) = qk - qi
+            !     ! outer product
+            !     do jvar = 1,5
+            !         ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
+            !     end do
+            ! end do
         end do
 
+        call dtime(values,time)
+        write(*,*) time
 
+        do icell=1,ncells
+            call intrinsic_grad(q,icell, ck, lsqc(icell)%cf(:,kcell,weight), ccgradq(:,:,icell))
+        end do
+
+        call dtime(values,time)
+        write(*,*) time
+        continue
     end subroutine compute_cgradient_flow
 
     subroutine boundary_value_flow(boundary_type, scalar, known, value)
@@ -417,7 +438,9 @@ module gradient
 
         use common , only : p2, ix, iy, iz
 
-        use grid , only : nb, gcell, bound, ncells
+        use config , only : run_mms
+
+        use grid , only : nb, gcell, bound, ncells, cell, gcell
 
         use solution_vars , only : nq, nlsq
 
@@ -428,6 +451,8 @@ module gradient
         use turb            , only : nturb, ccgrad_turb_var, turb_var
 
         use turb_bc         , only : sa_rhstate
+
+        use mms
         
         implicit none
 
@@ -444,6 +469,7 @@ module gradient
 
         real(p2) :: dqx, dqy, dqz
         real(p2), dimension(3) :: dqf
+        real(p2) :: s1, s2 ! scratch
 
         var_loop : do ivar = 1, nturb
             do icell=1,ncells
@@ -459,7 +485,14 @@ module gradient
                     ci = lsqc(icell)%gcells(1,kcell)
                     ib = lsqc(icell)%gcells(2,kcell)
                     ! tk = gcell(ib)%q(:,ci)
-                    call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
+                    if (run_mms) then
+                        call sa_fMMS(gcell(ib)%xc(ci), &
+                                     gcell(ib)%yc(ci), &
+                                     gcell(ib)%zc(ci), &
+                                     s1, tk, s2) ! s1 and s2 are dummies
+                    else
+                        call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
+                    end if
                     dt = tk - ti
                     ! outer product
                     ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%gcf(:,kcell,weight) * dt
@@ -515,6 +548,8 @@ module gradient
         use common   , only : p2
 
         use utils    , only : ibc_type
+        use config , only : run_mms
+        use mms , only : fMMS
 
         implicit none
 
@@ -523,6 +558,7 @@ module gradient
         
         real(p2), dimension(5) :: q1, qb
         real(p2), dimension(3) :: unit_face_normal
+        real(p2)               :: xc2, yc2, zc2
 
          ! First update the ghost cell values
         do ib = 1,nb
@@ -530,7 +566,14 @@ module gradient
                 c1 = bound(ib)%bcell(j)
                 unit_face_normal = bound(ib)%bface_nrml(:,j)
                 q1 = q(:,c1)
-                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                xc2  = gcell(ib)%xc(j)
+                yc2  = gcell(ib)%yc(j)
+                zc2  = gcell(ib)%zc(j)
+                if (run_mms) then
+                    call fMMS(xc2,yc2,zc2,qb)
+                else
+                    call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
+                end if
                 gcell(ib)%q(:,j) = qb
             end do
         end do

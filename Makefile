@@ -11,16 +11,24 @@
 ##########################################################
 # MAKE VARIABLES
 FC = gfortran
+CC = gcc
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
 FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -DNANCHECK
 LDFLAGS= -flto=auto -fwhole-program
+CFLAGS = -O0 -g -Wall -Wextra -march=native
 # FFLAGS = -O2 -pg
 #  FFLAGS = -g -pg -O3 -march=native $(LDFLAGS)
 ##########################################################
 # VPATH = ..
+##########################################################
+# Check for vector intrinsics AVX512F and AVX512DQ
+USE_AVX512 := $(shell grep -q "avx512f" /proc/cpuinfo && grep -q "avx512dq" /proc/cpuinfo && echo 1 || echo 0)
+ifeq ($(USE_AVX512), 1)
+FFLAGS += -D__USE_VINTRINSICS
+endif
 ##########################################################
 # Suffix Rule for f90
 # The first line says to make sure that each object file
@@ -37,6 +45,9 @@ LDFLAGS= -flto=auto -fwhole-program
 .f90.o:
 	$(FC) $(FFLAGS) -c $<
 
+.c.o:
+	$(CC) $(CFLAGS) -c $<
+
 %.o: %.F90 # run c preprocessor
 	$(FC) -cpp $(FFLAGS) -c $<
 
@@ -46,8 +57,12 @@ SDIR = .
 OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/messages.o\
 		$(SDIR)/utils.o\
-		$(SDIR)/parameters.o\
-		$(SDIR)/ad_operators.o\
+		$(SDIR)/parameters.o
+ifeq ($(USE_AVX512), 1)
+OBCTS +=$(SDIR)/vector_intrinsics.o\
+		$(SDIR)/vi_interface.o
+endif
+OBCTS +=$(SDIR)/ad_operators.o\
 		$(SDIR)/sort_routines.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
@@ -67,6 +82,8 @@ OBCTS = $(SDIR)/lowlevel.o\
 		$(SDIR)/direct_solve.o\
 		$(SDIR)/bc_states.o\
 		$(SDIR)/lsq.o\
+		$(SDIR)/mms_funcs.o\
+		$(SDIR)/mms.o\
 		$(SDIR)/gradient.o\
 		$(SDIR)/inviscid_flux.o\
 		$(SDIR)/viscous_flux.o\
