@@ -438,8 +438,6 @@ module gradient
 
         use common , only : p2, ix, iy, iz
 
-        use config , only : run_mms
-
         use grid , only : nb, gcell, bound, ncells, cell, gcell
 
         use solution_vars , only : nq, nlsq
@@ -451,8 +449,6 @@ module gradient
         use turb            , only : nturb, ccgrad_turb_var, turb_var
 
         use turb_bc         , only : sa_rhstate
-
-        use mms
         
         implicit none
 
@@ -485,14 +481,7 @@ module gradient
                     ci = lsqc(icell)%gcells(1,kcell)
                     ib = lsqc(icell)%gcells(2,kcell)
                     ! tk = gcell(ib)%q(:,ci)
-                    if (run_mms) then
-                        call sa_fMMS(gcell(ib)%xc(ci), &
-                                     gcell(ib)%yc(ci), &
-                                     gcell(ib)%zc(ci), &
-                                     s1, tk, s2) ! s1 and s2 are dummies
-                    else
-                        call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
-                    end if
+                    call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
                     dt = tk - ti
                     ! outer product
                     ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%gcf(:,kcell,weight) * dt
@@ -548,9 +537,7 @@ module gradient
         use common   , only : p2
 
         use utils    , only : ibc_type
-        use config , only : run_mms
-        use mms , only : fMMS
-
+        
         implicit none
 
         integer  :: c1
@@ -569,11 +556,7 @@ module gradient
                 xc2  = gcell(ib)%xc(j)
                 yc2  = gcell(ib)%yc(j)
                 zc2  = gcell(ib)%zc(j)
-                if (run_mms) then
-                    call fMMS(xc2,yc2,zc2,qb)
-                else
-                    call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
-                end if
+                call get_right_state(q1, unit_face_normal, ibc_type(ib), qb)
                 gcell(ib)%q(:,j) = qb
             end do
         end do

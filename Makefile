@@ -82,8 +82,6 @@ OBCTS +=$(SDIR)/ad_operators.o\
 		$(SDIR)/direct_solve.o\
 		$(SDIR)/bc_states.o\
 		$(SDIR)/lsq.o\
-		$(SDIR)/mms_funcs.o\
-		$(SDIR)/mms.o\
 		$(SDIR)/gradient.o\
 		$(SDIR)/inviscid_flux.o\
 		$(SDIR)/viscous_flux.o\
