@@ -1,7 +1,8 @@
-! #if defined(__AVX512F__) && defined(__AVX512DQ__)
-!     #define __USE_VINTRINSICS
-!     test
-! #endif
+#if defined(__AVX512F__) && defined(__AVX512DQ__)
+#ifndef __USE_VINTRINSICS
+#define __USE_VINTRINSICS
+#endif
+#endif
 
 module gradient
 
@@ -184,7 +185,7 @@ module gradient
 
     subroutine compute_cgradient_flow(weight)
 
-        use common , only : p2, ix, iy, iz
+        use common , only : p2, ix, iy, iz, zero
 
         use grid , only : nb, gcell, bound, ncells
 
@@ -197,7 +198,7 @@ module gradient
 #if defined(__USE_VINTRINSICS)
         use iso_c_binding , only : c_int
 
-        use vi_interface , only : intrinsic_grad
+        use vi_interface
 #endif
         
         implicit none
@@ -206,6 +207,7 @@ module gradient
 
 #if defined(__USE_VINTRINSICS)
         integer(c_int) :: icell, ck, ci
+        real(p2), dimension(5,3) :: grdTrns
 #else
         integer        :: icell, ck, ci
 #endif
@@ -227,6 +229,9 @@ module gradient
         real :: time
 
         call dtime(values,time)
+        write(*,*) 'scratch time:', time
+
+        call dtime(values,time)
 
         do icell=1,ncells
             qi = q(:,icell)
@@ -239,28 +244,46 @@ module gradient
                     ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(jvar)
                 end do
             end do
-            ! do kcell = 1,lsqc(icell)%nbf
-            !     ci = lsqc(icell)%gcells(1,kcell)
-            !     ib = lsqc(icell)%gcells(2,kcell)
-            !     qk = gcell(ib)%q(:,ci)
-            !     dq(:) = qk - qi
-            !     ! outer product
-            !     do jvar = 1,5
-            !         ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
-            !     end do
-            ! end do
+            do kcell = 1,lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,kcell)
+                ib = lsqc(icell)%gcells(2,kcell)
+                qk = gcell(ib)%q(:,ci)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
+                end do
+            end do
         end do
 
         call dtime(values,time)
-        write(*,*) time
-
+        write(*,*) 'Old time:', time
+        allocate(tmp_ccgradq(3,5,ncells))
+        tmp_ccgradq = 0.0_p2
+        call dtime(values,time)
+        
         do icell=1,ncells
-            call intrinsic_grad(q,icell, ck, lsqc(icell)%cf(:,kcell,weight), ccgradq(:,:,icell))
+            call intrinsic_grad(q, icell, &
+                                lsqc(icell)%n_nnghbrs, lsqc(icell)%nghbr_lsq(:), &
+                                lsqc(icell)%cf(:,:,weight), tmp_ccgradq(:,:,icell))
         end do
 
         call dtime(values,time)
-        write(*,*) time
-        continue
+        write(*,*) 'New time:',time
+
+        cloop : do icell = 1,ncells
+            do jvar = 1,5
+                do kcell = 1,3
+                    if (abs(ccgradq(kcell,jvar,icell) - tmp_ccgradq(kcell,jvar,icell)) > 1.0e-08_p2 ) then
+                        write(*,*) 'ccgradq(:,',jvar,',',icell,')    :',ccgradq(:,jvar,icell)
+                        write(*,*) 'tmp_ccgradq(:,',jvar,',',icell,'):',tmp_ccgradq(:,jvar,icell)
+                        cycle cloop
+                    end if
+                end do
+            end do
+        end do cloop
+
+        deallocate(tmp_ccgradq)
     end subroutine compute_cgradient_flow
 
     subroutine boundary_value_flow(boundary_type, scalar, known, value)
