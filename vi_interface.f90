@@ -19,12 +19,15 @@ module vi_interface
 
 
     interface
-        subroutine intrinsic_grad(q_, icell_, nnghbrs_, ckn_, cf_, ccgradq_) bind(C, name="intrinsic_grad")
-            use iso_c_binding, only: c_double, c_int
+        subroutine intrinsic_grad(q_, icell_, nnghbrs_, ckn_, cf_, & ! Internal cells
+                                  qg_,        nbf_,           gcf_, & ! boundary cells
+                                  ccgradq_) bind(C, name="intrinsic_grad") ! OUTPUT
+            use iso_c_binding, only: c_double, c_int, c_ptr
             real(c_double), dimension(*) :: q_
-            integer(c_int), value        :: icell_, nnghbrs_
+            type(c_ptr),    dimension(*) :: qg_
+            integer(c_int), value        :: icell_, nnghbrs_, nbf_
             integer(c_int), dimension(*) :: ckn_
-            real(c_double), dimension(*) :: cf_
+            real(c_double), dimension(*) :: cf_, gcf_
             real(c_double), dimension(*) :: ccgradq_ ! Passed by reference
         end subroutine intrinsic_grad
     end interface

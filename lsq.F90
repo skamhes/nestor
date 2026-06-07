@@ -1,3 +1,9 @@
+#if defined(__AVX512F__) && defined(__AVX512DQ__)
+#ifndef __USE_VINTRINSICS
+#define __USE_VINTRINSICS
+#endif
+#endif
+
 module least_squares
     
     ! Module for computing the gradient using least squares.  Available options
@@ -12,6 +18,10 @@ module least_squares
     ! presumabley should result in increased robustness.
 
     use common , only : p2
+
+#if defined(__USE_VINTRINSICS)
+    use iso_c_binding , only : c_ptr, c_loc
+#endif
 
     implicit none
 
@@ -35,18 +45,21 @@ module least_squares
     type(lsq_vertex_type), dimension(:), pointer :: lsqv  !cell-centered LSQ array
 
     type lsq_cell_type
-        integer                                 ::    n_nnghbrs  ! number of cells attached to lsq vertex
-        integer,  dimension(:)  , pointer       ::    nghbr_lsq  ! list of neighbor cells  
-        real(p2), dimension(:,:,:), pointer     ::           cf  ! LSQ coefficient for x,y,&z-derivative (3 unknowns) 
+        integer                               ::    n_nnghbrs  ! number of cells attached to lsq vertex
+        integer,  dimension(:)  , pointer     ::    nghbr_lsq  ! list of neighbor cells  
+        real(p2), dimension(:,:,:), pointer   ::           cf  ! LSQ coefficient for x,y,&z-derivative (3 unknowns) 
         real(p2), dimension(:,:), pointer     ::           cx  ! LSQ coefficient for x-derivative (3 unknowns) 
         real(p2), dimension(:,:), pointer     ::           cy  ! LSQ coefficient for y-derivative (3 unknowns) 
         real(p2), dimension(:,:), pointer     ::           cz  ! LSQ coefficient for z-derivative (3 unknowns) 
-        integer                                 ::          nbf  ! number of boundary faces attached to the cell
-        integer,  dimension(:,:), pointer       ::       gcells  ! list of ghost cells (ibcell,ib) length 2xnbf
-        real(p2), dimension(:,:,:), pointer     ::          gcf  ! LSQ coefficient for x,y,&z-derivative (3 unknowns) 
+        integer                               ::          nbf  ! number of boundary faces attached to the cell
+        integer,  dimension(:,:), pointer     ::       gcells  ! list of ghost cells (ibcell,ib) length 2xnbf
+        real(p2), dimension(:,:,:), pointer   ::          gcf  ! LSQ coefficient for x,y,&z-derivative (3 unknowns) 
         real(p2), dimension(:,:), pointer     ::          gcx  ! LSQ coefficient for x-derivative (3 unknowns) 
         real(p2), dimension(:,:), pointer     ::          gcy  ! LSQ coefficient for y-derivative (3 unknowns) 
         real(p2), dimension(:,:), pointer     ::          gcz  ! LSQ coefficient for z-derivative (3 unknowns) 
+#if defined(__USE_VINTRINSICS)
+        type(c_ptr), dimension(:), pointer    ::    gcell_ptr  ! used for passing boundary data to the c intrinsics
+#endif
     end type lsq_cell_type
 
     !Cell data array in the custom data type.
@@ -228,7 +241,7 @@ module least_squares
 
         use common , only : p2
 
-        use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type, nb
+        use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type, nb, gcell
 
         use sort_routines , only : queued_natural_merge_sort
 
@@ -400,12 +413,19 @@ module least_squares
                     allocate(lsqc(ci)%gcy(lsqc(ci)%nbf,nlsq))
                     allocate(lsqc(ci)%gcz(lsqc(ci)%nbf,nlsq))
                     allocate(lsqc(ci)%gcf(3,lsqc(ci)%nbf,nlsq))
+#if defined(__USE_VINTRINSICS)
+                    allocate(lsqc(ci)%gcell_ptr(lsqc(ci)%nbf))
+#endif
                     lsqc(ci)%nbf = 0
                 end if
                 
                 do jcell = 1,lsqg(ib)%lsq(icell)%n_nnghbrs
                     lsqc(ci)%nbf = lsqc(ci)%nbf + 1
-                    lsqc(ci)%gcells(:,lsqc(ci)%nbf) = (/ lsqg(ib)%lsq(icell)%nghbr_lsq(jcell) , ib /)    
+                    cj = lsqg(ib)%lsq(icell)%nghbr_lsq(jcell)
+                    lsqc(ci)%gcells(:,lsqc(ci)%nbf) = (/ cj , ib /)    
+#if defined(__USE_VINTRINSICS)
+                    lsqc(ci)%gcell_ptr(lsqc(ci)%nbf) = c_loc(gcell(ib)%q(:,cj))
+#endif
                 end do
                 deallocate(lsqg(ib)%lsq(icell)%nghbr_lsq)
             end do

@@ -229,7 +229,7 @@ module gradient
         real :: time
 
         call dtime(values,time)
-        write(*,*) 'scratch time:', time
+        ! write(*,*) 'scratch time:', time
 
         call dtime(values,time)
 
@@ -264,8 +264,10 @@ module gradient
         
         do icell=1,ncells
             call intrinsic_grad(q, icell, &
-                                lsqc(icell)%n_nnghbrs, lsqc(icell)%nghbr_lsq(:), &
-                                lsqc(icell)%cf(:,:,weight), tmp_ccgradq(:,:,icell))
+                                lsqc(icell)%n_nnghbrs, lsqc(icell)%nghbr_lsq(:), lsqc(icell)%cf(:,:,weight), &
+                                lsqc(icell)%gcell_ptr, &
+                                lsqc(icell)%nbf, lsqc(icell)%gcf(:,:,weight), &
+                                tmp_ccgradq(:,:,icell))
         end do
 
         call dtime(values,time)
