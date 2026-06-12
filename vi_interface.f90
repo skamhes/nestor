@@ -5,18 +5,6 @@ module vi_interface
     implicit none
 
     public intrinsic_grad
-    
-    interface
-        subroutine old_intrinsic_grad(q_, ci_, ck_, cxyz_, ccgradq_) bind(C, name="old_intrinsic_grad")
-            use iso_c_binding, only: c_double, c_int
-            real(c_double), dimension(*) :: q_ 
-            real(c_double), dimension(*) :: cxyz_
-            real(c_double), dimension(*) :: ccgradq_ ! Passed by reference
-            integer(c_int), value          :: ci_, ck_
-
-        end subroutine old_intrinsic_grad
-    end interface
-
 
     interface
         subroutine intrinsic_grad(q_, icell_, nnghbrs_, ckn_, cf_, & ! Internal cells
@@ -32,11 +20,4 @@ module vi_interface
         end subroutine intrinsic_grad
     end interface
 
-    interface
-        subroutine transpose_3x5(cT__,c__) bind(C, name="transpose_3x5")
-            use iso_c_binding, only: c_double, c_int
-            real(c_double), dimension(*) :: cT__ 
-            real(c_double), dimension(*) :: c__
-        end subroutine transpose_3x5
-    end interface
 end module vi_interface

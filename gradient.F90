@@ -185,13 +185,9 @@ module gradient
 
     subroutine compute_cgradient_flow(weight)
 
-        use common , only : p2, ix, iy, iz, zero
+        use grid ,          only : ncells
 
-        use grid , only : nb, gcell, bound, ncells
-
-        use solution_vars , only : q, ccgradq, nq, nlsq
-
-        use utils , only : ibc_type
+        use solution_vars , only : q, ccgradq
 
         use least_squares , only : lsqc
 
@@ -206,86 +202,19 @@ module gradient
         integer, intent(in) :: weight
 
 #if defined(__USE_VINTRINSICS)
-        integer(c_int) :: icell, ck, ci
-        real(p2), dimension(5,3) :: grdTrns
+        integer(c_int) :: icell
 #else
-        integer        :: icell, ck, ci
+        integer        :: icell
 #endif
     
-        integer :: ib, j, kcell, jvar
-        integer :: c1
-
-        real(p2), dimension(3) :: unit_face_normal
-        real(p2), dimension(5) :: q1, qb
-        real(p2), dimension(5) :: qk, qi, dq
-        real(p2)               :: qk_j
-
-        real(p2) :: dqx, dqy, dqz
-        real(p2), dimension(3) :: dqf
-
-        ! benchmarking
-        real(p2), dimension(:,:,:), allocatable :: tmp_ccgradq
-        real, dimension(2) :: values
-        real :: time
-
-        call dtime(values,time)
-        ! write(*,*) 'scratch time:', time
-
-        call dtime(values,time)
-
-        do icell=1,ncells
-            qi = q(:,icell)
-            do kcell = 1,lsqc(icell)%n_nnghbrs
-                ck = lsqc(icell)%nghbr_lsq(kcell)
-                qk = q(:,ck)
-                dq(:) = qk - qi
-                ! outer product
-                do jvar = 1,5 ! Hard code for loop unrolling
-                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(jvar)
-                end do
-            end do
-            do kcell = 1,lsqc(icell)%nbf
-                ci = lsqc(icell)%gcells(1,kcell)
-                ib = lsqc(icell)%gcells(2,kcell)
-                qk = gcell(ib)%q(:,ci)
-                dq(:) = qk - qi
-                ! outer product
-                do jvar = 1,5
-                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
-                end do
-            end do
-        end do
-
-        call dtime(values,time)
-        write(*,*) 'Old time:', time
-        allocate(tmp_ccgradq(3,5,ncells))
-        tmp_ccgradq = 0.0_p2
-        call dtime(values,time)
-        
         do icell=1,ncells
             call intrinsic_grad(q, icell, &
                                 lsqc(icell)%n_nnghbrs, lsqc(icell)%nghbr_lsq(:), lsqc(icell)%cf(:,:,weight), &
                                 lsqc(icell)%gcell_ptr, &
                                 lsqc(icell)%nbf, lsqc(icell)%gcf(:,:,weight), &
-                                tmp_ccgradq(:,:,icell))
+                                ccgradq(:,:,icell))
         end do
 
-        call dtime(values,time)
-        write(*,*) 'New time:',time
-
-        cloop : do icell = 1,ncells
-            do jvar = 1,5
-                do kcell = 1,3
-                    if (abs(ccgradq(kcell,jvar,icell) - tmp_ccgradq(kcell,jvar,icell)) > 1.0e-08_p2 ) then
-                        write(*,*) 'ccgradq(:,',jvar,',',icell,')    :',ccgradq(:,jvar,icell)
-                        write(*,*) 'tmp_ccgradq(:,',jvar,',',icell,'):',tmp_ccgradq(:,jvar,icell)
-                        cycle cloop
-                    end if
-                end do
-            end do
-        end do cloop
-
-        deallocate(tmp_ccgradq)
     end subroutine compute_cgradient_flow
 
     subroutine boundary_value_flow(boundary_type, scalar, known, value)
@@ -461,11 +390,9 @@ module gradient
 
     subroutine compute_cgradient_turb(weight)
 
-        use common , only : p2, ix, iy, iz
+        use common , only : p2
 
-        use grid , only : nb, gcell, bound, ncells, cell, gcell
-
-        use solution_vars , only : nq, nlsq
+        use grid , only : ncells
 
         use utils , only : ibc_type
 
@@ -479,18 +406,10 @@ module gradient
 
         integer, intent(in) :: weight
 
-        integer :: ib, j, icell, kcell, ivar
-        integer :: c1
-        integer :: ck, ci
+        integer  :: ib, icell, kcell, ivar
+        integer  :: ck, ci
 
-        real(p2), dimension(3) :: unit_face_normal
-        real(p2)               :: t1, tb
-        real(p2)               :: tk, ti, dt
-        real(p2)               :: tk_j
-
-        real(p2) :: dqx, dqy, dqz
-        real(p2), dimension(3) :: dqf
-        real(p2) :: s1, s2 ! scratch
+        real(p2) :: tk, ti, dt
 
         var_loop : do ivar = 1, nturb
             do icell=1,ncells
