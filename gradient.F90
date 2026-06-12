@@ -390,17 +390,17 @@ module gradient
 
     subroutine compute_cgradient_turb(weight)
 
-        use common , only : p2
+        use common ,        only : p2
 
-        use grid , only : ncells
+        use grid ,          only : ncells
 
-        use utils , only : ibc_type
+        use utils ,         only : ibc_type
 
         use least_squares , only : lsqc
 
-        use turb            , only : nturb, ccgrad_turb_var, turb_var
+        use turb          , only : nturb, ccgrad_turb_var, turb_var
 
-        use turb_bc         , only : sa_rhstate
+        use turb_bc       , only : sa_rhstate
         
         implicit none
 
