@@ -24,7 +24,7 @@ module least_squares
 #endif
 
     implicit none
-
+    
     public
 
     type lsq_vertex_type
@@ -79,8 +79,6 @@ module least_squares
     ! IF BTYPE > 50 THEN NODE_VALUE = KNOWN
     integer, parameter :: PRESSURE_OUTLET = 20
     integer, parameter :: INTERNAL = 0
-
-    public construct_lsq_stencil
 
     contains
 

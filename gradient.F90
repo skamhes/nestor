@@ -392,7 +392,7 @@ module gradient
 
         use common ,        only : p2
 
-        use grid ,          only : ncells
+        use grid ,          only : ncells, bound
 
         use utils ,         only : ibc_type
 
@@ -422,8 +422,8 @@ module gradient
                     ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%cf(:,kcell,weight) * dt
                 end do
                 do kcell = 1,lsqc(icell)%nbf
-                    ci = lsqc(icell)%gcells(1,kcell)
                     ib = lsqc(icell)%gcells(2,kcell)
+                    ci = bound(ib)%bcell(lsqc(icell)%gcells(1,kcell)) ! this is messy (requires a pointer to a pointer).  Should be fixed at some point.
                     ! tk = gcell(ib)%q(:,ci)
                     call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
                     dt = tk - ti
