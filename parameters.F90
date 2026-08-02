@@ -165,9 +165,10 @@ module config
     !-------------------------------------------------------------------------
     ! DEBUG SETTINGS (&debug)
       integer :: gcr_verbosity = 0
+      integer :: rcm_verbosity = 0
 
     namelist / debug / &
-      gcr_verbosity
+      gcr_verbosity, rcm_verbosity
 
     contains
         

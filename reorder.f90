@@ -11,6 +11,8 @@ module reorder
 
     subroutine reorder_rcm(ncells, cell_array, face, nfaces, nb, bound)
 
+        use config , only : rcm_verbosity
+        
         use grid , only : cc_data_type, bgrid_type
 
         use sort_routines , only : inserstion_sort_ind
@@ -36,6 +38,8 @@ module reorder
         integer, dimension(ncells) :: queue
         
         integer, dimension(ncells) :: c2q ! convert input array to queue
+
+        write(*,*) "Reordering mesh using Reverse Cuthill-Mckee"
 
         c2q = 0
 
@@ -114,6 +118,15 @@ module reorder
             end do
         end do
 
+        ! This is gonna vomit a bunch of lines to the console.  So only do it if you really mean it.  It's mainly for making nice
+        ! pictures from small test grids...
+        if (rcm_verbosity == 1001) then
+            write(*,*) "Original cell structure:"
+            call write_struct(ncells, cell_array)
+            write(*,*) "New cell structure:"
+            call write_struct(ncells, rcm_cell)
+        endif
+
         deallocate(cell_array)
 
         cell_array => rcm_cell
@@ -142,6 +155,49 @@ module reorder
             end do
         end do
 
-
     end subroutine reorder_rcm
+
+    ! Some diagnostic routines:
+
+    subroutine write_struct(ncells, cell)
+
+        use common , only : p2
+
+        use grid , only : cc_data_type
+
+        implicit none
+
+        integer,                                   intent(in   ) :: ncells
+        type(cc_data_type), dimension(:), pointer, intent(inout) :: cell
+
+        integer :: i, j, cn
+        character, dimension(ncells + 2) :: line
+        integer :: bwidth
+
+        real(p2) :: rbwidth
+
+        bwidth = 0
+
+        do i = 1,ncells
+            line(:) = " "
+            line(1) = "|"
+            line(ncells + 2) = "|"
+            do j = 1,cell(i)%nnghbrs
+                cn = cell(i)%nghbr(j) + 1
+                line(cn) = "x"
+            end do
+            line(i+1) = "x"
+            write(*,*) line
+            bwidth = bwidth + max(abs(maxval(cell(i)%nghbr)-i),abs(minval(cell(i)%nghbr)-i))
+        end do
+
+        rbwidth = real(bwidth,p2) / real(ncells,p2)
+
+        write(*,*) "Average bandwidth: ", rbwidth
+        write(*,*)
+
+
+    end subroutine write_struct
+
+
 end module reorder
