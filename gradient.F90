@@ -185,7 +185,9 @@ module gradient
 
     subroutine compute_cgradient_flow(weight)
 
-        use grid ,          only : ncells
+        use common ,        only : p2
+
+        use grid ,          only : gcell, ncells
 
         use solution_vars , only : q, ccgradq
 
@@ -203,10 +205,7 @@ module gradient
 
 #if defined(__USE_VINTRINSICS)
         integer(c_int) :: icell
-#else
-        integer        :: icell
-#endif
-    
+
         do icell=1,ncells
             call intrinsic_grad(q, icell, &
                                 lsqc(icell)%n_nnghbrs, lsqc(icell)%nghbr_lsq(:), lsqc(icell)%cf(:,:,weight), &
@@ -214,6 +213,40 @@ module gradient
                                 lsqc(icell)%nbf, lsqc(icell)%gcf(:,:,weight), &
                                 ccgradq(:,:,icell))
         end do
+#else
+        ! No vector intrinsics
+        integer        :: icell, ck, ci
+
+        integer :: ib, kcell, jvar
+
+        real(p2), dimension(5) :: qk, qi, dq
+
+        do icell=1,ncells
+            qi = q(:,icell)
+            do kcell = 1,lsqc(icell)%n_nnghbrs
+                ck = lsqc(icell)%nghbr_lsq(kcell)
+                qk = q(:,ck)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5 ! Hard code for loop unrolling
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%cf(:,kcell,weight) * dq(jvar)
+                end do
+            end do
+            do kcell = 1,lsqc(icell)%nbf
+                ci = lsqc(icell)%gcells(1,kcell)
+                ib = lsqc(icell)%gcells(2,kcell)
+                qk = gcell(ib)%q(:,ci)
+                dq(:) = qk - qi
+                ! outer product
+                do jvar = 1,5
+                    ccgradq(:,jvar,icell) = ccgradq(:,jvar,icell) + lsqc(icell)%gcf(:,kcell,weight) * dq(jvar)
+                end do
+            end do
+        end do
+
+#endif
+    
+
 
     end subroutine compute_cgradient_flow
 
