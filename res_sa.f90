@@ -415,8 +415,8 @@ module res_sa
         gradnut_face = (nut2 - nut1) * dsds2
 
         ! Jacobian_1 = dR1/dnut = df1/dnut * grad + f1 * dgrad/dnut for nut = L/R
-        jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half*0.  ! dterm1/dnut,  nut = L/R
-        jac1(1)     =   jac1(1) + cb2 * iSIGMA * normal_face_grad     *0.  ! dterm12/dnut, nut = L
+        jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half  ! dterm1/dnut,  nut = L/R
+        jac1(1)     =   jac1(1) + cb2 * iSIGMA * normal_face_grad       ! dterm12/dnut, nut = L
         dsnorm = dot_product(dsds2,n12)                                 ! dx used for central difference approximation
         jac1(1)     =   jac1(2) + f1 * dsnorm                           ! f1 * dgrad/dnut, nut = L
         jac1(2)     =   jac1(2) - f1 * dsnorm                           ! f1 * dgrad/dnut, nut = R
