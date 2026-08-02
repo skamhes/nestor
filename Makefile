@@ -66,6 +66,7 @@ OBCTS +=$(SDIR)/ad_operators.o\
 		$(SDIR)/sort_routines.o\
 		$(SDIR)/files.o\
 		$(SDIR)/grid.o\
+		$(SDIR)/reorder.o\
 		$(SDIR)/grid_statistics.o\
 		$(SDIR)/wall_distance.o\
 		$(SDIR)/solution_vars.o\

@@ -18,7 +18,9 @@ program nestor
     
     use inout,  only : write_tecplot_file_b
 
-    use grid,   only : read_grid, read_su2, construct_grid
+    use grid,   only : read_grid, read_su2, construct_grid, cell, ncells, face, nfaces, nb, bound
+
+    use reorder , only : reorder_rcm
 
     use solution, only : allocate_solution_vars, define_problem
 
@@ -52,6 +54,8 @@ program nestor
     call define_problem
 
     call construct_grid
+
+    call reorder_rcm(ncells, cell, face, nfaces, nb, bound)
 
     call allocate_solution_vars
 
