@@ -413,6 +413,7 @@ module res_sa
         nut_flux(2) =   f2 * normal_face_grad 
 
         gradnut_face = (nut2 - nut1) * dsds2
+        normal_face_grad = dot_product( gradnut_face, n12 )
 
         ! Jacobian_1 = dR1/dnut = df1/dnut * grad + f1 * dgrad/dnut for nut = L/R
         jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half  ! dterm1/dnut,  nut = L/R
