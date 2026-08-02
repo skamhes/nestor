@@ -381,6 +381,7 @@ module res_sa
         real(p2)                    :: nutf ! face nut
         real(p2)                    :: normal_face_grad
         real(p2)                    :: term1, term21, term22
+        real(p2)                    :: f1, f2, dsnorm
         ! real(p2)                    :: dnut ! nut2 - nut1
         ! real(p2)                    :: dnut_face
 
@@ -403,26 +404,29 @@ module res_sa
         term21 = cb2 * (nuf + nut1) ! cross diffusion term doesn't use the face gradient it uses the cell value
         term22 = cb2 * (nuf + nut2)
 
-        ! ! Isolate the non tangent gradient based on left and right difference (delta_nut / ds)
-        ! where (abs(ds) > 1.0E-18_p2)
-        !     dnut_ds = dnut / ds
-        ! elsewhere
-        !     dnut_ds = zero
-        ! end where
         normal_face_grad = dot_product( gradnut_face, n12 )
 
         ! dnut_face = dot_product( gradnut_face, n12 )
-        nut_flux(1) = - iSIGMA * (term1 - term21) * normal_face_grad
-        nut_flux(2) =  ( iSIGMA * (term1 - term22) * normal_face_grad )
+        f1          = iSIGMA * (term1 - term21)
+        f2          = iSIGMA * (term1 - term22)
+        nut_flux(1) = - f1 * normal_face_grad
+        nut_flux(2) =   f2 * normal_face_grad 
 
         gradnut_face = (nut2 - nut1) * dsds2
 
-        jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half
-        jac1(1)     = (jac1(1) - cb2 * iSIGMA * normal_face_grad)
+        ! Jacobian_1 = dR1/dnut = df1/dnut * grad + f1 * dgrad/dnut for nut = L/R
+        jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half*0.  ! dterm1/dnut,  nut = L/R
+        jac1(1)     =   jac1(1) + cb2 * iSIGMA * normal_face_grad     *0.  ! dterm12/dnut, nut = L
+        dsnorm = dot_product(dsds2,n12)                                 ! dx used for central difference approximation
+        jac1(1)     =   jac1(2) + f1 * dsnorm                           ! f1 * dgrad/dnut, nut = L
+        jac1(2)     =   jac1(2) - f1 * dsnorm                           ! f1 * dgrad/dnut, nut = R
 
         
-        jac2(:)     =   ( iSIGMA * (one + cb2) * normal_face_grad ) * half
-        jac2(1)     =   ( jac2(1) + cb2 * iSIGMA * normal_face_grad ) ! have to be a little careful with the signs here
+        jac2(:)     =   iSIGMA * (one + cb2) * normal_face_grad * half
+        jac2(1)     =   jac2(1) - cb2 * iSIGMA * normal_face_grad
+        ! dsnorm = dot_product(dsds2,n12) ! Hasn't changed
+        jac2(1)     =   jac2(2) + f2 * dsnorm                           ! f2 * dgrad/dnut, nut = L
+        jac2(2)     =   jac2(2) - f2 * dsnorm                           ! f2 * dgrad/dnut, nut = R
 
         wsn = abs(iSIGMA * (nuf + nutf))
 
