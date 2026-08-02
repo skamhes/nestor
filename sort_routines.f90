@@ -3,7 +3,7 @@ module sort_routines
 
     use common , only : p2
 
-    public heap_sort_index
+    public heap_sort_index, inserstion_sort_ind
     
     contains
 
@@ -246,5 +246,35 @@ module sort_routines
         ind1 = tind
 
     end subroutine index_swap
+
+    subroutine inserstion_sort_ind(n, vec)
+
+        ! Implementation of C code from: https://en.wikipedia.org/wiki/Insertion_sort#Implementation
+
+        implicit none
+
+        integer,                 intent(in)    :: n 
+        integer, dimension(:,:), intent(inout) :: vec ! must be dimension(2,m), where m >= n
+
+        integer :: i, j
+        integer, dimension(2) :: key
+        
+        do i = 2,n
+            key = vec(:,i) ! The value we want to insert into the sorted prefix.
+            j   = i - 1
+
+            ! Shift larger elements one position to the right
+            ! until we find where 'key' belongs.
+            do while(j >= 1 .and. vec(1,j) > key(1))
+                vec(:,j+1) = vec(:,j)
+                j = j - 1
+            end do
+
+            ! Place 'key' into the gap created by shifting.
+            vec(:,j+1) = key
+
+        end do
+
+    end subroutine inserstion_sort_ind
 
 end module sort_routines
