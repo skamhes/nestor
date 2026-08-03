@@ -1709,7 +1709,11 @@ module grid
 
         deallocate(sum_face_normal)
 
-        if (need_ghost_cells()) call build_ghost_cells
+        if (need_ghost_cells()) then
+            call build_ghost_cells
+        else
+            nullify(gcell)
+        endif
 
         !Any other check?
 

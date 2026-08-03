@@ -55,7 +55,7 @@ program nestor
 
     call construct_grid
 
-    call reorder_rcm(ncells, cell, face, nfaces, nb, bound)
+    call reorder_rcm
 
     call allocate_solution_vars
 

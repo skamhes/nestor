@@ -9,22 +9,15 @@ module reorder
 
     contains
 
-    subroutine reorder_rcm(ncells, cell_array, face, nfaces, nb, bound)
+    subroutine reorder_rcm
 
         use config , only : rcm_verbosity
         
-        use grid , only : cc_data_type, bgrid_type
+        use grid , only : cc_data_type, bgrid_type, ncells, cell, face, nfaces, nb, bound, gcell, build_ghost_cells
 
         use sort_routines , only : inserstion_sort_ind
 
         implicit none
-
-        integer,                                   intent(in   ) :: ncells
-        type(cc_data_type), dimension(:), pointer, intent(inout) :: cell_array
-        integer,                                   intent(in   ) :: nfaces
-        integer,            dimension(:,:),        intent(inout) :: face
-        integer,                                   intent(in   ) :: nb
-        type(bgrid_type),   dimension(:),          intent(inout) :: bound
 
         type(cc_data_type), dimension(:), pointer :: rcm_cell ! reordered array
 
@@ -49,11 +42,11 @@ module reorder
         max_deg = -1000000
 
         do i = 1,ncells
-            if (cell_array(i)%nnghbrs < min_deg) then
-                min_deg = cell_array(i)%nnghbrs
+            if (cell(i)%nnghbrs < min_deg) then
+                min_deg = cell(i)%nnghbrs
                 imd     = i
             end if
-            max_deg = max(max_deg,cell_array(i)%nnghbrs)
+            max_deg = max(max_deg,cell(i)%nnghbrs)
         end do
 
         allocate(adj(2,max_deg)) ! adj(:,i) = (/degree, icell/)
@@ -72,16 +65,16 @@ module reorder
         queue_loop : do while(iqueue > 1)
             phead = queue(ihead)
 
-            nadj = cell_array(phead)%nnghbrs
+            nadj = cell(phead)%nnghbrs
 
             iadj = 0
 
             ! collect adjacent cells that are unset
             do i = 1,nadj
-                cn = cell_array(phead)%nghbr(i)
+                cn = cell(phead)%nghbr(i)
                 if (c2q(cn) == 0) then ! if not set
                     iadj = iadj + 1
-                    adj(1,iadj) = cell_array(cn)%nnghbrs
+                    adj(1,iadj) = cell(cn)%nnghbrs
                     adj(2,iadj) = cn
                 end if
             end do
@@ -110,7 +103,7 @@ module reorder
         ! Build new cell array
 
         do i = 1,ncells
-            rcm_cell(i) = cell_array(queue(i))
+            rcm_cell(i) = cell(queue(i))
             do j = 1,rcm_cell(i)%nnghbrs
                 cn = rcm_cell(i)%nghbr(j)
                 cn = c2q(cn)
@@ -122,14 +115,14 @@ module reorder
         ! pictures from small test grids...
         if (rcm_verbosity == 1001) then
             write(*,*) "Original cell structure:"
-            call write_struct(ncells, cell_array)
+            call write_struct(ncells, cell)
             write(*,*) "New cell structure:"
             call write_struct(ncells, rcm_cell)
         endif
 
-        deallocate(cell_array)
+        deallocate(cell)
 
-        cell_array => rcm_cell
+        cell => rcm_cell
 
         nullify(rcm_cell)
 
@@ -151,9 +144,14 @@ module reorder
                 cn = bound(ib)%bcell(i)
                 cn = c2q(cn)
 
-                bound(ib)%bcell = cn
+                bound(ib)%bcell(i) = cn
             end do
         end do
+
+        if (associated(gcell)) then ! this is a bit sloppy but it works...
+            deallocate(gcell)
+            call build_ghost_cells
+        end if
 
     end subroutine reorder_rcm
 
