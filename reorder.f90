@@ -160,6 +160,16 @@ module reorder
             face(1,i) = cLq
             face(2,i) = cRq
 
+            ! Ensure face normal points into larger cell index
+            if (cLq > cRq) then
+                face(1,i) = cRq
+                face(2,i) = cLq
+                face_nrml(:,i) = -1.0_p2 * face_nrml(:,i) 
+            else
+                face(1,i) = cLq
+                face(2,i) = cRq
+            end if
+
             ! now grab that data to make the association struct
             cn = minval(face(1:2,i)) ! smaller number face
             c2f(cn)%nf = c2f(cn)%nf + 1
@@ -191,6 +201,9 @@ module reorder
         face_nrml_mag => rcm_fa
 
         nullify(rcm_face, rcm_fc, rcm_fn, rcm_fa)
+        
+        call calculate_face_bw(nfaces,ncells,face)
+        stop
         
         ! Update boundary array
         do ib = 1,nb
@@ -250,6 +263,51 @@ module reorder
 
 
     end subroutine write_struct
+
+    subroutine calculate_face_bw(nfaces,ncells,face)
+
+        ! calculate the number of iterations between the first and last time each cell is read during a face loop.
+        use common , only : p2
+
+        implicit none
+
+        integer, intent(in) :: nfaces, ncells
+        integer, dimension(:,:), intent(in) :: face
+
+        integer :: i, iavg_bw, c1, c2
+        integer, dimension(2,ncells) :: bw ! bandwidth of each cell
+        real(p2) :: avg_bw
+
+        bw = 0
+
+        do i = 1,nfaces
+            c1 = face(1,i)
+            c2 = face(2,i)
+            if (bw(1,c1) == 0) then
+                bw(1,c1) = i
+            else
+                bw(1,c1) = min(bw(1,c1),i)
+            endif
+            if (bw(1,c2) == 0) then
+                bw(1,c2) = i
+            else
+                bw(1,c2) = min(bw(1,c2),i)
+            endif
+            bw(2,c1) = max(bw(2,c1), i)
+            bw(2,c2) = max(bw(2,c2), i)
+        end do
+
+        iavg_bw = 0
+        do i = 1,ncells
+            iavg_bw = iavg_bw + (bw(2,i) - bw(1,i))
+        end do
+
+        avg_bw = real(iavg_bw,p2) / real(ncells,p2)
+
+        write(*,*) "Average face bandwidth:", avg_bw
+
+
+    end subroutine calculate_face_bw
 
 
 end module reorder
