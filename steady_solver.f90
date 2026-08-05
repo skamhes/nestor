@@ -185,7 +185,7 @@ module steady_solver
                 end do
             elseif ( i_iteration <= 5 ) then
                 do i = 1,5
-                    if ( res_norm(i) > res_norm_initial(i) ) then
+                    if ( res_norm(i) > res_norm_initial(i) .or. res_norm_initial(i) == one ) then
                         res_norm_initial(i) = res_norm(i)
                     end if
                 end do

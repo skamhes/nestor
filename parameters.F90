@@ -49,6 +49,7 @@ module config
     character(80) ::         grid_type = "ugrid"
     character(100)::   second_namelist = "empty"      ! allows you to load a second namelist other than nestor.nml
     character(100)::           io_path = "./"         ! path to any input and output files (grid, bc, data, etc.)
+    logical       ::           restart = .false.
     
     namelist / project / &
       project_name, grid_type, second_namelist, io_path
@@ -60,6 +61,7 @@ module config
     logical       :: generate_tec_file_v = .false. ! tecplot volume file   = F
     logical       :: write_data          = .false.
     logical       :: import_data         = .false.
+    logical       :: write_restart       = .true.
     logical       :: lift                = .false.
     logical       :: drag                = .false.
     real(p2)      :: area_reference      = 1.0_p2

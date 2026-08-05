@@ -10,13 +10,13 @@
 ! Version: 0.0.1
 
 program nestor
-    use config, only : read_nml_config, generate_tec_file_b
+    use config, only : read_nml_config, generate_tec_file_b, write_restart
 
     use common, only : version
 
     use files,  only : set_filenames
     
-    use inout,  only : write_tecplot_file_b
+    use inout,  only : write_tecplot_file_b, write_restart_file
 
     use grid,   only : read_grid, read_su2, construct_grid, cell, ncells, face, nfaces, nb, bound
 
@@ -61,9 +61,9 @@ program nestor
 
     call steady_solve
 
-    ! if (write_data) then
-    !     call write_data_file
-    ! end if
+    if (write_restart) then
+        call write_restart_file
+    end if
 
     if ( generate_tec_file_b ) then
         call write_tecplot_file_b

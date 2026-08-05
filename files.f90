@@ -12,7 +12,7 @@ module files
     character(80) :: filename_bc           ! input bc   filename (.bcmap)
     character(80) :: filename_tecplot_b    ! output tecplot boundary filename (.dat)
     character(80) :: filename_tecplot_v    ! output tecplot volume filename (.dat)
-    character(80) :: filename_data         ! Output of U array
+    character(80) :: filename_restart      ! Output of U array
 
 
     contains
@@ -66,12 +66,12 @@ module files
 
 
         !-----------------------------------------------------------------------
-        ! Output: Tecplot boundary file (ASCII file)
-        ! E.g., filename_tecplot = "test_tec.dat" if project_name = "test".
+        ! Output: Restart file (ASCII file)
+        
     
-            filename_data = trim(project_name) // '.kdat'
+            filename_restart = trim(project_name) // '.restart'
     
-            write(*,'(a28,a28)') "       filename_data = ", trim(filename_data)
+            write(*,'(a28,a28)') "       filename_data = ", trim(filename_restart)
 
     
         write(*,*)
