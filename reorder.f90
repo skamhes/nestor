@@ -23,8 +23,8 @@ module reorder
         implicit none
 
         type fc
-            integer, dimension(:), allocatable :: iface    ! index of faces
-            integer                            :: nf       ! number of faces
+            integer, dimension(:,:), allocatable :: iface    ! index of faces
+            integer                              :: nf       ! number of faces
         end type fc
 
         type(cc_data_type), dimension(:)  , pointer :: rcm_cell ! reordered array
@@ -144,7 +144,7 @@ module reorder
         allocate(rcm_face(2,ncells)) ! only store the cells.
         
         do i = 1,ncells
-            allocate( c2f(i)%iface(cell(i)%nnghbrs) )
+            allocate( c2f(i)%iface(2,cell(i)%nnghbrs) )
             c2f(i)%nf = 0
         end do
 
@@ -173,7 +173,7 @@ module reorder
             ! now grab that data to make the association struct
             cn = minval(face(1:2,i)) ! smaller number face
             c2f(cn)%nf = c2f(cn)%nf + 1
-            c2f(cn)%iface(c2f(cn)%nf) = i
+            c2f(cn)%iface(:,c2f(cn)%nf) = (/ maxval(face(1:2,i)), i/) ! (/neighbor index, face index/)
         end do
 
         allocate(rcm_face(2,nfaces))
@@ -183,8 +183,9 @@ module reorder
         
         nface_loc = 0
         do i = 1,ncells
+            call inserstion_sort_ind( c2f(i)%nf , c2f(i)%iface(: , 1:c2f(i)%nf) )
             do j = 1,c2f(i)%nf
-                fn = c2f(i)%iface(j)
+                fn = c2f(i)%iface(2,j)
                 nface_loc = nface_loc + 1
                 rcm_face(1:2,nface_loc) = face(1:2,fn)
                 rcm_fc(:,nface_loc) = face_centroid(:,fn)

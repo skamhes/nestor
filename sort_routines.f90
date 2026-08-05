@@ -249,11 +249,13 @@ module sort_routines
 
     subroutine inserstion_sort_ind(n, vec)
 
-        ! Implementation of C code from: https://en.wikipedia.org/wiki/Insertion_sort#Implementation
+        ! Implementation of C code from: https://en.wiki    pedia.org/wiki/Insertion_sort#Implementation
+        ! vec(1,:) = values to be sorted
+        ! vec(2,:) = accompanying values
 
         implicit none
 
-        integer,                 intent(in)    :: n 
+        integer,                 intent(in)    :: n   ! length of vec
         integer, dimension(:,:), intent(inout) :: vec ! must be dimension(2,m), where m >= n
 
         integer :: i, j
@@ -265,10 +267,17 @@ module sort_routines
 
             ! Shift larger elements one position to the right
             ! until we find where 'key' belongs.
-            do while(j >= 1 .and. vec(1,j) > key(1))
+            shuffle_loop : do while(j >= 1 ) 
+                if (.not.(vec(1,j) > key(1))) then
+                    ! Fortran evaluates ALL the expressions in an .and. statement no matter what.
+                    ! that means for j = 0 if evalueate (vec(1,0) > key(1)) even though the first term is already evaluated .false.
+                    ! That can cause an error if bounds checking is turned on.
+                    ! https://en.wikipedia.org/wiki/Short-circuit_evaluation
+                    exit shuffle_loop
+                endif
                 vec(:,j+1) = vec(:,j)
                 j = j - 1
-            end do
+            end do shuffle_loop 
 
             ! Place 'key' into the gap created by shifting.
             vec(:,j+1) = key
