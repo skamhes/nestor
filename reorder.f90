@@ -202,9 +202,10 @@ module reorder
         face_nrml_mag => rcm_fa
 
         nullify(rcm_face, rcm_fc, rcm_fn, rcm_fa)
-        
-        call calculate_face_bw(nfaces,ncells,face)
-        stop
+        if (rcm_verbosity == 1001) then
+            call calculate_face_bw(nfaces,ncells,face)
+            stop
+        end if
         
         ! Update boundary array
         do ib = 1,nb
