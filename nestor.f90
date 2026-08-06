@@ -10,7 +10,7 @@
 ! Version: 0.0.1
 
 program nestor
-    use config, only : read_nml_config, generate_tec_file_b, write_restart
+    use config, only : read_nml_config, generate_tec_file_b, write_restart, restart
 
     use common, only : version
 

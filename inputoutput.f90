@@ -339,5 +339,65 @@ module inout
 
         close(8)
     end subroutine write_restart_file
+
+    subroutine read_restart_file
+
+        use common , only : p2
+
+        use grid , only : ncells
+
+        use solution_vars , only : q, res_norm, res_norm_initial, CFL_used
+
+        use turb , only : turb_var, turb_res_norm, turb_res_norm_init
+
+        use files
+
+        use config          , only : project_name, io_path
+
+        use utils , only : iflow_type, FLOW_RANS, iturb_model, TURB_SA
+
+        implicit none
+
+        integer :: icell, os
+        character(80) :: dummy
+
+        write(*,*)
+        write(*,*) "-------------------------------------------------------"
+        write(*,*) ' Reading Restart file = ', trim(io_path)//trim(filename_restart)
+        write(*,*)
+    
+        !Open the output file.
+        open(unit=8, file=trim(io_path)//trim(filename_restart), status="old", iostat=os)   
+
+        if (os .ne. 0) then
+            write(*,*) "ERROR opening restart file."
+            return
+        end if
+
+        !---------------------------------------------------------------------------
+
+        ! Read header information and discard for now
+
+        read(8,*) dummy
+
+        if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+            read(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+        else
+            read(8,*) res_norm(:), res_norm_initial(:)
+        endif
+
+        flush(8)
+        do icell = 1,ncells
+            if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                read(8,*) q(:,icell),  turb_var(icell,1)
+            else
+                read(8,*) q(:,icell)
+            endif
+        end do
+
+        flush(8)
+
+        close(8)
+    end subroutine read_restart_file
     
 end module inout

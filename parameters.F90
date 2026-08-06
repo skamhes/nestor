@@ -52,7 +52,7 @@ module config
     logical       ::           restart = .false.
     
     namelist / project / &
-      project_name, grid_type, second_namelist, io_path
+      project_name, grid_type, second_namelist, io_path, restart
 
 
     !-------------------------------------------------------------------------

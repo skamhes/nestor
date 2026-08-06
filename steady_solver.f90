@@ -29,7 +29,7 @@ module steady_solver
 
         use config    , only : accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
                                 variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
-                                lift, drag, solver_type, Re_inf
+                                lift, drag, solver_type, Re_inf, restart
 
         use utils     , only : isolver_type, iflow_type, FLOW_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
                                itime_method, TM_ELAPSED, FLOW_RANS
@@ -47,7 +47,7 @@ module steady_solver
 
         use residual  , only : compute_residual
 
-        use inout     , only : residual_status_header, print_residual_status
+        use inout     , only : residual_status_header, print_residual_status, read_restart_file
 
         use forces    , only : compute_forces, output_forces, report_lift
 
@@ -81,6 +81,11 @@ module steady_solver
 
         ! Set initial solution (or import but we'll do that later...)
         call set_initial_solution
+        
+        if (restart) then ! annoyingly I have a bunch of allocations inside the initialization subroutine. I'll have to seperate them out...
+            call read_restart_file
+        endif
+
 
         i_iteration = 0
 
@@ -165,7 +170,7 @@ module steady_solver
             seconds = mod(int(totalTime),60)
             
             ! Allow the initial residual norm to increase for the first 5 iterations
-            if ( i_iteration == 0 ) then
+            if ( i_iteration == 0 .and. .not.restart) then
                 res_norm_initial = res_norm
                 if (iflow_type == FLOW_RANS) then
                     turb_res_norm_init = turb_res_norm
@@ -183,7 +188,7 @@ module steady_solver
                         turb_res_norm_init(i) = one
                     end if
                 end do
-            elseif ( i_iteration <= 5 ) then
+            elseif ( i_iteration <= 5  .and. .not.restart ) then
                 do i = 1,5
                     if ( res_norm(i) > res_norm_initial(i) .or. res_norm_initial(i) == one ) then
                         res_norm_initial(i) = res_norm(i)
