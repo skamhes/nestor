@@ -61,7 +61,7 @@ module config
     logical       :: generate_tec_file_v = .false. ! tecplot volume file   = F
     logical       :: write_data          = .false.
     logical       :: import_data         = .false.
-    logical       :: write_restart       = .true.
+    logical       :: write_restart       = .false.
     logical       :: lift                = .false.
     logical       :: drag                = .false.
     real(p2)      :: area_reference      = 1.0_p2
