@@ -14,7 +14,7 @@ module initialize
         use grid   , only : ncells
 
         use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
-                            high_ar_correction, sutherland_constant, reference_temp, Re_inf, M_inf
+                            high_ar_correction, sutherland_constant, reference_temp, Re_inf, M_inf, restart
 
         use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iflow_type, FLOW_INVISCID, FLOW_RANS
 
@@ -28,6 +28,8 @@ module initialize
 
         use turb , only : init_turb, nturb, turb_var, turb_res
 
+        use inout , only : read_restart_file
+
         implicit none
 
         integer                 :: i
@@ -40,19 +42,25 @@ module initialize
         w_inf = M_inf*sin(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
         p_inf = one/gamma
 
-        q_init = w2q( (/rho_inf,u_inf,v_inf,w_inf,p_inf/) )
-        if ( perturb_initial )  then 
-            q_init(2:4) = (/ 0.2_p2, 0.1_p2, 0.15_p2 /)
-        end if
-
-        cell_loop : do i = 1,ncells
-        q(:,i) = q_init
-            if ( perturb_initial .and. random_perturb )  then 
-                q(2:4,i) = q(2:4,i) * rand(0)
-            endif
-        end do cell_loop
+        if (restart) then ! annoyingly I have a bunch of allocations inside the initialization subroutine. I'll have to seperate them out...
+            call read_restart_file
+        else
+            
+            
+            q_init = w2q( (/rho_inf,u_inf,v_inf,w_inf,p_inf/) )
+            if ( perturb_initial )  then 
+                q_init(2:4) = (/ 0.2_p2, 0.1_p2, 0.15_p2 /)
+            end if
+            
+            cell_loop : do i = 1,ncells
+                q(:,i) = q_init
+                if ( perturb_initial .and. random_perturb )  then 
+                    q(2:4,i) = q(2:4,i) * rand(0)
+                endif
+            end do cell_loop
         
-        if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
+        endif
+        
         
         force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
 
@@ -87,40 +95,60 @@ module initialize
 
         use grid            , only : nfaces, face, cell, ncells
 
-        use solution_vars        , only : nq, jacobian_type, kth_nghbr_of_1, kth_nghbr_of_2, jac
+        use solution_vars        , only : nq, kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, c, R, nnz, kth_of_cell
+
+        use sparse_common, only: insertion_sort_index
+
 
         implicit none
 
-        integer :: i, k
-        integer :: c1, c2
+        integer :: i, j, k
+        integer :: c1, c2, length
 
         ! Create kth_nghbr arrays
-        if(.not.allocated(kth_nghbr_of_1) )allocate(kth_nghbr_of_1(nfaces))
-        if(.not.allocated(kth_nghbr_of_2) )allocate(kth_nghbr_of_2(nfaces))
-        allocate(jac           (ncells))
+        if(.not.allocated(kth_nghbr_of_1)) allocate(kth_nghbr_of_1(nfaces))
+        if(.not.allocated(kth_nghbr_of_2)) allocate(kth_nghbr_of_2(nfaces))
+        if(.not.allocated(kth_of_cell)   ) allocate(kth_of_cell(ncells))
 
+        ! Count the number of nonzero values
+        allocate(R(ncells + 1))
+        R(1) = 1
+        do i = 2,ncells + 1
+            R(i) = R(i-1) + 1 + cell(i-1)%nnghbrs ! Start of row(i) = row(i-1) start point + 1 (diagonal term) + # of neighbors
+        end do
+        nnz = R(ncells+1) - 1 ! number of nonzero cells
+
+        allocate(Jac(5,5,nnz))
+        allocate(C(      nnz))
+
+        allocate(diag_inv(5,5,ncells))
+
+        do i = 1,ncells
+            ! sort the index of the cell neighbors and i and stores them in C:
+            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
+            length = R(i+1)-R(i)
+            do j = R(i),(R(i+1)-1)
+                if (length == C(j)) then
+                    C(j) = i
+                    kth_of_cell(i) = j
+                else
+                    C(j) = cell(i)%nghbr(C(j))
+                end if
+            end do
+        end do        
+        
         ! Define kth neighbor arrays
         face_nghbr_loop : do i = 1,nfaces
             c1 = face(1,i)
             c2 = face(2,i)
             ! loop over c1 neighbors to find c2
-            do k = 1,cell(c1)%nnghbrs
-                if ( c2 == cell(c1)%nghbr(k)) then
-                    kth_nghbr_of_1(i) = k ! c2 is the kth neighbor of c1
-                end if
-            end do
-            ! repeat for cell 2
-            do k = 1,cell(c2)%nnghbrs
-                if ( c1 == cell(c2)%nghbr(k)) then
-                    kth_nghbr_of_2(i) = k
-                end if
-            end do
-        end do face_nghbr_loop
+            k = findloc( C(R(c1) : R(c1+1)-1), c2, dim=1 )
+            kth_nghbr_of_1(i) = R(c1) + k - 1
 
-        ! allocate jacobian off diagonal arrays
-        do i = 1,ncells
-            allocate(  jac(i)%off_diag(nq,nq,cell(i)%nnghbrs))
-        end do
+            k = findloc( C(R(c2) : R(c2+1)-1), c1, dim=1 )
+            kth_nghbr_of_2(i) = R(c2) + k - 1
+
+        end do face_nghbr_loop
 
     end subroutine init_jacobian
 end module initialize

@@ -89,19 +89,29 @@ module solution_vars
 
 
     ! Jacobian type has to be placed here to avoid circular dependencies.
-    type jacobian_type
-        real(p2), dimension(5,5)                :: diag     ! diagonal blocks of Jacobian matrix
-        real(p2), dimension(:,:,:), allocatable :: off_diag ! off-diagonal blocks
-        real(p2), dimension(5,5)                :: diag_inv ! inverse of diagonal blocks
-        real(p2), dimension(5)                  :: RHS      ! Right hand side (b) of the linear system
-    end type jacobian_type
+    ! type jacobian_type
+    !     real(p2), dimension(5,5)                :: diag     ! diagonal blocks of Jacobian matrix
+    !     real(p2), dimension(:,:,:), allocatable :: off_diag ! off-diagonal blocks
+    !     real(p2), dimension(5,5)                :: diag_inv ! inverse of diagonal blocks
+    !     real(p2), dimension(5)                  :: RHS      ! Right hand side (b) of the linear system
+    ! end type jacobian_type
 
     public :: kth_nghbr_of_1, kth_nghbr_of_2
     integer, dimension(:), allocatable :: kth_nghbr_of_1
     integer, dimension(:), allocatable :: kth_nghbr_of_2
 
-    public :: jac
-    type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
+    public :: kth_of_cell
+    integer, dimension(:), allocatable :: kth_of_cell
+
+    public :: jac, diag_inv
+    real(p2), dimension(:,:,:), allocatable :: jac
+    real(p2), dimension(:,:,:), allocatable :: diag_inv
+
+    public :: nnz, C, R
+    integer :: nnz
+    integer, dimension(:), allocatable :: C, R  !CSR pointer vectors
+    
+    ! type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
     
     ! ! Jacobian Free Newton-Krylov Variables
     ! real(p2), dimension(:,:,:), pointer :: gcr_precond_correction

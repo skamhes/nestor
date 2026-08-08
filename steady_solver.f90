@@ -34,7 +34,7 @@ module steady_solver
         use utils     , only : isolver_type, iflow_type, FLOW_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
                                itime_method, TM_ELAPSED, FLOW_RANS
                                 
-        use initialize, only : set_initial_solution
+        use initialize, only : set_initial_solution, init_jacobian
 
         use solution_vars  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
                                n_projections, nl_reduction
@@ -81,12 +81,9 @@ module steady_solver
 
         ! Set initial solution (or import but we'll do that later...)
         call set_initial_solution
+
+        if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
         
-        if (restart) then ! annoyingly I have a bunch of allocations inside the initialization subroutine. I'll have to seperate them out...
-            call read_restart_file
-        endif
-
-
         i_iteration = 0
 
         write(*,*) " ---------------------------------------"
@@ -499,7 +496,7 @@ module steady_solver
 
         ! next compute the correction by relaxing the linear system
         ! It turns out calling a generic interface with an assumed shape derived data type causes issues with fortran.  Interesting.
-        call linear_relaxation(nq, jac, res, solution_update,os)
+        ! call linear_relaxation(nq, jac, res, solution_update,os)
 
         loop_cells : do icell = 1,ncells
             omegan = safety_factor_primative(q(:,icell),solution_update(:,icell))
