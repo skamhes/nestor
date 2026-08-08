@@ -105,6 +105,7 @@ module config
     logical                :: high_ar_correction     = .true.
     integer                :: gcr_max_projections    = 5
     real(p2)               :: gcr_reduction_target   = 0.9
+    logical                :: line_implicit          = .true.
     ! Closed loop method for limiting CFL in cells with large estimated change to prevent divergence
     
     namelist / solver / &
@@ -113,7 +114,7 @@ module config
       method_inv_flux, method_inv_jac, &
       solver_type, jacobian_method, eig_limiting_factor, &
       variable_ur, limit_update, perturb_initial, high_ar_correction, &
-      gcr_max_projections, gcr_reduction_target
+      gcr_max_projections, gcr_reduction_target, line_implicit
 
     !-------------------------------------------------------------------------
     ! AMG SETTINGS (&amg)

@@ -10,7 +10,7 @@
 ! Version: 0.0.1
 
 program nestor
-    use config, only : read_nml_config, generate_tec_file_b, write_restart, restart
+    use config, only : read_nml_config, generate_tec_file_b, write_restart, restart, line_implicit
 
     use common, only : version
 
@@ -21,6 +21,8 @@ program nestor
     use grid,   only : read_grid, read_su2, construct_grid, cell, ncells, face, nfaces, nb, bound
 
     use reorder , only : reorder_rcm
+
+    use limplicit , only : build_lines
 
     use solution, only : allocate_solution_vars, define_problem
 
@@ -56,6 +58,8 @@ program nestor
     call construct_grid
 
     call reorder_rcm
+
+    if (line_implicit) call build_lines
 
     call allocate_solution_vars
 
