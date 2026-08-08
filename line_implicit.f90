@@ -26,7 +26,7 @@ module limplicit
         integer, dimension(ncells) :: li_cell ! array of the line index of cells
         logical, dimension(nnodes) :: li_nodes ! array of used nodes
 
-        integer, dimension(:), allocatable :: base_cell, working_cell, next_cell
+        integer, dimension(:), allocatable :: base_cell, working_cell, next_cell, last_cell
         logical, dimension(:), allocatable :: working
 
         integer, dimension(6) :: candidate_cells
@@ -44,14 +44,16 @@ module limplicit
         ! count the number of lines
         do ib = 1,nb
             if (ibc_type(ib) /= BC_VISC_STRONG) cycle
-            do jcell = 1,bound(ib)%nbfaces
+            bc_loop : do jcell = 1,bound(ib)%nbfaces
                 cb = bound(ib)%bcell(jcell)
+                if (.not.(cell(cb)%nvtx == 8 .or. & ! is not hex
+                         (cell(cb)%nvtx == 6) ) ) cycle bc_loop! is not prism
                 if (li_cell(cb) == 0) then
                     nlines = nlines + 1
                     li_cell(cb) = -nlines
                     li_nodes(bound(ib)%bfaces(2:,jcell)) = .true.
                 end if
-            end do
+            end do bc_loop
         end do
 
         ! allocate the line struct vector
@@ -82,7 +84,7 @@ module limplicit
         nworking = nlines ! lines still growing.
 
         do jline = 1,nlines
-            lines(jline)%ncells = 0
+            lines(jline)%ncells = 1 ! the base cell has already been counted
         end do
         
         do while(nworking > 0)
@@ -123,9 +125,42 @@ module limplicit
 
         do jline = 1,nlines
             allocate(lines(jline)%lcells(lines(jline)%ncells))
-            lines(jline)%ncells = 0
+            lines(jline)%lcells(1) = base_cell(jline)
+            lines(jline)%ncells = 1
         end do
 
+        nworking = nlines
+        working  = .true.
+        working_cell = base_cell
+        last_cell    = base_cell
+
+        ! now assign them to the line structures.
+        do while(nworking > 0)
+            ! mark all the candidate cells
+            line_loop3 : do jline = 1,nlines
+                if (.not. working(jline)) cycle line_loop3
+                ! Identify the candidate cells
+                nccells = 0
+                cw = working_cell(jline)
+                cloop2 : do kcell = 1,cell(cw)%nnghbrs
+                    cn = cell(cw)%nghbr(kcell)
+                    if (li_cell(cn) /= jline) cycle cloop2 ! not in this line
+                    if (cn == last_cell(jline)) cycle cloop2! wrong direction
+                    ! If we've made it this far it's the next cell
+                    next_cell(jline) = cn
+                    exit cloop2
+                end do cloop2
+                if (next_cell(jline) == working_cell(jline)) then ! no next cell was found
+                    nworking = nworking - 1
+                    working(jline) = .false.
+                else
+                    lines(jline)%ncells = lines(jline)%ncells + 1
+                    lines(jline)%lcells(lines(jline)%ncells) = next_cell(jline)
+                    last_cell(jline)    = working_cell(jline)
+                    working_cell(jline) = next_cell(jline)
+                endif
+            end do line_loop3
+        end do
 
     end subroutine build_lines
 
