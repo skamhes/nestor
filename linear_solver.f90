@@ -20,13 +20,13 @@ module linear_solver
     end interface multilevel_cycle
 
     interface build_A_BCSM
-        module procedure build_A_BCSM_block
+        ! module procedure build_A_BCSM_block
         module procedure build_A_BCSM_scalar
         module procedure build_A_BCSM_multi_scalar
     end interface build_A_BCSM
 
     interface build_Dinv_array
-        module procedure build_Dinv_array_block
+        ! module procedure build_Dinv_array_block
         module procedure build_Dinv_array_scalar
         module procedure build_Dinv_array_multi_scalar
     end interface build_Dinv_array
@@ -46,7 +46,7 @@ module linear_solver
     ! b = residual block vector with 1xNQ blocks
     ! x = correction is the solution to x=A^(-1)b (also a block vector)
     ! num_eq is the size of the blocks
-    subroutine linear_relaxation_block(num_eq,jacobian_block,residual,correction,iostat)
+    subroutine linear_relaxation_block(num_eq, V, Dinv,residual,correction,iostat)
 
         use common              , only : p2
 
@@ -54,7 +54,7 @@ module linear_solver
 
         use grid                , only : ncells, cell
 
-        use solution_vars       , only : jacobian_type
+        use solution_vars       , only : C, R, nnz
 
         ! use gauss_seidel
 
@@ -63,26 +63,14 @@ module linear_solver
         implicit none
 
         integer,                             intent( in) :: num_eq
-        type(jacobian_type), dimension(:),   intent( in) :: jacobian_block
+        real(p2),          dimension(:,:,:), intent( in) :: V
+        real(p2),          dimension(:,:,:), intent( in) :: Dinv
         real(p2),            dimension(:,:), intent( in) :: residual
                  
         real(p2),            dimension(:,:), intent(out) :: correction
         integer,                             intent(out) :: iostat
 
-        real(p2), dimension(:,:,:), pointer :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     pointer :: C   ! Column index of each value
-        integer , dimension(:),     pointer :: R   ! Start index of each new row
-        integer                             :: nnz
-        real(p2), dimension(:,:,:), pointer :: Dinv
-
         integer                     :: cycle_type
-
-        allocate(R(ncells+1))
-        allocate(Dinv(5,5,ncells))
-
-        call build_A_BCSM_block(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
-
-        call build_Dinv_array_block(ncells,jacobian_block,Dinv)
 
         cycle_type = convert_amg_c_to_i(amg_cycle)
 
@@ -301,79 +289,6 @@ module linear_solver
         l1_res_norm = linear_res_norm
 
     end subroutine linear_sweeps_block
-
-    subroutine build_Dinv_array_block(ncells,jac,D_inv)
-        ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
-        ! so the other two indices do not need to be stored.
-        use common      , only : p2
-
-        use solution_vars    , only : jacobian_type
-
-        implicit none
-        integer,                            intent(in) :: ncells
-        type(jacobian_type), dimension(:),  intent(in) :: jac
-        
-        real(p2), dimension(:,:,:),         INTENT(OUT) :: D_inv
-        
-
-        integer :: i
-        
-        do i = 1,ncells
-            D_inv(:,:,i) = jac(i)%diag_inv(:,:)
-        end do
-    end subroutine build_Dinv_array_block
-
-    subroutine build_A_BCSM_block(ncells,cell,jac,V,C,R,nnz)
-        ! Takes in a cell structure and a jacobian structure and creates a corresponding A matrix using the Yale meethod:
-        ! https://en.wikipedia.org/wiki/Sparse_matrix
-
-
-        use common      , only : p2
-
-        use grid        , only : cc_data_type
-
-        use solution_vars, only : jacobian_type
-
-        use sparse_common, only: insertion_sort_index
-
-        implicit none 
-
-        integer,                             intent(in) :: ncells
-        type(cc_data_type),  dimension(:),   intent(in) :: cell
-        type(jacobian_type), dimension(:),   intent(in) :: jac
-
-        real(p2), dimension(:,:,:), pointer, intent(out) :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer,  dimension(:),     pointer, intent(out) :: C   ! Column index of each value
-        integer,  dimension(:),              intent(out) :: R   ! Start index of each new row
-        integer, optional,                   INTENT(OUT) :: nnz
-
-        integer :: i, j, length
-
-        R(1) = 1 ! Row 1 starts at 1
-        do i = 2,ncells + 1
-            R(i) = R(i-1) + 1 + cell(i-1)%nnghbrs ! Start of row(i) = row(i-1) start point + 1 (diagonal term) + # of neighbors
-        end do
-        nnz = R(ncells+1) - 1 ! number of nonzero cells
-
-        allocate(V(5,5,nnz))
-        allocate(C(    nnz))
-
-        do i = 1,ncells
-            ! sort the index of the cell neighbors and i and stores them in C:
-            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
-            length = R(i+1)-R(i)
-            do j = R(i),(R(i+1)-1)
-                if (length == C(j)) then
-                    V(:,:,j) = jac(i)%diag(:,:)
-                    C(j) = i
-                else
-                    V(:,:,j) = jac(i)%off_diag(:,:,C(j))
-                    C(j) = cell(i)%nghbr(C(j))
-                end if
-            end do
-        end do
-
-    end subroutine build_A_BCSM_block
 
     subroutine linear_relaxation_scalar(jacobian_block,residual,correction,iostat)
 

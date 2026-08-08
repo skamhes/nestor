@@ -75,10 +75,10 @@ OBCTS +=$(SDIR)/ad_operators.o\
 		$(SDIR)/viscosity.o\
 		$(SDIR)/turb.o\
 		$(SDIR)/solution.o\
+		$(SDIR)/sparse_common.o\
+		$(SDIR)/inputoutput.o\
 		$(SDIR)/initialize.o\
 		$(SDIR)/turb_bc.o\
-		$(SDIR)/inputoutput.o\
-		$(SDIR)/sparse_common.o\
 		$(SDIR)/sparse_block_matrix.o\
 		$(SDIR)/sparse_scalar_matrix.o\
 		$(SDIR)/direct_solve.o\

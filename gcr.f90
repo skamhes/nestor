@@ -36,7 +36,7 @@ module gcr
 
         use grid        , only : ncells
 
-        use solution_vars, only : nq, jacobian_type, q, res
+        use solution_vars, only : nq, q, res
 
         use turb        , only : nturb, turb_var, turb_res
 
@@ -78,7 +78,7 @@ module gcr
 
         use grid        , only : ncells, cell
 
-        use solution_vars    , only : nq, inv_ncells, jacobian_type, res, jac, &
+        use solution_vars    , only : nq, inv_ncells, res, jac, diag_inv, C, R, nnz,  &
                                  nl_reduction, n_projections, q
         
         use solution    , only : compute_primative_jacobian
@@ -120,12 +120,10 @@ module gcr
 
         ! Variables for preconditioning matrix M
 
-        real(p2), dimension(:,:,:), pointer     :: V
         real(p2), dimension(:,:),   pointer     :: Vt   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     pointer     :: C, Ct   ! Column index of each value
-        integer , dimension(:),     pointer     :: R, Rt   ! Start index of each new row
-        integer                                 :: nnz, nnzt
-        real(p2), dimension(:,:,:), pointer     :: Dinv
+        integer , dimension(:),     pointer     :: Ct   ! Column index of each value
+        integer , dimension(:),     pointer     :: Rt   ! Start index of each new row
+        integer                                 :: nnzt
         real(p2), dimension(:,:),   pointer     :: Dinvt
 
         integer :: cycle_type
@@ -134,7 +132,6 @@ module gcr
         integer :: os
 
         ! Nullify pointers to avoid undefined behavior
-        nullify(V,C,R,Dinv)
         nullify(Vt,Ct,Rt,Dinvt)
 
         ! Initialize some variables
@@ -142,11 +139,6 @@ module gcr
         ! call merge_array(-res,-turb_res, ncells, nq, nturb, r_k)
         r_k              = -res
  
-        ! Build M (A Approx) for precondition solve of flow variables
-        allocate(R(ncells+1))
-        allocate(Dinv(5,5,ncells))
-        call build_A_BCSM(ncells,cell,jac,V,C,R,nnz=nnz)
-        call build_Dinv_array(ncells,jac,Dinv)
         ! Build M for precondition solve of turbulent variables
         if (iflow_type > FLOW_LAMINAR) then
             allocate(Rt(ncells+1))
@@ -168,7 +160,7 @@ module gcr
             
             ! Compute correction for flow
             ! keep_A = .true. so that V,C,R, and Dinv do not have to be rebuilt
-            call multilevel_cycle(ncells,nq, V, C, R, -r_k, Dinv,cycle_type,.true.,dQ_k(:,:,kdir),os)
+            call multilevel_cycle(ncells,nq, jac, C, R, -r_k, diag_inv,cycle_type,.true.,dQ_k(:,:,kdir),os)
             ! Compute correction for turbulence eqs
             do iturb = 1,nturb ! nturb is set to zero for laminar/inviscid flow
                 call multilevel_cycle(ncells, Vt(:,iturb), Ct, Rt, -r_k_t(:,iturb), Dinvt(:,iturb), cycle_type, &
@@ -179,13 +171,11 @@ module gcr
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
                 ! Clear Jacobian arrays
-                call clear_jacobian_arrays(V,C,R,Dinv)
                 call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             elseif (os == RELAX_FAIL_STALL) then
                 iostat = GCR_PRECOND_STALL
                 ! Clear Jacobian arrays
-                call clear_jacobian_arrays(V,C,R,Dinv)
                 call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             endif
@@ -199,7 +189,6 @@ module gcr
             if (os == GCR_PREAL_FAIL) then
                 iostat = GCR_PREAL_FAIL
                 ! Clear Jacobian arrays
-                call clear_jacobian_arrays(V,C,R,Dinv)
                 call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             endif
@@ -250,7 +239,6 @@ module gcr
                 nl_reduction  = rms_r_k / rms_r_0
                 gcr_res_rms   = rms_r_k
                 ! Clear Jacobian arrays
-                call clear_jacobian_arrays(V,C,R,Dinv)
                 call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             end if
@@ -262,7 +250,6 @@ module gcr
                 iostat = GCR_STALL
                 n_projections = jdir
                 ! Clear Jacobian arrays
-                call clear_jacobian_arrays(V,C,R,Dinv)
                 call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             endif
@@ -272,7 +259,6 @@ module gcr
         iostat = GCR_STALL
         n_projections = jdir
         ! Clear Jacobian arrays
-        call clear_jacobian_arrays(V,C,R,Dinv)
         call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
         return
     end subroutine gcr_solve_scratch
@@ -676,7 +662,7 @@ module gcr
 
         use grid            , only : ncells, cell
 
-        use solution_vars   , only : jac, q, nq, dtau, CFL_used
+        use solution_vars   , only : jac, q, nq, dtau, CFL_used, kth_of_cell, diag_inv
 
         use solution        , only : compute_primative_jacobian, compute_local_time_step_dtau
 
@@ -690,7 +676,7 @@ module gcr
 
         real(p2), dimension(nq,nq) :: preconditioner
 
-        integer :: icell, k, j, it
+        integer :: icell, k, j, it, ic1
         integer :: idestat
 
         real(p2), dimension(2) :: dtaui
@@ -716,7 +702,8 @@ module gcr
                 preconditioner = compute_primative_jacobian(q(:,icell))
 
                 ! we want to remove the pseudo transient term so that we can add it with a different CFL
-                jac(icell)%diag = jac(icell)%diag - (cell(icell)%vol/dtau(icell))*preconditioner
+                ic1 = kth_of_cell(icell)
+                jac(:,:,ic1) = jac(:,:,ic1) - (cell(icell)%vol/dtau(icell))*preconditioner
                 
             end do
 
@@ -745,18 +732,19 @@ module gcr
                 preconditioner = compute_primative_jacobian(q(:,icell))
 
                 ! we want to remove the pseudo transient term so that we can add it with a different CFL
-                jac(icell)%diag = jac(icell)%diag + (cell(icell)%vol/dtau(icell))*preconditioner
+                ic1 = kth_of_cell(icell)
+                jac(:,:,ic1) = jac(:,:,ic1) + (cell(icell)%vol/dtau(icell))*preconditioner
                 
                 ! Invert the diagonal
                 idestat = 0
-                !                A                     dim  A^{-1}               error check
-                call gewp_solve( jac(icell)%diag(:,:), 5  , jac(icell)%diag_inv, idestat    )
+                !                A             dim  A^{-1}               error check
+                call gewp_solve( jac(:,:,ic1), 5  , diag_inv(:,:,icell), idestat    )
                 !  Report errors
                 if (idestat/=0) then
                     write(*,*) " Error in inverting the diagonal block... Stop"
                     write(*,*) "  Cell number = ", icell
                     do k = 1, 5
-                        write(*,'(12(es8.1))') ( jac(icell)%diag(k,j), j=1,5 )
+                        write(*,'(12(es8.1))') ( jac(k,j,ic1), j=1,5 )
                     end do
                     stop
                 endif

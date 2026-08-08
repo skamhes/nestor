@@ -2,8 +2,6 @@ module jacobian
 
     use common          , only : p2
 
-    use solution_vars   , only : jacobian_type
-
     implicit none
 
     public :: compute_jacobian
@@ -22,7 +20,7 @@ module jacobian
                                          face_nrml_mag, face_nrml, &
                                          bound, nb, gcell
 
-        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, iT
+        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, iT, kth_of_cell, diag_inv
 
         use solution            , only : compute_primative_jacobian
 
@@ -42,7 +40,8 @@ module jacobian
 
         implicit none
         ! Local Vars
-        integer                     :: c1, c2, i, k, ib, idestat, j, nk
+        integer                     :: c1, c2, i, ib, idestat, j, nk, k
+        integer                     :: ic1, ic2, k1, k2
         real(p2), dimension(3)      :: unit_face_nrml, bface_centroid
         real(p2), dimension(5)      :: qb, q1
         real(p2), dimension(3,5)    :: gradq1, gradq2, gradqb
@@ -60,11 +59,7 @@ module jacobian
         integer                     :: face_sides
 
         ! Initialize jacobian terms
-        do i = 1,ncells
-            jac(i)%diag = zero
-            jac(i)%off_diag = zero
-            jac(i)%diag_inv = zero
-        end do
+        jac(:,:,:) = zero
 
         mutf = zero
         trbv1 = zero
@@ -81,16 +76,18 @@ module jacobian
             call interface_jac( q(:,c1), q(:,c2), unit_face_nrml, dFnduL, dFnduR)
 
             ! Add to diagonal term of C1
-            jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
+            ic1 = kth_of_cell(c1)
+            jac(:,:,ic1) = jac(:,:,ic1) + dFnduL * face_mag
             ! get neighbor index k for cell c1
-            k = kth_nghbr_of_1(i)
+            k1 = kth_nghbr_of_1(i)
             ! add to off diagonal neighbor k for cell c1
-            jac(c1)%off_diag(:,:,k) = jac(c1)%off_diag(:,:,k) + dFnduR * face_mag
+            jac(:,:,k1)   = jac(:,:,k1)   + dFnduR * face_mag
 
             ! Subtract terms from c2
-            jac(c2)%diag            = jac(c2)%diag            - dFnduR * face_mag
-            k = kth_nghbr_of_2(i)
-            jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
+            ic2 = kth_of_cell(c2)
+            jac(:,:,ic2) = jac(:,:,ic2) - dFnduR * face_mag
+            k2 = kth_nghbr_of_2(i)
+            jac(:,:,k2)   = jac(:,:,k2)   - dFnduL * face_mag
 
             if ( iflow_type == FLOW_INVISCID ) cycle loop_faces
 
@@ -108,16 +105,19 @@ module jacobian
                                             cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
                                                                      dFnduL, dFnduR)
             
-            jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
+            ! Add to diagonal term of C1
+            ! ic1 = kth_of_cell(c1)
+            jac(:,:,ic1) = jac(:,:,ic1) + dFnduL * face_mag
             ! get neighbor index k for cell c1
-            k = kth_nghbr_of_1(i)
+            ! k = kth_nghbr_of_1(i)
             ! add to off diagonal neighbor k for cell c1
-            jac(c1)%off_diag(:,:,k) = jac(c1)%off_diag(:,:,k) + dFnduR * face_mag
+            jac(:,:,k1)   = jac(:,:,k1)   + dFnduR * face_mag
 
             ! Subtract terms from c2
-            jac(c2)%diag            = jac(c2)%diag            - dFnduR * face_mag
-            k = kth_nghbr_of_2(i)
-            jac(c2)%off_diag(:,:,k) = jac(c2)%off_diag(:,:,k) - dFnduL * face_mag
+            ! ic2 = kth_of_cell(c2)
+            jac(:,:,ic2) = jac(:,:,ic2) - dFnduR * face_mag
+            ! k = kth_nghbr_of_2(i)
+            jac(:,:,k2)   = jac(:,:,k2)   - dFnduL * face_mag
 
         end do loop_faces
 
@@ -140,7 +140,8 @@ module jacobian
                 call interface_jac( q1, qb, unit_face_nrml, dFnduL, dFnduR)
                 
                 ! We only have a diagonal term to add
-                jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
+                ic1 = kth_of_cell(c1)
+                jac(:,:,ic1) = jac(:,:,ic1) + dFnduL * face_mag
 
                 if ( iflow_type == FLOW_INVISCID ) cycle bfaces_loop
 
@@ -172,7 +173,8 @@ module jacobian
                                                         dFnduL, dFnduR)
 
                 ! We only have a diagonal term to add
-                jac(c1)%diag            = jac(c1)%diag            + dFnduL * face_mag
+                ! ic1 = kth_of_cell(c1)
+                jac(:,:,ic1) = jac(:,:,ic1) + dFnduL * face_mag
                 
             end do bfaces_loop
         
@@ -183,18 +185,19 @@ module jacobian
         do i = 1,ncells
             preconditioner = compute_primative_jacobian(q(:,i))
 
-            jac(i)%diag = jac(i)%diag + (cell(i)%vol/dtau(i))*preconditioner
+            ic1 = kth_of_cell(c1)
+            jac(:,:,ic1) = jac(:,:,ic1) + (cell(i)%vol/dtau(i))*preconditioner
             
             ! Invert the diagonal
             idestat = 0
             !                A                 dim  A^{-1}           error check
-            call gewp_solve( jac(i)%diag(:,:), 5  , jac(i)%diag_inv, idestat    )
+            call gewp_solve( jac(:,:,ic1), 5  , diag_inv(:,:,i), idestat    )
              !  Report errors
             if (idestat/=0) then
                 write(*,*) " Error in inverting the diagonal block... Stop"
                 write(*,*) "  Cell number = ", i
                 do k = 1, 5
-                    write(*,'(12(es8.1))') ( jac(i)%diag(k,j), j=1,5 )
+                    write(*,'(12(es8.1))') ( jac(k,j,ic1), j=1,5 )
                 end do
                 stop
             endif

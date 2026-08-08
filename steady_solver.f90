@@ -481,7 +481,7 @@ module steady_solver
 
         use grid                , only : ncells
 
-        use solution_vars       , only : q, res, solution_update, nq, jac
+        use solution_vars       , only : q, res, solution_update, nq, jac, diag_inv
 
         use linear_solver       , only : linear_relaxation
 
@@ -496,7 +496,7 @@ module steady_solver
 
         ! next compute the correction by relaxing the linear system
         ! It turns out calling a generic interface with an assumed shape derived data type causes issues with fortran.  Interesting.
-        ! call linear_relaxation(nq, jac, res, solution_update,os)
+        call linear_relaxation(nq, jac, diag_inv, res, solution_update,os)
 
         loop_cells : do icell = 1,ncells
             omegan = safety_factor_primative(q(:,icell),solution_update(:,icell))

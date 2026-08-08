@@ -16,7 +16,6 @@ module turb
     public :: ccgrad_turb_var, vgrad_turb_var
     public :: nturb
     public :: phi_turb
-    public :: turb_jacobian_type
     public :: nut_inf
     public :: turb_res_norm, turb_res_norm_init
     public :: turb_update
@@ -39,14 +38,15 @@ module turb
 
 
     ! Jacobian type has to be placed here to avoid circular dependencies.
-    type turb_jacobian_type
-        real(p2)                                :: diag     ! diagonal blocks of Jacobian matrix
-        real(p2), dimension(:), allocatable     :: off_diag ! off-diagonal blocks
-        real(p2)                                :: diag_inv ! inverse of diagonal blocks
-        real(p2)                                :: RHS      ! Right hand side (b) of the linear system
-    end type turb_jacobian_type
+    ! type turb_jacobian_type
+    !     real(p2)                                :: diag     ! diagonal blocks of Jacobian matrix
+    !     real(p2), dimension(:), allocatable     :: off_diag ! off-diagonal blocks
+    !     real(p2)                                :: diag_inv ! inverse of diagonal blocks
+    !     real(p2)                                :: RHS      ! Right hand side (b) of the linear system
+    ! end type turb_jacobian_type
 
-    type(turb_jacobian_type), dimension(:,:), allocatable :: turb_jac
+    real(p2), dimension(:,:), allocatable :: turb_jac
+    real(p2), dimension(:,:), allocatable :: turb_diag_inv
 
     contains
 
