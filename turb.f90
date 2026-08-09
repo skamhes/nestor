@@ -12,6 +12,7 @@ module turb
     ! VARS
     public :: turb_var
     public :: turb_jac
+    public :: turb_diag_inv
     public :: turb_res
     public :: ccgrad_turb_var, vgrad_turb_var
     public :: nturb
@@ -56,7 +57,7 @@ module turb
 
         use grid      , only : ncells, nnodes, nfaces
 
-        use solution_vars , only : kth_nghbr_of_1, kth_nghbr_of_2
+        use solution_vars , only : kth_nghbr_of_1, kth_nghbr_of_2, nnz
 
         use utils         , only : ilsq_stencil, LSQ_STENCIL_NN, LSQ_STENCIL_WVERTEX
 
@@ -74,7 +75,8 @@ module turb
 
         allocate(turb_var(ncells,nturb)) ! we're generally gonna be working through one variable at a time
         allocate(turb_res(ncells,nturb))
-        allocate(turb_jac(ncells,nturb))
+        allocate(turb_jac(nnz,nturb))
+        allocate(turb_diag_inv(ncells,nturb))
         
         allocate(turb_update(ncells))
 
@@ -116,13 +118,6 @@ module turb
         implicit none
 
         integer :: icell, it
-
-        ! allocate jacobian off diagonal arrays
-        do it = 1,nturb
-            do icell = 1,ncells
-                allocate( turb_jac(icell,it)%off_diag(cell(icell)%nnghbrs))
-            end do
-        end do
 
         ! Set freestream values
         if (iturb_model == TURB_SA) then

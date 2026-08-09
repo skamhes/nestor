@@ -485,7 +485,7 @@ module steady_solver
 
         use linear_solver       , only : linear_relaxation
 
-        use turb                , only : turb_jac, turb_res, turb_update, nturb, turb_var
+        use turb                , only : turb_jac, turb_res, turb_update, nturb, turb_var, turb_diag_inv
 
         implicit none
         integer         :: icell, it, os
@@ -510,7 +510,7 @@ module steady_solver
         if (iflow_type < FLOW_RANS) return
 
         do it = 1,nturb
-            call linear_relaxation(turb_jac(:,it), turb_res(:,it), turb_update(:), os)
+            call linear_relaxation(turb_jac(:,it), turb_diag_inv(:,it), turb_res(:,it), turb_update(:), os)
 
             do icell = 1,ncells
                 ! turb_var(icell,it) = max(turb_var(icell,it) + turb_ur(it) * turb_update(icell),zero)

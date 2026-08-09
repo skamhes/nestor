@@ -23,11 +23,6 @@ module gcr
     integer, parameter :: GCR_REAL_FAIL = 5
     integer, parameter :: GCR_PREAL_FAIL = 6
 
-    interface clear_jacobian_arrays
-        module procedure clear_jacobian_arrays_B
-        module procedure clear_jacobian_arrays_S
-    end interface clear_jacobian_arrays
-
     contains
 
     subroutine gcr_run(iostat)
@@ -85,12 +80,11 @@ module gcr
 
         use residual    , only : compute_residual
 
-        use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE, build_A_BCSM, multilevel_cycle, &
-                                 build_Dinv_array
+        use linear_solver, only: linear_relaxation, RELAX_FAIL_STALL, RELAX_FAIL_DIVERGE, multilevel_cycle
 
         use algebraic_multigird, only : convert_amg_c_to_i
 
-        use turb , only : nturb, turb_jac, turb_res, turb_var
+        use turb , only : nturb, turb_jac, turb_res, turb_var, turb_diag_inv
 
         use utils , only : iflow_type, FLOW_LAMINAR
 
@@ -117,22 +111,10 @@ module gcr
         real(p2)                                              :: rms_Q_n
         real(p2)                                              :: mu, gamma_k ! inner products
 
-
-        ! Variables for preconditioning matrix M
-
-        real(p2), dimension(:,:),   pointer     :: Vt   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     pointer     :: Ct   ! Column index of each value
-        integer , dimension(:),     pointer     :: Rt   ! Start index of each new row
-        integer                                 :: nnzt
-        real(p2), dimension(:,:),   pointer     :: Dinvt
-
         integer :: cycle_type
 
         integer :: iturb, kdir, jdir ! projection direction indices
         integer :: os
-
-        ! Nullify pointers to avoid undefined behavior
-        nullify(Vt,Ct,Rt,Dinvt)
 
         ! Initialize some variables
         gcr_final_update_f = zero
@@ -141,10 +123,6 @@ module gcr
  
         ! Build M for precondition solve of turbulent variables
         if (iflow_type > FLOW_LAMINAR) then
-            allocate(Rt(ncells+1))
-            allocate(Dinvt(ncells,nturb))
-            call build_A_BCSM(ncells,cell,turb_jac,Vt,Ct,Rt,nturb,nnz=nnzt)
-            call build_Dinv_array(ncells,turb_jac,nturb,Dinvt)
             r_k_t = -turb_res
             gcr_final_update_t = zero
         end if
@@ -163,20 +141,16 @@ module gcr
             call multilevel_cycle(ncells,nq, jac, C, R, -r_k, diag_inv,cycle_type,.true.,dQ_k(:,:,kdir),os)
             ! Compute correction for turbulence eqs
             do iturb = 1,nturb ! nturb is set to zero for laminar/inviscid flow
-                call multilevel_cycle(ncells, Vt(:,iturb), Ct, Rt, -r_k_t(:,iturb), Dinvt(:,iturb), cycle_type, &
+                call multilevel_cycle(ncells, turb_jac(:,iturb), C, R, -r_k_t(:,iturb), turb_diag_inv(:,iturb), cycle_type, &
                                       .true., dQ_k_t(:,iturb,kdir), os)
             end do
 
 
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
-                ! Clear Jacobian arrays
-                call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             elseif (os == RELAX_FAIL_STALL) then
                 iostat = GCR_PRECOND_STALL
-                ! Clear Jacobian arrays
-                call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             endif
             
@@ -188,8 +162,6 @@ module gcr
 
             if (os == GCR_PREAL_FAIL) then
                 iostat = GCR_PREAL_FAIL
-                ! Clear Jacobian arrays
-                call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             endif
 
@@ -238,8 +210,6 @@ module gcr
                 n_projections = kdir
                 nl_reduction  = rms_r_k / rms_r_0
                 gcr_res_rms   = rms_r_k
-                ! Clear Jacobian arrays
-                call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             end if
 
@@ -249,8 +219,6 @@ module gcr
             if (gamma_k < norm_r_k * 0.001_p2) then
                 iostat = GCR_STALL
                 n_projections = jdir
-                ! Clear Jacobian arrays
-                call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
                 return
             endif
         end do proj_loop
@@ -258,8 +226,7 @@ module gcr
         ! if we make it this far we've stalled
         iostat = GCR_STALL
         n_projections = jdir
-        ! Clear Jacobian arrays
-        call clear_jacobian_arrays(Vt,Ct,Rt,Dinvt)
+
         return
     end subroutine gcr_solve_scratch
 
@@ -668,7 +635,7 @@ module gcr
 
         use direct_solve    , only : gewp_solve, safe_invert_scalar
 
-        use turb            , only : nturb, turb_jac, twsn, turb_var
+        use turb            , only : nturb, turb_jac, twsn, turb_var, turb_diag_inv
 
         implicit none
 
@@ -711,7 +678,8 @@ module gcr
                 do icell = 1,ncells
                     dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
                     dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
-                    turb_jac(icell,it)%diag = turb_jac(icell,it)%diag - cell(icell)%vol / minval(dtaui) * turb_var(icell,it)
+                    ic1 = kth_of_cell(icell)
+                    turb_jac(ic1,1) = turb_jac(ic1,1) - cell(icell)%vol / minval(dtaui) * turb_var(icell,it)
                 end do
             end do
 
@@ -755,8 +723,9 @@ module gcr
                 do icell = 1,ncells
                     dtaui(1) = CFL_turb * cell(icell)%vol/( half * twsn(1,icell) )
                     dtaui(2) = CFL_turb * (cell(icell)%vol)**2 / (twsn(2,icell))
-                    turb_jac(icell,it)%diag = turb_jac(icell,it)%diag + cell(icell)%vol / minval(dtaui) * turb_var(icell,it)
-                    turb_jac(icell,1)%diag_inv = safe_invert_scalar(turb_jac(icell,1)%diag)
+                    ic1 = kth_of_cell(icell)
+                    turb_jac(ic1,1) = turb_jac(ic1,1) + cell(icell)%vol / minval(dtaui) * turb_var(icell,it)
+                    turb_diag_inv(icell,1) = safe_invert_scalar(turb_jac(ic1,1))
                 end do
             end do
         endif
@@ -847,41 +816,5 @@ module gcr
         end do
 
     end function
-
-    subroutine clear_jacobian_arrays_B(V,C,R,Dinv)
-
-        use common , only : p2
-
-        implicit none
-
-        real(p2), dimension(:,:,:), pointer, intent(inout) :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     pointer, intent(inout) :: C   ! Column index of each value
-        integer , dimension(:),     pointer, intent(inout) :: R   ! Start index of each new row
-        real(p2), dimension(:,:,:), pointer, intent(inout) :: Dinv
-
-        if (associated(V)) deallocate(V)
-        if (associated(C)) deallocate(C)
-        if (associated(R)) deallocate(R)
-        if (associated(Dinv)) deallocate(Dinv)
-
-    end subroutine clear_jacobian_arrays_B
-
-    subroutine clear_jacobian_arrays_S(V,C,R,Dinv)
-
-        use common , only : p2
-
-        implicit none
-
-        real(p2), dimension(:,:), pointer, intent(inout) :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:),     pointer, intent(inout) :: C   ! Column index of each value
-        integer , dimension(:),     pointer, intent(inout) :: R   ! Start index of each new row
-        real(p2), dimension(:,:), pointer, intent(inout) :: Dinv
-
-        if (associated(V)) deallocate(V)
-        if (associated(C)) deallocate(C)
-        if (associated(R)) deallocate(R)
-        if (associated(Dinv)) deallocate(Dinv)
-
-    end subroutine clear_jacobian_arrays_S
     
 end module gcr

@@ -19,18 +19,6 @@ module linear_solver
         module procedure multilevel_cycle_scalar
     end interface multilevel_cycle
 
-    interface build_A_BCSM
-        ! module procedure build_A_BCSM_block
-        module procedure build_A_BCSM_scalar
-        module procedure build_A_BCSM_multi_scalar
-    end interface build_A_BCSM
-
-    interface build_Dinv_array
-        ! module procedure build_Dinv_array_block
-        module procedure build_Dinv_array_scalar
-        module procedure build_Dinv_array_multi_scalar
-    end interface build_Dinv_array
-
     public :: RELAX_SUCCESS
     public :: RELAX_FAIL_DIVERGE, RELAX_FAIL_STALL
     integer, parameter :: RELAX_SUCCESS      = 0
@@ -290,7 +278,7 @@ module linear_solver
 
     end subroutine linear_sweeps_block
 
-    subroutine linear_relaxation_scalar(jacobian_block,residual,correction,iostat)
+    subroutine linear_relaxation_scalar(V,Dinv,residual,correction,iostat)
 
         use common              , only : p2
 
@@ -298,34 +286,20 @@ module linear_solver
 
         use grid                , only : ncells, cell
 
-        use turb                , only : turb_jacobian_type
-
-        ! use gauss_seidel
+        use solution_vars       , only : C, R, nnz
 
         use algebraic_multigird , only : convert_amg_c_to_i
 
         implicit none
 
-        type(turb_jacobian_type), dimension(:), intent( in) :: jacobian_block
-        real(p2),                 dimension(:), intent( in) :: residual
+        real(p2), dimension(:), intent( in) :: V
+        real(p2), dimension(:), intent( in) :: Dinv
+        real(p2), dimension(:), intent( in) :: residual
                  
-        real(p2),                 dimension(:), intent(out) :: correction
-        integer,                                intent(out) :: iostat
+        real(p2), dimension(:), intent(out) :: correction
+        integer,                intent(out) :: iostat
 
-        real(p2), dimension(:), pointer :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer , dimension(:), pointer :: C   ! Column index of each value
-        integer , dimension(:), pointer :: R   ! Start index of each new row
-        integer                         :: nnz
-        real(p2), dimension(:), pointer :: Dinv
-
-        integer                         :: cycle_type
-
-        allocate(R(ncells+1))
-        allocate(Dinv(ncells))
-
-        call build_A_BCSM_scalar(ncells,cell,jacobian_block,V,C,R,nnz=nnz)
-
-        call build_Dinv_array_scalar(ncells,jacobian_block,Dinv)
+        integer                             :: cycle_type
 
         cycle_type = convert_amg_c_to_i(amg_cycle)
 
@@ -412,173 +386,6 @@ module linear_solver
         call amg_destroy(base_level)
 
     end subroutine multilevel_cycle_scalar
-
-    subroutine build_A_BCSM_scalar(ncells,cell,jac,V,C,R,nnz)
-        ! Takes in a cell structure and a jacobian structure and creates a corresponding A matrix using the Yale meethod:
-        ! https://en.wikipedia.org/wiki/Sparse_matrix
-
-
-        use common      , only : p2
-
-        use grid        , only : cc_data_type
-
-        use turb        , only : turb_jacobian_type
-
-        use sparse_common, only: insertion_sort_index
-
-        implicit none 
-
-        integer,                                  intent(in) :: ncells
-        type(cc_data_type),       dimension(:),   intent(in) :: cell
-        type(turb_jacobian_type), dimension(:),   intent(in) :: jac
-
-        real(p2), dimension(:),     pointer, intent(out) :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer,  dimension(:),     pointer, intent(out) :: C   ! Column index of each value
-        integer,  dimension(:),              intent(out) :: R   ! Start index of each new row
-        integer, optional,                   INTENT(OUT) :: nnz
-
-        integer :: i, j, length
-
-        R(1) = 1 ! Row 1 starts at 1
-        do i = 2,ncells + 1
-            R(i) = R(i-1) + 1 + cell(i-1)%nnghbrs ! Start of row(i) = row(i-1) start point + 1 (diagonal term) + # of neighbors
-        end do
-        nnz = R(ncells+1) - 1 ! number of nonzero cells
-
-        allocate(V(nnz))
-        allocate(C(nnz))
-
-        do i = 1,ncells
-            ! sort the index of the cell neighbors and i and stores them in C:
-            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
-            length = R(i+1)-R(i)
-            do j = R(i),(R(i+1)-1)
-                if (length == C(j)) then
-                    V(j) = jac(i)%diag
-                    C(j) = i
-                else
-                    V(j) = jac(i)%off_diag(C(j))
-                    C(j) = cell(i)%nghbr(C(j))
-                end if
-            end do
-        end do
-
-    end subroutine build_A_BCSM_scalar
-
-    subroutine build_A_BCSM_multi_scalar(ncells,cell,jac,V,C,R,nV,nnz)
-        ! Takes in a cell structure and a jacobian structure and creates a corresponding A matrix using the Yale meethod:
-        ! https://en.wikipedia.org/wiki/Sparse_matrix
-
-
-        use common      , only : p2
-
-        use grid        , only : cc_data_type
-
-        use turb        , only : turb_jacobian_type
-
-        use sparse_common, only: insertion_sort_index
-
-        implicit none 
-
-        integer,                                  intent(in) :: ncells
-        type(cc_data_type),       dimension(:),   intent(in) :: cell
-        type(turb_jacobian_type), dimension(:,:), intent(in) :: jac
-        integer,                                  intent(in) :: nV
-
-        real(p2), dimension(:,:),   pointer, intent(out) :: V   ! Values (5x5 block matrix) plus corresponding index
-        integer,  dimension(:),     pointer, intent(out) :: C   ! Column index of each value
-        integer,  dimension(:),              intent(out) :: R   ! Start index of each new row
-        integer, optional,                   INTENT(OUT) :: nnz
-
-        integer :: i, j, tt, length
-
-        R(1) = 1 ! Row 1 starts at 1
-        do i = 2,ncells + 1
-            R(i) = R(i-1) + 1 + cell(i-1)%nnghbrs ! Start of row(i) = row(i-1) start point + 1 (diagonal term) + # of neighbors
-        end do
-        nnz = R(ncells+1) - 1 ! number of nonzero cells
-
-        allocate(V(nnz,nV))
-        allocate(C(nnz))
-
-        ! first time through
-        do i = 1,ncells
-            ! sort the index of the cell neighbors and i and stores them in C:
-            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
-            length = R(i+1)-R(i)
-            do j = R(i),(R(i+1)-1)
-                if (length == C(j)) then
-                    V(j,1) = jac(i,1)%diag
-                    C(j)   = i
-                else
-                    V(j,1) = jac(i,1)%off_diag(C(j))
-                    C(j)   = cell(i)%nghbr(C(j))
-                end if
-            end do
-        end do
-
-        do tt = 2,nV
-            do i = 1,ncells
-                length = R(i+1)-R(i)
-                do j = R(i),(R(i+1)-1)
-                    if (length == C(j)) then
-                        V(j,tt) = jac(i,tt)%diag
-                        C(j)   = i
-                    else
-                        V(j,tt) = jac(i,tt)%off_diag(C(j))
-                        C(j)   = cell(i)%nghbr(C(j))
-                    end if
-                end do
-            end do
-        end do
-
-    end subroutine build_A_BCSM_multi_scalar
-
-    subroutine build_Dinv_array_scalar(ncells,jac,D_inv)
-        ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
-        ! so the other two indices do not need to be stored.
-        use common      , only : p2
-
-        use turb        , only : turb_jacobian_type
-
-        implicit none
-        integer,                            intent(in) :: ncells
-        type(turb_jacobian_type), dimension(:),  intent(in) :: jac
-        
-        real(p2), dimension(:),         INTENT(OUT) :: D_inv
-        
-
-        integer :: i
-        
-        do i = 1,ncells
-            D_inv(i) = jac(i)%diag_inv
-        end do
-    end subroutine build_Dinv_array_scalar
-
-    subroutine build_Dinv_array_multi_scalar(ncells,jac,nV,D_inv)
-        ! This subroutine stores just the diagonal blocks of the Dinv matrix since the rest are empty.  As a result, C=R=index
-        ! so the other two indices do not need to be stored.
-        use common      , only : p2
-
-        use turb        , only : turb_jacobian_type
-
-        implicit none
-        integer,                                   intent(in) :: ncells
-        type(turb_jacobian_type), dimension(:,:),  intent(in) :: jac
-        integer,                                   intent(in) :: nV
-        
-        real(p2), dimension(:,:),         INTENT(OUT) :: D_inv
-        
-
-        integer :: j,i
-        
-        do j = 1,nV
-            do i = 1,ncells
-                D_inv(i,j) = jac(i,j)%diag_inv
-            end do
-        end do 
-    end subroutine build_Dinv_array_multi_scalar
-    
 
     recursive subroutine linear_sweeps_scalar(solve_level,res,cycle_type,level,correction,l1_res_norm,stat)
 
