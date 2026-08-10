@@ -171,7 +171,7 @@ module initialize
     ! Storage pattern: A
     !
     !...              N-1                 N                     N+1               ...
-    !Rline(2N)  =>|x                 |                    |  x        x       | R( 1) = 1
+    !Rline(2N-1)=>|x                 |                    |  x        x       | R( 1) = 1
     !             |   x              |                    |     x             | R( 2) = 4
     !             |         x        |                    |   x               | R( 3) = 6
     !             |     x            |                    |    x              | R( 4) = 8
@@ -181,7 +181,7 @@ module initialize
     !             |          x  x    |                    |                   | R( 8) = 16
     !             |              x   |                    |       x           | R( 9) = 18
     !             |________________x_|____________________|x__________x_______| R(10) = 20
-    !Rline(2N+1)=>|                  |d u                 |                   | R(11) = 23
+    !Rline(2N)  =>|                  |d u                 |                   | R(11) = 23
     !             |                  |l d u               |                   | R(12) = 25
     !             |                  |  l d u             |                   | R(13) = 28
     !             |                  |    l d u           |                   | R(14) = 31
@@ -191,7 +191,7 @@ module initialize
     !             |                  |            l d u   |                   | R(18) = 43
     !             |                  |              l d u |                   | R(19) = 46
     !             |                  |                l d |                   | R(20) = 49
-    !Rline(2(N+1))=> ...                                                        R(21) = 51                                                                     
+    !Rline(2N+1)  => ...                                                        R(21) = 51                                                                     
   
   
     subroutine init_line_jacobian
@@ -206,8 +206,12 @@ module initialize
 
         implicit none
 
+       
+        integer, dimension(ncells) :: c2row ! for line cells, it is the offset from the base row,
+        
         integer :: i, j, k, jp
-        integer :: cjm1, ck, cj
+        integer :: cjm1, ck, cj, cn, ifc, nv
+        integer :: r1, r2, br
         integer :: c1, c2, length
         integer :: nrows
 
@@ -258,7 +262,7 @@ module initialize
             R(nrows+1) = R(nrows) + cell(cjm1)%nnghbrs - 1 ! subtract the 1 neighbor going into the line block's last line
             nrows = nrows + 1
             
-            Rline(2*i) = R(nrows)
+            Rline(2*i) = nrows
 
             ! line 2 is also different
             R(nrows+1) = R(nrows) + 2 ! only two elemnts in the first line
@@ -273,15 +277,17 @@ module initialize
             R(nrows+1) = R(nrows) + 2 ! only two elemnts in the first line
             nrows = nrows + 1
 
-            Rline(2 * i + 1) = R(nrows)
+            Rline(2 * i + 1) = nrows
         end do
 
         ! Add the remaining cells to a standard jacobian block at the end
         do i = 1,ncells
             if (id_line(i) > 0) cycle
             R(nrows + 1) = R(nrows) + 1 + cell(i)%nnghbrs ! Start of row(nrows+1) = row(nrows) start point + 1 (diagonal term) + # of neighbors
+            id_line(i) = -nrows 
             nrows = nrows + 1
         end do
+        Rline(2 * (nlines + 1)) = nrows
         nnz = R(nrows) - 1 ! number of nonzero cells
         
         allocate(Jac(5,5,nnz))
@@ -289,11 +295,16 @@ module initialize
         
         allocate(diag_inv(5,5,ncells))
         
+        ! Write the C vector
+        jp = 1
         do i = 1,nlines
             ! using 2 pointers to write the cell indices
-            jp = Rline(2*i - 1)
             do k = 1,lines(i)%ncells
                 ck = lines(i)%lcells(k)
+                
+                ! set the conversion c2row offset pointer
+                c2row(ck) = k-1
+
                 ! sort the index of the cell neighbors and i and stores them in C:
                 length = cell(ck)%nnghbrs
                 call insertion_sort_index( (/ cell(ck)%nghbr /) , nghbrs(1:length) ) 
@@ -320,25 +331,61 @@ module initialize
             C(jp  ) = lines(i)%lcells(lines(i)%ncells - 1)
             C(jp+1) = lines(i)%lcells(lines(i)%ncells    )
             jp      = jp + 2
-        end do        
+        end do    
+        
+        ! Add the rest
+        do i = 1,ncells
+            if (id_line(i) > 0) cycle
+            c2row(i) = 0 ! zero out the remainint row pointers
+            ! sort the index of the cell neighbors and i and stores them in C:
+            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
+            length = R(i+1)-R(i)
+            do j = R(i),(R(i+1)-1)
+                if (length == C(j)) then
+                    C(j) = i
+                    kth_of_cell(i) = j
+                else
+                    C(j) = cell(i)%nghbr(C(j))
+                end if
+            end do
+        end do
         
         ! Create kth_nghbr arrays
         if(.not.allocated(kth_nghbr_of_1)) allocate(kth_nghbr_of_1(nfaces))
         if(.not.allocated(kth_nghbr_of_2)) allocate(kth_nghbr_of_2(nfaces))
-        
+
         ! Define kth neighbor arrays
         face_nghbr_loop : do i = 1,nfaces
             c1 = face(1,i)
             c2 = face(2,i)
+            if (id_line(c1) == id_line(c2)) then ! in the same row
+                br = Rline(2*id_line(c1)) ! baserow
+                r1 = br + c2row(c1)
+                r2 = br + c2row(c2)
+            else ! not on the same line
+                ! c1
+                if (id_line(c1) > 0) then ! offline neighbor
+                    br = Rline(2*id_line(c1)-1) ! baserow
+                    r1 = br + c2row(c1)
+                else
+                    r1 = -id_line(c1) ! point neighbor
+                endif
+                !c2
+                if (id_line(c2) > 0) then ! offline neighbor
+                    br = Rline(2*id_line(c2)-1) 
+                    r2 = br + c2row(c2)
+                else
+                    r2 = -id_line(c2) ! point neighbor
+                endif
+            endif
+
             ! loop over c1 neighbors to find c2
-            k = findloc( C(R(c1) : R(c1+1)-1), c2, dim=1 )
-            kth_nghbr_of_1(i) = R(c1) + k - 1
+            k = findloc( C(R(r1) : R(r1+1)-1), c2, dim=1 )
+            kth_nghbr_of_1(i) = R(r1) + k - 1
 
-            k = findloc( C(R(c2) : R(c2+1)-1), c1, dim=1 )
-            kth_nghbr_of_2(i) = R(c2) + k - 1
-
+            k = findloc( C(R(r2) : R(r2+1)-1), c1, dim=1 )
+            kth_nghbr_of_2(i) = R(r2) + k - 1
         end do face_nghbr_loop
-
 
     end subroutine init_line_jacobian
 end module initialize
