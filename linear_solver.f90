@@ -38,7 +38,7 @@ module linear_solver
 
         use common              , only : p2
 
-        use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle
+        use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle, line_implicit
 
         use grid                , only : ncells, cell
 
@@ -62,7 +62,11 @@ module linear_solver
 
         cycle_type = convert_amg_c_to_i(amg_cycle)
 
-        call multilevel_cycle_block(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
+        if (line_implicit) then
+            call li_cycle_block(ncells, num_eq, V,C,R,residual, Dinv, correction, iostat)
+        else
+            call multilevel_cycle_block(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
+        endif
 
     end subroutine linear_relaxation_block
 
@@ -277,6 +281,124 @@ module linear_solver
         l1_res_norm = linear_res_norm
 
     end subroutine linear_sweeps_block
+
+    subroutine li_cycle_block(ncells, num_eq, V,C,R,res, Dinv, correction, stat)
+
+        use common , only : p2, zero
+
+        use limplicit , only : lines, nlines
+
+        use solution_vars , only : Rline
+
+        implicit none
+
+        integer,                            intent(in)      :: ncells
+        integer,                            intent(in)      :: num_eq
+        real(p2), dimension(:,:,:), target, intent(in)      :: V    ! Values of A
+        integer , dimension(:),     target, intent(in)      :: C    ! Column index of A
+        integer , dimension(:),     target, intent(in)      :: R    ! Start index of A
+        real(p2), dimension(:,:),           intent(in)      :: res  ! RHS (= -b)
+        real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
+        
+        real(p2), dimension(:,:),           intent(out)     :: correction
+        integer,                            intent(out)     :: stat ! Return 
+
+        integer :: i
+
+        ! Initialize the correction
+        correction = zero
+
+        do i = 1,nlines
+            call thomas_sweep(lines(i)%ncells, lines(i)%lcells, num_eq, V, C, R, Rline(2*i-1:2*i+1), Dinv, res, correction, stat)
+        end do
+    end subroutine li_cycle_block
+
+    subroutine thomas_sweep(nc, lcells, neq, V, C, R, Rline, Dinv, res, correction, stat)
+
+        use common , only : p2
+
+        use direct_solve        , only : gewp_solve
+
+        implicit none
+        
+        integer,                            intent(in)      :: nc     ! number of cells in the given line
+        integer,  dimension(:),             intent(in)      :: lcells ! Array of cells in the line
+        integer,                            intent(in)      :: neq
+        real(p2), dimension(:,:,:), target, intent(in)      :: V      ! Values of A
+        integer , dimension(:),     target, intent(in)      :: C      ! Column index of A
+        integer , dimension(:),     target, intent(in)      :: R      ! Start index of each row in A
+        integer , dimension(3),     target, intent(in)      :: Rline  ! Start index of R for each line block in A
+        real(p2), dimension(:,:),           intent(in)      :: res  ! RHS (= -b)
+        real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
+        
+        real(p2), dimension(:,:),           intent(inout)   :: correction
+        integer,                            intent(out)     :: stat ! Return 
+
+        real(p2), dimension(neq,nc) :: rhs ! scratch space. We can't clobber res or correction (at first)
+        real(p2), dimension(neq,neq,nc) :: deltai
+
+        integer :: po, pl, pn ! pointers to the off line block, line block, and the next block
+        
+        integer :: i, j, k, jj
+        integer :: ci, cj
+
+        real(p2), dimension(neq,neq) :: l, d, u, um1, di ! 3 tridiagonal blocks
+        
+        po = Rline(1)
+        pl = Rline(2)
+        pn = Rline(3)
+
+        ! First add the off loop blocks
+        do i = po,pl-1
+            ci = lcells(i)
+            rhs(:,i) = - res(:,ci)
+            do j = R(i),R(i+1)-1
+                cj = C(j)
+                rhs(:,i) = rhs(:,i) - matmul(V(:,:,cj),correction(:,cj))
+            end do
+        end do
+
+        ! Now perform the Thomas Algorithm
+        ! This implements the algorithm as described in section 2.1 of https://doi.org/10.1016/j.jcp.2010.04.049
+        ! with a correction to equation (3a) which should read:
+        ! x_i = del_i*(-U_i*x_i+1 + beta_i)^-1
+        
+        ! The first and last rows have special treatment:
+        deltai(:,:,1) = Dinv(:,:,lcells(1)) ! we already have it may as well use it.
+        ! rhs(:,1) = rhs(:,1) - Li * beta_(i-1)
+        
+        j = 1 ! local cell counter
+        do i = pl+1,pn-1
+            j = j+1
+            l   = V(:,:,C(R(i  )))
+            d   = V(:,:,C(R(i+1)))
+            um1 = V(:,:,C(R(i-1)))
+
+            di = d - matmul(matmul(l,deltai(:,:,j-1)),um1)
+            call gewp_solve( di, 5  , deltai(:,:,j), stat) ! fortran doesn't let you alias variables
+             !  Report errors
+            if (stat/=0) then
+                write(*,*) " Error in inverting the diagonal block... Stop"
+                write(*,*) "  Cell number = ", lcells(j)
+                do k = 1, 5
+                    write(*,'(12(es8.1))') ( di(k,jj), jj=1,5 )
+                end do
+                stop
+            endif
+            rhs(:,j) = rhs(:,j) - matmul(l,rhs(:,j-1))
+        end do
+
+        ! now we back substitute to update the correction
+        correction(:,lcells(j)) = matmul(deltai(:,:,j),rhs(:,j))
+        do i = pn-1,pl+1,-1 ! loop backwards
+            j = j - 1
+            u = V(:,:,C(R(i-1)))
+            correction(:,lcells(j)) = rhs(:,j) - matmul(u,correction(:,lcells(j+1)))
+            correction(:,lcells(j)) = matmul(deltai(:,:,j),correction(:,lcells(j+1)))
+        end do
+
+
+    end subroutine thomas_sweep
 
     subroutine linear_relaxation_scalar(V,Dinv,residual,correction,iostat)
 
