@@ -8,6 +8,13 @@
             "options": {
                 "cwd": "${workspaceRoot}"
             }
+        },{
+            "label": "make test",
+            "type": "shell",
+            "command": "make test",
+            "options": {
+                "cwd": "${workspaceRoot}"
+            }
         }
     ]
 }

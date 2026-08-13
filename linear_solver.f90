@@ -364,37 +364,48 @@ module linear_solver
         ! x_i = del_i*(-U_i*x_i+1 + beta_i)^-1
         
         ! The first and last rows have special treatment:
-        deltai(:,:,1) = Dinv(:,:,lcells(1)) ! we already have it may as well use it.
-        ! rhs(:,1) = rhs(:,1) - Li * beta_(i-1)
+        deltai(:,:,1) = matmul(Dinv(:,:,lcells(1)), V(:,:,R(pl)+1))
+        rhs(:,1)      = matmul(Dinv(:,:,lcells(1)), rhs(:,1))
         
         j = 1 ! local cell counter
-        do i = pl+1,pn-1
+        do i = pl+1,pn-2
             j = j+1
-            l   = V(:,:,C(R(i  )))
-            d   = V(:,:,C(R(i+1)))
-            um1 = V(:,:,C(R(i-1)))
+            l   = V(:,:,R(i)  )
+            d   = V(:,:,R(i)+1)
+            u   = V(:,:,R(i)+2)
 
-            di = d - matmul(matmul(l,deltai(:,:,j-1)),um1)
-            call gewp_solve( di, 5  , deltai(:,:,j), stat) ! fortran doesn't let you alias variables
-             !  Report errors
+            di = d - matmul(l,deltai(:,:,j-1)) !MM
+            call gewp_solve( di, neq  , deltai(:,:,j), stat) ! fortran doesn't let you alias variables
+            !  Report errors
             if (stat/=0) then
                 write(*,*) " Error in inverting the diagonal block... Stop"
                 write(*,*) "  Cell number = ", lcells(j)
-                do k = 1, 5
+                do k = 1, neq
                     write(*,'(12(es8.1))') ( di(k,jj), jj=1,5 )
                 end do
                 stop
             endif
-            rhs(:,j) = rhs(:,j) - matmul(l,rhs(:,j-1))
+
+            rhs(:,j)      = rhs(:,j) - matmul(l,rhs(:,j-1)) !MV
+            rhs(:,j)      = matmul(deltai(:,:,j),rhs(:,j))  !MV
+            deltai(:,:,j) = matmul(deltai(:,:,j),u)         !MM
         end do
 
+        j = j+1
+        l   = V(:,:,R(pn-1)  )
+        d   = V(:,:,R(pn-1)+1)
+        di = d - matmul(l,deltai(:,:,j-1))
+        call gewp_solve( di, neq  , deltai(:,:,j), stat) ! fortran doesn't let you alias variables
+        rhs(:,j)      = rhs(:,j) - matmul(l,rhs(:,j-1))
+        rhs(:,j)      = matmul(deltai(:,:,j),rhs(:,j))
+
+
         ! now we back substitute to update the correction
-        correction(:,lcells(j)) = matmul(deltai(:,:,j),rhs(:,j))
+        correction(:,lcells(j)) = rhs(:,j)
         do i = pn-1,pl+1,-1 ! loop backwards
             j = j - 1
             u = V(:,:,C(R(i-1)))
-            correction(:,lcells(j)) = rhs(:,j) - matmul(u,correction(:,lcells(j+1)))
-            correction(:,lcells(j)) = matmul(deltai(:,:,j),correction(:,lcells(j+1)))
+            correction(:,lcells(j)) = rhs(:,j) - matmul(deltai(:,:,j),correction(:,lcells(j+1))) !MV
         end do
 
 

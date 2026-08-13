@@ -1,0 +1,211 @@
+! Various test routines 
+module test_mod
+
+    use common , only : p2
+
+    contains
+
+    subroutine tri_diag
+
+        use linear_solver , only : thomas_sweep
+
+        use direct_solve , only  : gewp_solve
+
+        implicit none
+
+        integer,  dimension(:), allocatable     :: R,C
+        integer,  dimension(3)                  :: Rline
+        real(p2), dimension(:,:,:), allocatable :: V, dinv
+        real(p2), dimension(:,:),   allocatable :: b, x, x_solve
+
+        integer :: nq, size, nnz
+        integer, dimension(:), allocatable :: iline
+        integer :: cj
+        integer :: i, j, k
+
+        ! ! Test a hand built 2x2 block tridiag with strong diagonal dominance
+        ! nq = 2; size = 5; nnz = 4 + 3*(size-2)
+        ! allocate(V(nq,nq,nnz), b(nq,size), x(nq,size), x_solve(nq,size))
+        ! allocate(R(2*size + 1) , C(nnz))
+        ! allocate(dinv(nq,nq,size))
+        ! Rline = (/ 1, 1+size, 6+size/)
+        ! V(:,:,1:2) = reshape(  (/5._p2,1.0_p2,2._p2,6._p2, 1._p2,0.5_p2,1._p2,2._p2/),(/2,2,2/))
+        ! V(:,:,3:5) = reshape(  (/1._p2,2._p2,1._p2,0.5_p2, 8._p2,0.5_p2,1._p2,5._p2, 0.3_p2, 1._p2, 0.6_p2, 1._p2/),(/2,2,3/))
+        ! V(:,:,6:8) = reshape(  (/0.5_p2,1._p2,2._p2,1._p2, 7._p2,0.2_p2,2._p2,6._p2, 0.4_p2, 2._p2, 0.2_p2, 2._p2/),(/2,2,3/))
+        ! V(:,:,9:11) = reshape( (/1._p2,0.7_p2,1._p2,2._p2, 4._p2,0.8_p2,2._p2,6._p2, 0.5_p2, 2._p2, 0.1_p2, 2._p2/),(/2,2,3/))
+        ! V(:,:,12:13) = reshape((/2._p2,0.8_p2,1._p2,1._p2, 6._p2,0.1_p2,1._p2,4._p2/),(/2,2,2/))
+
+        ! C(1:2) = (/1,2/)
+        ! R(1:size+1) = 1
+        ! R(size+2) = 3
+        ! call gewp_solve(V(:,:,1), nq, dinv(:,:,1), k)
+        ! do i = size+2,2*size-1
+        !     R(i+1) = R(i) + 3
+        !     C(R(i):R(i)+2) = i-size + (/-1, 0, 1/)
+        !     call gewp_solve(V(:,:,R(i)+1), nq, dinv(:,:,i-size), k)
+        ! end do
+        ! call gewp_solve(V(:,:,nnz), nq, dinv(:,:,size), k)
+        ! C(R(2*size):R(2*size)+1) = size - (/1, 0/)
+        ! R(2*size+1) = nnz+1
+
+        ! x(:,:) = reshape((/1.4_p2,2.0_p2, 1.5_p2,1.5_p2, 2._p2, 0.5_p2, 3._p2,2._p2, 1.3_p2, 1.0_p2/),(/2,5/))
+
+        ! b = 0._p2
+
+        ! do i = 1,size
+        !     do j = R(i+size),R(i+1+size)-1
+        !         cj = C(j)
+        !         b(:,i) = b(:,i) + matmul(V(:,:,j),x(:,cj))
+        !     end do
+        ! end do
+
+        ! allocate(iline(size))
+        ! iline = (/1,2,3,4,5/)
+        ! call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
+
+        ! deallocate(V,b,x,x_solve)
+        ! deallocate(R,C,dinv)
+        ! deallocate(iline)
+
+
+        nq = 1; size = 5; nnz = 4 + 3*(size-2)
+        allocate(V(nq,nq,nnz), b(nq,size), x(nq,size), x_solve(nq,size))
+        allocate(R(2*size + 1) , C(nnz))
+        allocate(dinv(nq,nq,size))
+        Rline = (/ 1, 1+size, 6+size/)
+        V(:,:,1:2) = reshape(  (/5._p2,1.0_p2/),(/nq,nq,2/))
+        V(:,:,3:5) = reshape(  (/1._p2,4._p2,1._p2/),(/nq,nq,3/))
+        V(:,:,6:8) = reshape(  (/1._p2,7._p2,2._p2/),(/nq,nq,3/))
+        V(:,:,9:11) = reshape( (/2._p2,4._p2,1._p2/),(/nq,nq,3/))
+        V(:,:,12:13) = reshape((/1._p2,6._p2/),(/nq,nq,2/))
+
+        C(1:2) = (/1,2/)
+        R(1:size+1) = 1
+        R(size+2) = 3
+        call gewp_solve(V(:,:,1), nq, dinv(:,:,1), k)
+        do i = size+2,2*size-1
+            R(i+1) = R(i) + 3
+            C(R(i):R(i)+2) = i-size + (/-1, 0, 1/)
+            call gewp_solve(V(:,:,R(i)+1), nq, dinv(:,:,i-size), k)
+        end do
+        call gewp_solve(V(:,:,nnz), nq, dinv(:,:,size), k)
+        C(R(2*size):R(2*size)+1) = size - (/1, 0/)
+        R(2*size+1) = nnz+1
+
+        x(:,:) = reshape((/1.4_p2,2.0_p2,1.5_p2,1.5_p2,2._p2/),(/nq,size/))
+
+        b = 0._p2
+
+        do i = 1,size
+            do j = R(i+size),R(i+1+size)-1
+                cj = C(j)
+                b(:,i) = b(:,i) + matmul(V(:,:,j),x(:,cj))
+            end do
+        end do
+
+        allocate(iline(size))
+        iline = (/1,2,3,4,5/)
+        call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
+
+        write(*,*) x_solve
+    end subroutine tri_diag
+
+    subroutine stri_diag
+
+        implicit none
+
+        integer,  dimension(:), allocatable     :: R,C
+        integer,  dimension(3)                  :: Rline
+        real(p2), dimension(:), allocatable :: V, dinv, deltai
+        real(p2), dimension(:),   allocatable :: b, x, x_solve, res
+
+        integer :: nq, size, nnz
+        integer, dimension(:), allocatable :: iline
+        integer :: cj
+        integer :: i, j, k
+        real(p2) :: l, d, u, um1
+
+        nq = 1; size = 5; nnz = 4 + 3*(size-2)
+        allocate(V(nnz), b(size), x(size), x_solve(size), deltai(size))
+        allocate(R(2*size + 1) , C(nnz))
+        allocate(dinv(size), res(size))
+        Rline = (/ 1, 1+size, 6+size/)
+        V(1:2) = (/5._p2,1.0_p2/)
+        V(3:5) = (/1._p2,4._p2,1._p2/)
+        V(6:8) = (/1._p2,7._p2,2._p2/)
+        V(9:11) = (/2._p2,4._p2,1._p2/)
+        V(12:13) = (/1._p2,6._p2/)
+
+        C(1:2) = (/1,2/)
+        R(1:size+1) = 1
+        R(size+2) = 3
+        dinv(1) = 1._p2 / V(1)
+        do i = size+2,2*size-1
+            R(i+1) = R(i) + 3
+            C(R(i):R(i)+2) = i-size + (/-1, 0, 1/)
+            dinv(i-size) = 1._p2 / V(R(i)+1)
+        end do
+        dinv(size) = 1._p2 / V(nnz)
+        C(R(2*size):R(2*size)+1) = size - (/1, 0/)
+        R(2*size+1) = nnz+1
+
+        x(:) = (/1.4_p2,2.0_p2,1.5_p2,1.5_p2,2._p2/)
+
+        b = 0._p2
+
+        do i = 1,size
+            do j = R(i+size),R(i+1+size)-1
+                cj = C(j)
+                b(i) = b(i) + V(j)*x(cj)
+            end do
+        end do
+
+        allocate(iline(size))
+        iline = (/1,2,3,4,5/)
+
+        deltai(1) = dinv(1)
+        res(1)    = b(1) * deltai(1)
+        deltai(1) = V(2) * deltai(1)
+        write(*,*) "del_",1,"= ", deltai(1), "res=",res(1)
+
+        do i = 2,size-1
+            l   = V(R(i+size)  )
+            d   = V(R(i+size)+1)
+            u   = V(R(i+size)+2)
+
+            deltai(i) = 1._p2 / (d - l*deltai(i-1))
+            res(i)    = (b(i) - l * res(i-1)) * deltai(i)
+            deltai(i) = u * deltai(i)
+            write(*,*) "del_",i,"= ", deltai(i), "res=",res(i)
+
+        end do
+
+        l   = V(R(2*size)  )
+        d   = V(R(2*size)+1)
+
+        deltai(size) = 1._p2 / (d - l*deltai(size-1))
+        res(size)    = (b(size) - l * res(size-1)) * deltai(size)
+        write(*,*) "del_",i,"= ", deltai(i)
+
+        x_solve(size) = res(size)
+        write(*,*) "x_solve_",size,"=",x_solve(size), " x_",size,"=",x(size)
+        do i = size-1,1,-1
+            x_solve(i) = res(i) - deltai(i)*x_solve(i+1)
+            write(*,*) "x_solve_",i,"=",x_solve(i), " x_",i,"=",x(i)
+        end do
+
+        
+    end subroutine stri_diag
+endmodule test_mod
+
+
+
+
+program testing
+
+    use test_mod
+
+    call stri_diag
+
+    call tri_diag
+end program testing

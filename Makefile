@@ -117,6 +117,11 @@ all:$(PROGRAM)
 $(PROGRAM): $(OBCTS)
 	$(FC) $(FFLAGS) -o $@ $(OBCTS)
 
+.PHONY:test
+test: testing
+
+testing: testing.o $(OBCTS)
+	$(FC) $(FFLAGS) -o $@ $(SDIR)/testing.o $(filter-out $(SDIR)/nestor.o, $(OBCTS)) 
 ##########################################################
 # Clean up
 ##########################################################
