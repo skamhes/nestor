@@ -148,18 +148,18 @@ module test_mod
         allocate(R(2*size + 1) , C(nnz))
         allocate(dinv(size), res(size))
         Rline = (/ 1, 1+size, 6+size/)
-        V(1:5)     = (/1._p2, 0.5_p2, .7_p2, 0.1_p2, 0.8_p2/)*0.
+        V(1:5)     = (/1._p2, 0.5_p2, .7_p2, 0.1_p2, 0.8_p2/)
         V(5+1:5+2) = (/5._p2,1.0_p2/)
         V(5+3:5+5) = (/1._p2,4._p2,1._p2/)
         V(5+6:5+8) = (/1._p2,7._p2,2._p2/)
         V(5+9:5+11) = (/2._p2,4._p2,1._p2/)
         V(5+12:5+13) = (/1._p2,6._p2/)
 
-        C(1:5) = (/4,5,3,1,2/)
+        C(1:5) = (/4,5,1,1,2/)
         C(6:7) = (/1,2/)
         R(1:size+1) = (/1,2,3,4,5,6/)
         R(size+2) = 8
-        dinv(1) = 1._p2 / V(6)
+        dinv(1) = 1._p2 / V( R(Rline(2)) )
         do i = size+2,2*size-1
             R(i+1) = R(i) + 3
             C(R(i):R(i)+2) = i-size + (/-1, 0, 1/)
@@ -192,14 +192,15 @@ module test_mod
             write(*,*) "iteration:", iter
 
             do i = 1,size
+                res(i) = b(i)
                 do j = R(i),R(i+1)-1
                     cj = C(j)
                     res(i) = res(i) - x_solve(cj) * V(j)
                 end do
             end do
             deltai(1) = dinv(1)
-            res(1)    = b(1) * deltai(1)
-            deltai(1) = V(7) * deltai(1)
+            res(1)    = res(1) * deltai(1)
+            deltai(1) = V( R(Rline(2))+1 ) * deltai(1)
             write(*,*) "del_",1,"= ", deltai(1), "res=",res(1)
 
             do i = 2,size-1
@@ -208,7 +209,7 @@ module test_mod
                 u   = V(R(i+size)+2)
 
                 deltai(i) = 1._p2 / (d - l*deltai(i-1))
-                res(i)    = (b(i) - l * res(i-1)) * deltai(i)
+                res(i)    = (res(i) - l * res(i-1)) * deltai(i)
                 deltai(i) = u * deltai(i)
                 write(*,*) "del_",i,"= ", deltai(i), "res=",res(i)
 
@@ -218,8 +219,8 @@ module test_mod
             d   = V(R(2*size)+1)
 
             deltai(size) = 1._p2 / (d - l*deltai(size-1))
-            res(size)    = (b(size) - l * res(size-1)) * deltai(size)
-            write(*,*) "del_",i,"= ", deltai(i)
+            res(size)    = (res(size) - l * res(size-1)) * deltai(size)
+            write(*,*) "del_",i,"= ", deltai(i), "res=", res(size)
 
             x_solve(size) = res(size)
             write(*,*) "x_solve_",size,"=",x_solve(size), " x_",size,"=",x(size)
@@ -227,8 +228,10 @@ module test_mod
                 x_solve(i) = res(i) - deltai(i)*x_solve(i+1)
                 write(*,*) "x_solve_",i,"=",x_solve(i), " x_",i,"=",x(i)
             end do
+            write(*,*) "Error: ", sum(abs(x-x_solve))
         end do
         
+        stop
     end subroutine stri_diag
 endmodule test_mod
 
