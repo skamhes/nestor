@@ -140,13 +140,13 @@ module linear_solver
         endif
         lrelax_roc = roc
 
-        ! Destroy the amg levels
-        if (keep_A) then
-            if ( associated(base_level%V) )     nullify(base_level%V)
-            if ( associated(base_level%C) )     nullify(base_level%C)
-            if ( associated(base_level%R) )     nullify(base_level%R)
-            if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
-        endif
+        ! ! Destroy the amg levels
+        ! if (keep_A) then
+        !     if ( associated(base_level%V) )     nullify(base_level%V)
+        !     if ( associated(base_level%C) )     nullify(base_level%C)
+        !     if ( associated(base_level%R) )     nullify(base_level%R)
+        !     if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
+        ! endif
         call amg_destroy(base_level)
 
     end subroutine multilevel_cycle_block
@@ -580,12 +580,12 @@ module linear_solver
         lrelax_roc = roc
 
         ! Destroy the amg levels
-        if (keep_A) then
-            if ( associated(base_level%V) )     nullify(base_level%V)
-            if ( associated(base_level%C) )     nullify(base_level%C)
-            if ( associated(base_level%R) )     nullify(base_level%R)
-            if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
-        endif
+        ! if (keep_A) then
+        !     if ( associated(base_level%V) )     nullify(base_level%V)
+        !     if ( associated(base_level%C) )     nullify(base_level%C)
+        !     if ( associated(base_level%R) )     nullify(base_level%R)
+        !     if ( associated(base_level%Dinv) )  nullify(base_level%Dinv)
+        ! endif
         call amg_destroy(base_level)
 
     end subroutine multilevel_cycle_scalar

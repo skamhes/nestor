@@ -641,10 +641,10 @@ module algebraic_multigird
         if ( associated(amg_struct%restrictR) ) deallocate(amg_struct%restrictR)
         if ( associated(amg_struct%prolongC) ) deallocate(amg_struct%prolongC)
         if ( associated(amg_struct%prolongR) ) deallocate(amg_struct%prolongR)
-        if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
-        if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
-        if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
-        if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
+        ! if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
+        ! if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
+        ! if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
+        ! if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
         if ( associated(amg_struct%fine) ) nullify(amg_struct%fine)
 
         if ( associated(amg_struct%coarse) ) then
@@ -667,10 +667,10 @@ module algebraic_multigird
         if ( associated(amg_struct%restrictR) ) deallocate(amg_struct%restrictR)
         if ( associated(amg_struct%prolongC) ) deallocate(amg_struct%prolongC)
         if ( associated(amg_struct%prolongR) ) deallocate(amg_struct%prolongR)
-        if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
-        if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
-        if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
-        if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
+        ! if ( associated(amg_struct%V) ) deallocate(amg_struct%V)
+        ! if ( associated(amg_struct%R) ) deallocate(amg_struct%R)
+        ! if ( associated(amg_struct%C) ) deallocate(amg_struct%C)
+        ! if ( associated(amg_struct%Dinv) ) deallocate(amg_struct%Dinv)
         if ( associated(amg_struct%fine) ) nullify(amg_struct%fine)
 
         if ( associated(amg_struct%coarse) ) then
