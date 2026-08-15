@@ -82,8 +82,6 @@ module steady_solver
         ! Set initial solution (or import but we'll do that later...)
         call set_initial_solution
 
-        if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
-        
         i_iteration = 0
 
         write(*,*) " ---------------------------------------"

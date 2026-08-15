@@ -7,7 +7,7 @@ module test_mod
 
     subroutine tri_diag
 
-        use linear_solver , only : thomas_sweep
+        use linear_solver , only : thomas_sweep_block
 
         use direct_solve , only  : gewp_solve
 
@@ -16,7 +16,7 @@ module test_mod
         integer,  dimension(:), allocatable     :: R,C
         integer,  dimension(3)                  :: Rline
         real(p2), dimension(:,:,:), allocatable :: V, dinv
-        real(p2), dimension(:,:),   allocatable :: b, x, x_solve
+        real(p2), dimension(:,:),   allocatable :: b, x, x_solve, lres
 
         integer :: nq, size, nnz
         integer, dimension(:), allocatable :: iline
@@ -65,7 +65,7 @@ module test_mod
         iline = (/1,2,3,4,5/)
         x_solve = 0._p2
         do i = 1,20
-            call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
+            call thomas_sweep_block(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve,lres, k)
             ! write(*,*) x
             ! write(*,*) x_solve
         end do
@@ -119,7 +119,7 @@ module test_mod
                 
         do i = 1,20
             write(*,*) "iteration:", i
-            call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
+            call thomas_sweep_block(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, lres, k)
             write(*,*) "Error: ", sum(abs(x_solve - x))
             ! write(*,*) x_solve
         end do
@@ -144,6 +144,8 @@ module test_mod
 
     subroutine stri_diag
 
+        use linear_solver , only : thomas_sweep_scalar
+
         implicit none
 
         integer,  dimension(:), allocatable     :: R,C
@@ -155,7 +157,7 @@ module test_mod
         integer, dimension(:), allocatable :: iline
         integer :: cj, ci
         integer :: i, j, k, iter
-        real(p2) :: l, d, u, um1
+        real(p2) :: l, d, u, um1, lres
 
         nq = 1; size = 5; nnz = 4 + 3*(size-2) + 5
         allocate(V(nnz), b(size), x(size), x_solve(size), deltai(size))
@@ -202,7 +204,7 @@ module test_mod
 
         x_solve = 0._p2
         
-        do iter = 1,20
+        do iter = 1,2
             write(*,*) "iteration:", iter
 
             do i = 1,size
@@ -244,8 +246,17 @@ module test_mod
             end do
             write(*,*) "Error: ", sum(abs(x-x_solve))
         end do
+
+        x_solve = 0._p2
+
+        do iter = 1,20
+            write(*,*) "iteration:", iter
+            lres = 0._p2
+            call thomas_sweep_scalar(size, iline, V, C, R, Rline, Dinv, -b, x_solve,lres, k)
+            write(*,*) lres
+        end do
         
-        ! stop
+        stop
     end subroutine stri_diag
 endmodule test_mod
 
@@ -256,7 +267,7 @@ program testing
 
     use test_mod
 
-    ! call stri_diag
+    call stri_diag
 
     call tri_diag
 end program testing

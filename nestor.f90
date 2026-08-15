@@ -28,6 +28,10 @@ program nestor
 
     use steady_solver, only : steady_solve
 
+    use utils , only : isolver_type, SOLVER_IMPLICIT, isolver_type, SOLVER_GCR
+
+    use initialize , only : init_jacobian
+
     implicit none
 
     write(*,*)
@@ -60,6 +64,8 @@ program nestor
     call reorder_rcm
 
     if (line_implicit) call build_lines
+
+    if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
 
     call allocate_solution_vars
 

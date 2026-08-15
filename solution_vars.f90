@@ -111,6 +111,7 @@ module solution_vars
     integer :: nnz
     integer, dimension(:), allocatable :: C, R  !CSR pointer vectors
     integer, dimension(:), allocatable :: Rline !CSR pointer vector for line blocks
+    integer, dimension(:), allocatable :: iRow  !Pointer from modified CSR row to cell index
     
     ! type(jacobian_type), dimension(:), allocatable :: jac ! jacobian array
     

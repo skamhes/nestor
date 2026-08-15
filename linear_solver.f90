@@ -21,11 +21,11 @@ module linear_solver
 
     public :: RELAX_SUCCESS
     public :: RELAX_FAIL_DIVERGE, RELAX_FAIL_STALL
-    integer, parameter :: RELAX_SUCCESS      = 0
-    integer, parameter :: RELAX_FAIL_DIVERGE = 1
-    integer, parameter :: RELAX_FAIL_STALL   = 2
+    integer, parameter  :: RELAX_SUCCESS        = 0
+    integer, parameter  :: RELAX_FAIL_DIVERGE   = 1
+    integer, parameter  :: RELAX_FAIL_STALL     = 2
     private :: DIVERGENCE_TOLERANCE
-    real(p2) :: DIVERGENCE_TOLERANCE = 1e+04
+    real(p2), parameter :: DIVERGENCE_TOLERANCE = 1e+04
 
     contains
 
@@ -286,9 +286,14 @@ module linear_solver
 
         use common , only : p2, zero
 
+        use config , only : lrelax_sweeps, lrelax_tolerance
+
         use limplicit , only : lines, nlines
 
-        use solution_vars , only : Rline
+        use solution_vars , only : Rline, iRow, inv_ncells, roc, lrelax_sweeps_actual
+
+        ! use solution_vars   , only : , lrelax_roc
+
 
         implicit none
 
@@ -302,18 +307,74 @@ module linear_solver
         
         real(p2), dimension(:,:),           intent(out)     :: correction
         integer,                            intent(out)     :: stat ! Return 
-
-        integer :: i
+        
+        integer :: i, ci, k, icell, isweep
+        integer :: igs, igse ! start and end pointers for the Gauss-Seidel Sweeps 
+        real(p2), dimension(num_eq) :: b, linear_res 
+        real(p2), dimension(num_eq) :: linear_res_norm, linear_res_norm_init
 
         ! Initialize the correction
         correction = zero
 
-        do i = 1,nlines
-            call thomas_sweep(lines(i)%ncells, lines(i)%lcells, num_eq, V, C, R, Rline(2*i-1:2*i+1), Dinv, res, correction, stat)
+        linear_res_norm = zero
+
+        linear_res_norm_init = zero
+        do icell = 1,ncells
+            linear_res_norm_init = linear_res_norm_init + abs(res(:,icell))
         end do
+
+        sloop : do isweep = 1,lrelax_sweeps
+            ! Line sweeps
+            do i = 1,nlines
+                call thomas_sweep_block(lines(i)%ncells, lines(i)%lcells, num_eq, V, C, R, Rline(2*i-1:2*i+1), Dinv, res, & 
+                                        correction, linear_res_norm, stat)
+            end do
+
+            ! Gauss-Seidel Sweeps
+            igs  = Rline(2*nlines + 1)
+            igse = Rline(2*(nlines+1))
+            do i = igs,igse-1
+                ci = iRow(i)
+                ! Form the right hand side of GS: [ sum( off_diagonal_block*du ) - residual ]
+                b = -res(:,ci)
+                gs_row_loop : do k = R(i),(R(i+1)-1)
+                    ! Add RHS from off diagonal terms and du (du = zero to start and will be updated as we go)
+                    if ( C(k) .NE. ci) then
+                        b = b - matmul(V(:,:,k),correction(:,C(k)))
+                    end if
+                end do gs_row_loop
+                ! ! Update du by the GS relaxation:
+                !
+                ! e.g., for 3 nghbrs, perform the relaxation in the form:
+                !
+                !                     diagonal block        sum of off-diagonal block contributions
+                !       dUj = omega*{ [V/dtj+dR/dUj]^{-1}*(-[dRj/dU1]*dU1 -[dRj/dU2]*dU2 -[dRj/dU3]*dU3 -Res_j) - dUj }
+                linear_res = matmul(Dinv(:,:,ci), b) - correction(:,ci)
+                correction(:,ci) = correction(:,ci) +  linear_res
+                linear_res_norm(:) = linear_res_norm(:) + abs(linear_res)
+
+            end do
+
+            linear_res_norm = linear_res_norm / real(ncells, p2)
+
+            ! Check for convergence
+            roc = maxval(linear_res_norm(1:5)/linear_res_norm_init(1:5))
+            if (roc < lrelax_tolerance) then
+                ! if converged
+                lrelax_sweeps_actual = isweep
+                stat = RELAX_SUCCESS
+                exit sloop
+            elseif ( roc > DIVERGENCE_TOLERANCE ) then
+                ! residual has diverged
+                lrelax_sweeps_actual = -1
+                stat = RELAX_FAIL_DIVERGE
+                exit sloop
+            endif
+        end do sloop
+
     end subroutine li_cycle_block
 
-    subroutine thomas_sweep(nc, lcells, neq, V, C, R, Rline, Dinv, res, correction, stat)
+    subroutine thomas_sweep_block(nc, lcells, neq, V, C, R, Rline, Dinv, res, correction, linear_res, stat)
 
         use common , only : p2
 
@@ -332,6 +393,7 @@ module linear_solver
         real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
         
         real(p2), dimension(:,:),           intent(inout)   :: correction
+        real(p2), dimension(neq),           intent(inout)   :: linear_res
         integer,                            intent(out)     :: stat ! Return 
 
         real(p2), dimension(neq,nc) :: rhs ! scratch space. We can't clobber res or correction (at first)
@@ -343,6 +405,7 @@ module linear_solver
         integer :: ci, cj
 
         real(p2), dimension(neq,neq) :: l, d, u, um1, di ! 3 tridiagonal blocks
+        real(p2), dimension(neq)     :: new_corr, lres
         
         po = Rline(1)
         pl = Rline(2)
@@ -352,11 +415,11 @@ module linear_solver
         k = 0
         do i = po,pl-1
             k = k+1
-            ci = lcells(i)
+            ci = lcells(k)
             rhs(:,k) = - res(:,ci)
             do j = R(i),R(i+1)-1
                 cj = C(j)
-                rhs(:,j) = rhs(:,j) - matmul(V(:,:,j),correction(:,cj))
+                rhs(:,k) = rhs(:,k) - matmul(V(:,:,j),correction(:,cj))
             end do
         end do
 
@@ -402,21 +465,25 @@ module linear_solver
 
 
         ! now we back substitute to update the correction
-        correction(:,lcells(j)) = rhs(:,j)
+        new_corr = rhs(:,j)
+        linear_res = linear_res + abs(new_corr - correction(:,lcells(j)))
+        correction(:,lcells(j)) = new_corr
         do i = pn-1,pl+1,-1 ! loop backwards
             j = j - 1
             u = V(:,:,C(R(i-1)))
-            correction(:,lcells(j)) = rhs(:,j) - matmul(deltai(:,:,j),correction(:,lcells(j+1))) !MV
+            new_corr = rhs(:,j) - matmul(deltai(:,:,j),correction(:,lcells(j+1))) !MV
+            linear_res = linear_res + abs(new_corr - correction(:,lcells(j)))
+            correction(:,lcells(j)) = new_corr
         end do
 
 
-    end subroutine thomas_sweep
+    end subroutine thomas_sweep_block
 
     subroutine linear_relaxation_scalar(V,Dinv,residual,correction,iostat)
 
         use common              , only : p2
 
-        use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle
+        use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle, line_implicit
 
         use grid                , only : ncells, cell
 
@@ -436,9 +503,11 @@ module linear_solver
         integer                             :: cycle_type
 
         cycle_type = convert_amg_c_to_i(amg_cycle)
-
-        call multilevel_cycle(ncells,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
-
+        if (line_implicit) then
+            call li_cycle_scalar(ncells, V,C,R,residual, Dinv, correction, iostat)
+        else
+            call multilevel_cycle(ncells,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
+        endif
     end subroutine linear_relaxation_scalar
 
     subroutine multilevel_cycle_scalar(ncells,V,C,R,res,Dinv,cycle_type,keep_A,correction,stat)
@@ -649,4 +718,188 @@ module linear_solver
         l1_res_norm = linear_res_norm
 
     end subroutine linear_sweeps_scalar
+
+    subroutine li_cycle_scalar(ncells, V,C,R,res, Dinv, correction, stat)
+
+        use common , only : p2, zero
+
+        use config , only : lrelax_sweeps, lrelax_tolerance
+
+        use limplicit , only : lines, nlines
+
+        use solution_vars , only : Rline, iRow, inv_ncells, roc, lrelax_sweeps_actual
+
+        ! use solution_vars   , only : , lrelax_roc
+
+        implicit none
+
+        integer,                        intent(in)      :: ncells
+        real(p2), dimension(:), target, intent(in)      :: V    ! Values of A
+        integer , dimension(:), target, intent(in)      :: C    ! Column index of A
+        integer , dimension(:), target, intent(in)      :: R    ! Start index of A
+        real(p2), dimension(:),         intent(in)      :: res  ! RHS (= -b)
+        real(p2), dimension(:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
+        
+        real(p2), dimension(:),         intent(out)     :: correction
+        integer,                        intent(out)     :: stat ! Return 
+        
+        integer :: i, ci, k, icell, isweep
+        integer :: igs, igse ! start and end pointers for the Gauss-Seidel Sweeps 
+        real(p2) :: b, linear_res 
+        real(p2) :: linear_res_norm, linear_res_norm_init
+
+        ! Initialize the correction
+        correction = zero
+
+        linear_res_norm = zero
+
+        linear_res_norm_init = zero
+        do icell = 1,ncells
+            linear_res_norm_init = linear_res_norm_init + abs(res(icell))
+        end do
+
+        sloop : do isweep = 1,lrelax_sweeps
+            ! Line sweeps
+            do i = 1,nlines
+                call thomas_sweep_scalar(lines(i)%ncells, lines(i)%lcells, V, C, R, Rline(2*i-1:2*i+1), Dinv, res, correction, &
+                                linear_res_norm, stat)
+            end do
+
+            ! Gauss-Seidel Sweeps
+            igs  = Rline(2*nlines + 1)
+            igse = Rline(2*(nlines+1))
+            do i = igs,igse-1
+                ci = iRow(i)
+                ! Form the right hand side of GS: [ sum( off_diagonal_block*du ) - residual ]
+                b = -res(ci)
+                gs_row_loop : do k = R(i),(R(i+1)-1)
+                    ! Add RHS from off diagonal terms and du (du = zero to start and will be updated as we go)
+                    if ( C(k) .NE. ci) then
+                        b = b - V(k)*correction(C(k))
+                    end if
+                end do gs_row_loop
+                ! ! Update du by the GS relaxation:
+                !
+                ! e.g., for 3 nghbrs, perform the relaxation in the form:
+                !
+                !                     diagonal block        sum of off-diagonal block contributions
+                !       dUj = omega*{ [V/dtj+dR/dUj]^{-1}*(-[dRj/dU1]*dU1 -[dRj/dU2]*dU2 -[dRj/dU3]*dU3 -Res_j) - dUj }
+                linear_res = Dinv(ci)*b - correction(ci)
+                correction(ci) = correction(ci) +  linear_res
+                linear_res_norm = linear_res_norm + abs(linear_res)
+
+            end do
+
+            linear_res_norm = linear_res_norm / real(ncells, p2)
+
+            ! Check for convergence
+            roc = linear_res_norm/linear_res_norm_init
+            if (roc < lrelax_tolerance) then
+                ! if converged
+                lrelax_sweeps_actual = isweep
+                stat = RELAX_SUCCESS
+                exit sloop
+            elseif ( roc > DIVERGENCE_TOLERANCE ) then
+                ! residual has diverged
+                lrelax_sweeps_actual = -1
+                stat = RELAX_FAIL_DIVERGE
+                exit sloop
+            endif
+        end do sloop
+
+    end subroutine li_cycle_scalar
+
+    subroutine thomas_sweep_scalar(nc, lcells, V, C, R, Rline, Dinv, res, correction, linear_res, stat)
+
+        use common , only : p2
+
+        use direct_solve        , only : gewp_solve
+
+        implicit none
+        
+        integer,                intent(in)      :: nc     ! number of cells in the given line
+        integer,  dimension(:), intent(in)      :: lcells ! Array of cells in the line
+        real(p2), dimension(:), intent(in)      :: V      ! Values of A
+        integer , dimension(:), intent(in)      :: C      ! Column index of A
+        integer , dimension(:), intent(in)      :: R      ! Start index of each row in A
+        integer , dimension(3), intent(in)      :: Rline  ! Start index of R for each line block in A
+        real(p2), dimension(:), intent(in)      :: res  ! RHS (= -b)
+        real(p2), dimension(:), intent(in)      :: Dinv ! Inverse of A(i,i)
+        
+        real(p2), dimension(:), intent(inout)   :: correction
+        real(p2),               intent(inout)   :: linear_res
+        integer,                intent(out)     :: stat ! Return 
+
+        real(p2), dimension(nc) :: rhs ! scratch space. We can't clobber res or correction (at first)
+        real(p2), dimension(nc) :: deltai
+
+        integer :: po, pl, pn ! pointers to the off line block, line block, and the next block
+        
+        integer :: i, j, k, jj
+        integer :: ci, cj
+
+        real(p2) :: l, d, u, um1, di ! 3 tridiagonal blocks
+        real(p2) :: new_corr, lres
+        
+        po = Rline(1)
+        pl = Rline(2)
+        pn = Rline(3)
+
+        ! First add the off loop blocks
+        k = 0
+        do i = po,pl-1
+            k = k+1
+            ci = lcells(k)
+            rhs(k) = - res(ci)
+            do j = R(i),R(i+1)-1
+                cj = C(j)
+                rhs(k) = rhs(k) - V(j)*correction(cj)
+            end do
+        end do
+
+        ! Now perform the Thomas Algorithm
+        ! This implements the algorithm in https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm#Method
+        ! but implemented with blocks
+        
+        ! The first and last rows have special treatment:
+        deltai(1) = Dinv(lcells(1))*V(R(pl)+1)
+        rhs(1)    = Dinv(lcells(1))*rhs(1)
+        
+        j = 1 ! local cell counter
+        do i = pl+1,pn-2
+            j = j+1
+            l   = V(R(i)  )
+            d   = V(R(i)+1)
+            u   = V(R(i)+2)
+
+            di     = d - l*deltai(j-1)
+            deltai(j) = 1 / max(di,1.e-10_p2)
+            rhs(j)    = rhs(j) - l* rhs(j-1)
+            rhs(j)    = deltai(j) * rhs(j)
+            deltai(j) = deltai(j) * u
+        end do
+
+        j = j+1
+        l  = V(R(pn-1)  )
+        d  = V(R(pn-1)+1)
+        di = d - l*deltai(j-1)
+        deltai(j) = 1 / max(di,1.e-10_p2)
+        rhs(j)    = rhs(j) - l*rhs(j-1)
+        rhs(j)    = deltai(j) *rhs(j)
+
+
+        ! now we back substitute to update the correction
+        new_corr = rhs(j)
+        linear_res = linear_res + abs(new_corr - correction(lcells(j)))
+        correction(lcells(j)) = new_corr
+        do i = pn-1,pl+1,-1 ! loop backwards
+            j = j - 1
+            u = V(C(R(i-1)))
+            new_corr = rhs(j) - deltai(j)*correction(lcells(j+1))
+            linear_res = linear_res + abs(new_corr - correction(lcells(j)))
+            correction(lcells(j)) = new_corr
+        end do
+
+
+    end subroutine thomas_sweep_scalar
 end module linear_solver

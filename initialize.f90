@@ -198,7 +198,7 @@ module initialize
 
         use grid            , only : nfaces, face, cell, ncells
 
-        use solution_vars        , only : nq, kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, C, R, nnz, kth_of_cell, Rline
+        use solution_vars        , only : nq, kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, C, R, nnz, kth_of_cell, Rline, iRow
 
         use sparse_common, only: insertion_sort_index
 
@@ -213,7 +213,7 @@ module initialize
         integer :: cjm1, ck, cj, cn, ifc, nv
         integer :: r1, r2, br
         integer :: c1, c2, length
-        integer :: nrows
+        integer :: nrows, nlc
 
         integer, dimension(7)      :: nghbrs ! sorted scratch vector of cell neighbors and cell itself, 6 neighbors + 1
         integer, dimension(ncells) :: id_line
@@ -227,20 +227,21 @@ module initialize
 
         allocate(Rline(2 * (nlines + 1)))
         nrows = 0
+        nlc   = 0
 
         do i = 1,nlines
             nrows = nrows + 2 * lines(i)%ncells
+            nlc   = nlc + lines(i)%ncells
         end do
 
         allocate(R(ncells + 1 + nrows / 2))
+        allocate(iRow(nlc+1:nrows)) ! arbitrary array indices in Fortran is neat
 
         Rline(1) = 1
         R(1)     = 1
         nrows    = 1
 
         do i = 1,nlines
-            if (i > 1) then
-            end if
 
             ! line 2i + 2 of R 
             cjm1 = lines(i)%lcells(1)
@@ -264,7 +265,7 @@ module initialize
             
             Rline(2*i) = nrows
 
-            ! line 2 is also different
+            ! line 1 is also different
             R(nrows+1) = R(nrows) + 2 ! only two elemnts in the first line
             nrows = nrows + 1
             
@@ -285,6 +286,7 @@ module initialize
             if (id_line(i) > 0) cycle
             R(nrows + 1) = R(nrows) + 1 + cell(i)%nnghbrs ! Start of row(nrows+1) = row(nrows) start point + 1 (diagonal term) + # of neighbors
             id_line(i) = -nrows 
+            iRow(nrows) = i
             nrows = nrows + 1
         end do
         Rline(2 * (nlines + 1)) = nrows
@@ -319,17 +321,20 @@ module initialize
             ! First row
             C(jp  ) = lines(i)%lcells(1)
             C(jp+1) = lines(i)%lcells(2)
+            kth_of_cell(lines(i)%lcells(1)) = jp
             jp      = jp + 2
             ! Middle rows
             do k = 2,lines(i)%ncells - 1
                 C(jp  ) = lines(i)%lcells(k-1)
                 C(jp+1) = lines(i)%lcells(k  )
                 C(jp+2) = lines(i)%lcells(k+1)
+                kth_of_cell(lines(i)%lcells(k)) = jp + 1
                 jp      = jp + 3
             end do
             ! last row
             C(jp  ) = lines(i)%lcells(lines(i)%ncells - 1)
             C(jp+1) = lines(i)%lcells(lines(i)%ncells    )
+            kth_of_cell(lines(i)%lcells( lines(i)%ncells )) = jp + 1
             jp      = jp + 2
         end do    
         
