@@ -349,19 +349,20 @@ module linear_solver
         pn = Rline(3)
 
         ! First add the off loop blocks
+        k = 0
         do i = po,pl-1
+            k = k+1
             ci = lcells(i)
-            rhs(:,i) = - res(:,ci)
+            rhs(:,k) = - res(:,ci)
             do j = R(i),R(i+1)-1
                 cj = C(j)
-                rhs(:,i) = rhs(:,i) - matmul(V(:,:,cj),correction(:,cj))
+                rhs(:,j) = rhs(:,j) - matmul(V(:,:,j),correction(:,cj))
             end do
         end do
 
         ! Now perform the Thomas Algorithm
-        ! This implements the algorithm as described in section 2.1 of https://doi.org/10.1016/j.jcp.2010.04.049
-        ! with a correction to equation (3a) which should read:
-        ! x_i = del_i*(-U_i*x_i+1 + beta_i)^-1
+        ! This implements the algorithm in https://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm#Method
+        ! but implemented with blocks
         
         ! The first and last rows have special treatment:
         deltai(:,:,1) = matmul(Dinv(:,:,lcells(1)), V(:,:,R(pl)+1))

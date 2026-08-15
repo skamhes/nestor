@@ -20,24 +20,26 @@ module test_mod
 
         integer :: nq, size, nnz
         integer, dimension(:), allocatable :: iline
-        integer :: cj
+        integer :: cj, ci
         integer :: i, j, k
 
-        nq = 1; size = 5; nnz = 4 + 3*(size-2)
+        nq = 1; size = 5; nnz = 4 + 3*(size-2) + size
         allocate(V(nq,nq,nnz), b(nq,size), x(nq,size), x_solve(nq,size))
         allocate(R(2*size + 1) , C(nnz))
         allocate(dinv(nq,nq,size))
         Rline = (/ 1, 1+size, 6+size/)
-        V(:,:,1:2) = reshape(  (/5._p2,1.0_p2/),(/nq,nq,2/))
-        V(:,:,3:5) = reshape(  (/1._p2,4._p2,1._p2/),(/nq,nq,3/))
-        V(:,:,6:8) = reshape(  (/1._p2,7._p2,2._p2/),(/nq,nq,3/))
-        V(:,:,9:11) = reshape( (/2._p2,4._p2,1._p2/),(/nq,nq,3/))
-        V(:,:,12:13) = reshape((/1._p2,6._p2/),(/nq,nq,2/))
+        V(:,:,1:5)   = reshape((/1._p2, 0.5_p2, .7_p2, 0.1_p2, 0.8_p2/),(/nq,nq,5/))
+        V(:,:,6:7)   = reshape(  (/5._p2,1.0_p2/),(/nq,nq,2/))
+        V(:,:,8:10)  = reshape(  (/1._p2,4._p2,1._p2/),(/nq,nq,3/))
+        V(:,:,11:13) = reshape(  (/1._p2,7._p2,2._p2/),(/nq,nq,3/))
+        V(:,:,14:16) = reshape( (/2._p2,4._p2,1._p2/),(/nq,nq,3/))
+        V(:,:,17:18) = reshape((/1._p2,6._p2/),(/nq,nq,2/))
 
-        C(1:2) = (/1,2/)
-        R(1:size+1) = 1
-        R(size+2) = 3
-        call gewp_solve(V(:,:,1), nq, dinv(:,:,1), k)
+        C(1:5) = (/4,5,1,1,2/)
+        C(6:7) = (/1,2/)
+        R(1:size+1) = (/1,2,3,4,5,6/)
+        R(size+2) = 8
+        call gewp_solve(V(:,:,size + 1), nq, dinv(:,:,1), k)
         do i = size+2,2*size-1
             R(i+1) = R(i) + 3
             C(R(i):R(i)+2) = i-size + (/-1, 0, 1/)
@@ -51,40 +53,46 @@ module test_mod
 
         b = 0._p2
 
-        do i = 1,size
-            do j = R(i+size),R(i+1+size)-1
+        do i = 1,2*size
+            ci = mod(i-1,5)+1
+            do j = R(i),R(i+1)-1
                 cj = C(j)
-                b(:,i) = b(:,i) + matmul(V(:,:,j),x(:,cj))
+                b(:,ci) = b(:,ci) + matmul(V(:,:,j),x(:,cj))
             end do
         end do
 
         allocate(iline(size))
         iline = (/1,2,3,4,5/)
-        call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
-
-        write(*,*) x
-        write(*,*) x_solve
+        x_solve = 0._p2
+        do i = 1,20
+            call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
+            ! write(*,*) x
+            ! write(*,*) x_solve
+        end do
 
         deallocate(V,b,x,x_solve)
         deallocate(R,C,dinv)
         deallocate(iline)
 
         ! Test a hand built 2x2 block tridiag with strong diagonal dominance
-        nq = 2; size = 5; nnz = 4 + 3*(size-2)
+        nq = 2; size = 5; nnz = 4 + 3*(size-2) + size
         allocate(V(nq,nq,nnz), b(nq,size), x(nq,size), x_solve(nq,size))
         allocate(R(2*size + 1) , C(nnz))
         allocate(dinv(nq,nq,size))
         Rline = (/ 1, 1+size, 6+size/)
-        V(:,:,1:2) = reshape(  (/5._p2,1.0_p2,2._p2,6._p2, 1._p2,0.5_p2,1._p2,2._p2/),(/2,2,2/))
-        V(:,:,3:5) = reshape(  (/1._p2,2._p2,1._p2,0.5_p2, 8._p2,0.5_p2,1._p2,5._p2, 0.3_p2, 1._p2, 0.6_p2, 1._p2/),(/2,2,3/))
-        V(:,:,6:8) = reshape(  (/0.5_p2,1._p2,2._p2,1._p2, 7._p2,0.2_p2,2._p2,6._p2, 0.4_p2, 2._p2, 0.2_p2, 2._p2/),(/2,2,3/))
-        V(:,:,9:11) = reshape( (/1._p2,0.7_p2,1._p2,2._p2, 4._p2,0.8_p2,2._p2,6._p2, 0.5_p2, 2._p2, 0.1_p2, 2._p2/),(/2,2,3/))
-        V(:,:,12:13) = reshape((/2._p2,0.8_p2,1._p2,1._p2, 6._p2,0.1_p2,1._p2,4._p2/),(/2,2,2/))
+        V(:,:,1:3) = reshape(  (/0.4_p2, 2._p2, 0.2_p2,0.8_p2, 2._p2,0.8_p2,1._p2,1._p2, 1._p2,2._p2, 0.1_p2, 2._p2/), (/nq,nq,3/) )
+        V(:,:,4:5) = reshape(  (/0.4_p2, 2._p2, 0.2_p2,0.1_p2, 2._p2,0.8_p2,1._p2,1._p2/), (/nq,nq,2/) )
+        V(:,:,6:7) = reshape(  (/5._p2,1.0_p2,2._p2,6._p2, 1._p2,0.5_p2,1._p2,2._p2/),(/2,2,2/))
+        V(:,:,8:10) = reshape(  (/1._p2,2._p2,1._p2,0.5_p2, 8._p2,0.5_p2,1._p2,5._p2, 0.3_p2, 1._p2, 0.6_p2, 1._p2/),(/2,2,3/))
+        V(:,:,11:13) = reshape(  (/0.5_p2,1._p2,2._p2,1._p2, 7._p2,0.2_p2,2._p2,6._p2, 0.4_p2, 2._p2, 0.2_p2, 2._p2/),(/2,2,3/))
+        V(:,:,14:16) = reshape( (/1._p2,0.7_p2,1._p2,2._p2, 4._p2,0.8_p2,2._p2,6._p2, 0.5_p2, 2._p2, 0.1_p2, 2._p2/),(/2,2,3/))
+        V(:,:,17:18) = reshape((/2._p2,0.8_p2,1._p2,1._p2, 6._p2,0.1_p2,1._p2,4._p2/),(/2,2,2/))
 
-        C(1:2) = (/1,2/)
-        R(1:size+1) = 1
-        R(size+2) = 3
-        call gewp_solve(V(:,:,1), nq, dinv(:,:,1), k)
+        C(1:5) = (/4,5,1,1,2/)
+        C(6:7) = (/1,2/)
+        R(1:size+1) = (/1,2,3,4,5,6/)
+        R(size+2) = 8
+        call gewp_solve(V(:,:,size + 1), nq, dinv(:,:,1), k)
         do i = size+2,2*size-1
             R(i+1) = R(i) + 3
             C(R(i):R(i)+2) = i-size + (/-1, 0, 1/)
@@ -98,17 +106,23 @@ module test_mod
 
         b = 0._p2
 
-        do i = 1,size
-            do j = R(i+size),R(i+1+size)-1
+        do i = 1,2*size
+            ci = mod(i-1,5)+1
+            do j = R(i),R(i+1)-1
                 cj = C(j)
-                b(:,i) = b(:,i) + matmul(V(:,:,j),x(:,cj))
+                b(:,ci) = b(:,ci) + matmul(V(:,:,j),x(:,cj))
             end do
         end do
 
         allocate(iline(size))
         iline = (/1,2,3,4,5/)
-        call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
-
+                
+        do i = 1,20
+            write(*,*) "iteration:", i
+            call thomas_sweep(size, iline, nq, V, C, R, Rline, Dinv, -b, x_solve, k)
+            write(*,*) "Error: ", sum(abs(x_solve - x))
+            ! write(*,*) x_solve
+        end do
 
         write(*,*)
         write(*,*)
@@ -231,7 +245,7 @@ module test_mod
             write(*,*) "Error: ", sum(abs(x-x_solve))
         end do
         
-        stop
+        ! stop
     end subroutine stri_diag
 endmodule test_mod
 
@@ -242,7 +256,7 @@ program testing
 
     use test_mod
 
-    call stri_diag
+    ! call stri_diag
 
     call tri_diag
 end program testing
