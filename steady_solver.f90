@@ -185,12 +185,14 @@ module steady_solver
                 end do
             elseif ( i_iteration <= 5  .and. .not.restart ) then
                 do i = 1,5
-                    if ( res_norm(i) > res_norm_initial(i) .or. res_norm_initial(i) == one ) then
+                    if ( res_norm(i) > res_norm_initial(i) .or. &
+                         (res_norm_initial(i) == one).and.(abs(res_norm(i)) > MIN_RES_NORM_INIT) ) then
                         res_norm_initial(i) = res_norm(i)
                     end if
                 end do
                 do i =1,nturb
-                    if (iflow_type == FLOW_RANS .and. abs(turb_res_norm(i)) > turb_res_norm_init(i)) then
+                    if (iflow_type == FLOW_RANS .and. abs(turb_res_norm(i)) > turb_res_norm_init(i)&
+                        .and. abs(turb_res_norm(i)) > MIN_RES_NORM_INIT) then
                         turb_res_norm_init(i) = turb_res_norm(i)
                     end if
                 end do
