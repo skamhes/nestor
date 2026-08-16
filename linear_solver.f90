@@ -60,17 +60,17 @@ module linear_solver
 
         integer                     :: cycle_type
 
-        cycle_type = convert_amg_c_to_i(amg_cycle)
-
+        
         if (line_implicit) then
             call li_cycle_block(ncells, num_eq, V,C,R,residual, Dinv, correction, iostat)
         else
-            call multilevel_cycle_block(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
+            cycle_type = convert_amg_c_to_i(amg_cycle)
+            call multilevel_cycle_block(ncells,num_eq,V,C,R,residual,Dinv,cycle_type,correction,iostat)
         endif
 
     end subroutine linear_relaxation_block
 
-    subroutine multilevel_cycle_block(ncells,num_eq,V,C,R,res,Dinv,cycle_type,keep_A,correction,stat)
+    subroutine multilevel_cycle_block(ncells,num_eq,V,C,R,res,Dinv,cycle_type,correction,stat)
 
         use common          , only : p2, zero
 
@@ -90,7 +90,6 @@ module linear_solver
         real(p2), dimension(:,:),           intent(in)      :: res  ! RHS (= -b)
         real(p2), dimension(:,:,:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
         integer,                            intent(in)      :: cycle_type
-        logical,                            intent(in)      :: keep_A
         
         real(p2), dimension(:,:),           intent(out)     :: correction
         integer,                            intent(out)     :: stat ! Return 
@@ -502,15 +501,15 @@ module linear_solver
 
         integer                             :: cycle_type
 
-        cycle_type = convert_amg_c_to_i(amg_cycle)
         if (line_implicit) then
             call li_cycle_scalar(ncells, V,C,R,residual, Dinv, correction, iostat)
         else
-            call multilevel_cycle(ncells,V,C,R,residual,Dinv,cycle_type,.false.,correction,iostat)
+            cycle_type = convert_amg_c_to_i(amg_cycle)
+            call multilevel_cycle(ncells,V,C,R,residual,Dinv,cycle_type,correction,iostat)
         endif
     end subroutine linear_relaxation_scalar
 
-    subroutine multilevel_cycle_scalar(ncells,V,C,R,res,Dinv,cycle_type,keep_A,correction,stat)
+    subroutine multilevel_cycle_scalar(ncells,V,C,R,res,Dinv,cycle_type,correction,stat)
 
         use common          , only : p2, zero
 
@@ -529,7 +528,6 @@ module linear_solver
         real(p2), dimension(:),         intent(in)      :: res  ! RHS (= -b)
         real(p2), dimension(:), target, intent(in)      :: Dinv ! Inverse of A(i,i)
         integer,                        intent(in)      :: cycle_type
-        logical,                        intent(in)      :: keep_A
         
         real(p2), dimension(:),         intent(out)     :: correction
         integer,                        intent(out)     :: stat ! Return 

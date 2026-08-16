@@ -214,10 +214,10 @@ module res_sa
                 turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux(1) * face_mag
 
                 ic1 = kth_of_cell(cell1)
-                turb_jac(ic1,1) = turb_jac(ic1,1) + num_jac1(1) * face_nrml_mag(iface)
+                turb_jac(ic1,1) = turb_jac(ic1,1) + num_jac1(1) * face_mag
                 ! No off diagonal terms and the second term of num flux is ignored.
 
-                twsn(1,cell1) = twsn(1,cell1) + itwsn * face_nrml_mag(iface)
+                twsn(1,cell1) = twsn(1,cell1) + itwsn * face_mag
                 
                 face_sides = bound(ib)%bfaces(1,iface)
 
@@ -244,9 +244,9 @@ module res_sa
                 turb_res(cell1,1)      = turb_res(cell1,1)             + num_flux(1) * face_mag
 
                 ! ic1 = kth_of_cell(cell1)
-                turb_jac(ic1,1) = turb_jac(ic1,1) + num_jac1(1) * face_nrml_mag(iface)
+                turb_jac(ic1,1) = turb_jac(ic1,1) + num_jac1(1) * face_mag
             
-                twsn(1,cell1) = twsn(1,cell1) + itwsn * face_nrml_mag(iface)
+                twsn(1,cell1) = twsn(1,cell1) + itwsn * face_mag
             end do bfaces_loop
 
         end do bound_loop

@@ -185,7 +185,7 @@ module jacobian
         do i = 1,ncells
             preconditioner = compute_primative_jacobian(q(:,i))
 
-            ic1 = kth_of_cell(c1)
+            ic1 = kth_of_cell(i)
             jac(:,:,ic1) = jac(:,:,ic1) + (cell(i)%vol/dtau(i))*preconditioner
             
             ! Invert the diagonal

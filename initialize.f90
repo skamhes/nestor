@@ -210,10 +210,10 @@ module initialize
         integer, dimension(ncells) :: c2row ! for line cells, it is the offset from the base row,
         
         integer :: i, j, k, jp
-        integer :: cjm1, ck, cj, cn, ifc, nv
+        integer :: cjm1, ck, cj, cn, ifc, nv, ci
         integer :: r1, r2, br
         integer :: c1, c2, length
-        integer :: nrows, nlc
+        integer :: nrows
 
         integer, dimension(7)      :: nghbrs ! sorted scratch vector of cell neighbors and cell itself, 6 neighbors + 1
         integer, dimension(ncells) :: id_line
@@ -227,15 +227,13 @@ module initialize
 
         allocate(Rline(2 * (nlines + 1)))
         nrows = 0
-        nlc   = 0
 
         do i = 1,nlines
             nrows = nrows + 2 * lines(i)%ncells
-            nlc   = nlc + lines(i)%ncells
         end do
 
-        allocate(R(ncells + 1 + nrows / 2))
-        allocate(iRow(nlc+1:nrows)) ! arbitrary array indices in Fortran is neat
+        allocate(R(ncells + 1 + nrows / 2)) ! Total number of rows counting the line cells twice
+        allocate(iRow(nrows+1:ncells + nrows / 2)) ! arbitrary array indices in Fortran is neat
 
         Rline(1) = 1
         R(1)     = 1
@@ -341,11 +339,11 @@ module initialize
         ! Add the rest
         do i = 1,ncells
             if (id_line(i) > 0) cycle
-            c2row(i) = 0 ! zero out the remainint row pointers
+            ci = -id_line(i)
             ! sort the index of the cell neighbors and i and stores them in C:
-            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(i) : (R(i+1)-1)) ) 
-            length = R(i+1)-R(i)
-            do j = R(i),(R(i+1)-1)
+            call insertion_sort_index( (/ cell(i)%nghbr, i /) , C(R(ci) : (R(ci+1)-1)) ) 
+            length = R(ci+1)-R(ci)
+            do j = R(ci),(R(ci+1)-1)
                 if (length == C(j)) then
                     C(j) = i
                     kth_of_cell(i) = j

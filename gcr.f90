@@ -137,15 +137,8 @@ module gcr
         proj_loop : do kdir = 1,gcr_max_projections
             
             ! Compute correction for flow
-            ! keep_A = .true. so that V,C,R, and Dinv do not have to be rebuilt
-            call multilevel_cycle(ncells,nq, jac, C, R, -r_k, diag_inv,cycle_type,.true.,dQ_k(:,:,kdir),os)
+            call linear_relaxation(nq, jac, diag_inv,-r_k,dQ_k(:,:,kdir),os)
             ! Compute correction for turbulence eqs
-            do iturb = 1,nturb ! nturb is set to zero for laminar/inviscid flow
-                call multilevel_cycle(ncells, turb_jac(:,iturb), C, R, -r_k_t(:,iturb), turb_diag_inv(:,iturb), cycle_type, &
-                                      .true., dQ_k_t(:,iturb,kdir), os)
-            end do
-
-
             if (os == RELAX_FAIL_DIVERGE) then
                 iostat = GCR_PRECOND_DIVERGE
                 return
@@ -153,6 +146,18 @@ module gcr
                 iostat = GCR_PRECOND_STALL
                 return
             endif
+            do iturb = 1,nturb ! nturb is set to zero for laminar/inviscid flow
+                call linear_relaxation(turb_jac(:,iturb),turb_diag_inv(:,iturb),-r_k_t(:,iturb),dQ_k_t(:,iturb,kdir),os)
+                if (os == RELAX_FAIL_DIVERGE) then
+                    iostat = GCR_PRECOND_DIVERGE
+                    return
+                elseif (os == RELAX_FAIL_STALL) then
+                    iostat = GCR_PRECOND_STALL
+                    return
+                endif
+            end do
+
+
             
             ! Generate the new search direction
             norm_dQ_k = l2norm(nq,nturb,ncells,dQ_k(:,:,kdir),dQ_k_t(:,:,kdir))
