@@ -14,13 +14,13 @@ FC = gfortran
 CC = gcc
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
-FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
+# FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -DNANCHECK
 LDFLAGS= -flto=auto -fwhole-program
 CFLAGS = -O3 -g -Wall -Wextra -march=native
 # FFLAGS = -O2 -pg
-#  FFLAGS = -g -pg -O3 -march=native $(LDFLAGS)
+ FFLAGS = -g -pg -O3 -march=native $(LDFLAGS)
 ##########################################################
 # VPATH = ..
 ##########################################################

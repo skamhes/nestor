@@ -15,7 +15,7 @@ module initialize
         use grid   , only : ncells
 
         use config , only : M_inf, aoa, sideslip, perturb_initial, random_perturb, lift, drag, area_reference, &
-                            high_ar_correction, sutherland_constant, reference_temp, Re_inf, M_inf, restart
+                            high_ar_correction, sutherland_constant, reference_temp, Re_inf, M_inf, restart, CFL, CFL_turb
 
         use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iflow_type, FLOW_INVISCID, FLOW_RANS
 
@@ -87,6 +87,13 @@ module initialize
             nullify(turb_var, turb_res)
             nturb = 0 ! gonna use this in the GCR to be a little clever
         endif
+
+        if (isolver_type == SOLVER_GCR) then
+            ! I'm not sure why but the GCR seems to behave better if the initial iterations are performed with a smaller CFL
+            ! this not a very restrictive limitation as successful iterations will cause the CFL to grow quickly.
+            CFL = min(CFL,1.0_p2)
+            CFL_turb = min(CFL_turb,1.0_p2)
+        end if
 
     end subroutine set_initial_solution
 
