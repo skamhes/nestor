@@ -70,7 +70,7 @@ module inout
         
 
         do j = 1,nnodes
-            qn(:,j) = qn(:,j) / real(nc(j),p2) ! copmute an average
+            qn(:,j) = qn(:,j) / real(nc(j),p2) ! compute an average
             ! rho    = p      * gamma / T
             rhon(j) = qn(1,j) * gamma / qn(5,j)
             an = sqrt(gamma*qn(ip,j)/rhon(j))

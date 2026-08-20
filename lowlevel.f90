@@ -59,7 +59,7 @@ module lowlevel
     ! If dimension 1, just allocate and return.
     
     if (n==1) then
-        if (associated(x)) nullify(x)
+        if (associated(x)) deallocate(x)
         allocate(x(1))
         return
     endif
@@ -76,6 +76,7 @@ module lowlevel
     end do
     
     ! Re-assign the pointer: x=[9,4,2,1,0,0,0].
+        if (associated(x)) deallocate(x)
         x => temp
     
     return
