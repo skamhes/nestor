@@ -4,12 +4,6 @@ module inout
 
     public
 
-
-    
-    
-    public :: write_tecplot_file_b
-    ! public :: write_tecplot_file_v ! TODO
-
     contains 
 
     subroutine write_tecplot_file_b
@@ -293,7 +287,7 @@ module inout
 
         use files
 
-        use config          , only : project_name, io_path
+        use config          , only : project_name, io_path, formatted_rst_out
 
         use utils , only : iflow_type, FLOW_RANS, iturb_model, TURB_SA
 
@@ -306,34 +300,61 @@ module inout
         write(*,*) ' Writing Restart file = ', trim(io_path)//trim(filename_restart)
         write(*,*)
     
-        !Open the output file.
-        open(unit=8, file=trim(io_path)//trim(filename_restart), status="unknown", iostat=os)   
-
-        if (os .ne. 0) then
-            write(*,*) "ERROR opening restart file."
-            return
-        end if
-
+        
         !---------------------------------------------------------------------------
-
+        
         !(0)Header information
+        if (formatted_rst_out) then
+            !Open the output file.
+            open(unit=8, file=trim(io_path)//trim(filename_restart), status="unknown", iostat=os)   
+    
+            if (os .ne. 0) then
+                write(*,*) "ERROR opening restart file."
+                return
+            end if
+            write(8,*) '# RESTART FILE FOR NESTOR CFD' ! # SIGNS WILL BE COMMENTS
 
-        write(8,*) '# RESTART FILE FOR NESTOR CFD' ! # SIGNS WILL BE COMMENTS
-
-        if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-            write(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
-        else
-            write(8,*) res_norm(:), res_norm_initial(:)
-        endif
-
-        flush(8)
-        do icell = 1,ncells
             if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-                write(8,*) q(:,icell),  turb_var(icell,1)
+                write(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
             else
-                write(8,*) q(:,icell)
+                write(8,*) res_norm(:), res_norm_initial(:)
             endif
-        end do
+
+            flush(8)
+            do icell = 1,ncells
+                if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                    write(8,*) q(:,icell),  turb_var(icell,1)
+                else
+                    write(8,*) q(:,icell)
+                endif
+            end do
+        else
+                        !Open the output file.
+            open(unit=8, file=trim(io_path)//trim(filename_restart), status="unknown", form='UNFORMATTED', iostat=os)   
+    
+            if (os .ne. 0) then
+                write(*,*) "ERROR opening restart file."
+                return
+            end if
+
+            write(8) '# RESTART FILE FOR NESTOR CFD' ! # SIGNS WILL BE COMMENTS
+
+            if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                write(8) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+            else
+                write(8) res_norm(:), res_norm_initial(:)
+            endif
+
+            flush(8)
+            do icell = 1,ncells
+                if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                    write(8) q(:,icell),  turb_var(icell,1)
+                else
+                    write(8) q(:,icell)
+                endif
+            end do
+
+        endif
 
         flush(8)
 
@@ -352,7 +373,7 @@ module inout
 
         use files
 
-        use config          , only : project_name, io_path
+        use config          , only : project_name, io_path, formatted_rst_in
 
         use utils , only : iflow_type, FLOW_RANS, iturb_model, TURB_SA
 
@@ -366,35 +387,65 @@ module inout
         write(*,*) ' Reading Restart file = ', trim(io_path)//trim(filename_restart)
         write(*,*)
     
-        !Open the output file.
-        open(unit=8, file=trim(io_path)//trim(filename_restart), status="old", iostat=os)   
+        if (formatted_rst_in) then
+            !Open the output file.
+            open(unit=8, file=trim(io_path)//trim(filename_restart), status="old", iostat=os)   
 
-        if (os .ne. 0) then
-            write(*,*) "ERROR opening restart file."
-            return
-        end if
+            if (os .ne. 0) then
+                write(*,*) "ERROR opening restart file."
+                return
+            end if
 
-        !---------------------------------------------------------------------------
+            !---------------------------------------------------------------------------
 
-        ! Read header information and discard for now
+            ! Read header information and discard for now
 
-        read(8,*) dummy
+            read(8,*)
 
-        if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-            read(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
-        else
-            read(8,*) res_norm(:), res_norm_initial(:)
-        endif
-
-        flush(8)
-        do icell = 1,ncells
             if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-                read(8,*) q(:,icell),  turb_var(icell,1)
+                read(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
             else
-                read(8,*) q(:,icell)
+                read(8,*) res_norm(:), res_norm_initial(:)
             endif
-        end do
 
+            flush(8)
+            do icell = 1,ncells
+                if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                    read(8,*) q(:,icell),  turb_var(icell,1)
+                else
+                    read(8,*) q(:,icell)
+                endif
+            end do
+        else
+            !Open the output file.
+            open(unit=8, file=trim(io_path)//trim(filename_restart), status="old", form='UNFORMATTED', iostat=os)   
+
+            if (os .ne. 0) then
+                write(*,*) "ERROR opening restart file."
+                return
+            end if
+
+            !---------------------------------------------------------------------------
+
+            ! Read header information and discard for now
+
+            read(8)
+
+            if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                read(8) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+            else
+                read(8) res_norm(:), res_norm_initial(:)
+            endif
+
+            flush(8)
+            do icell = 1,ncells
+                if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
+                    read(8) q(:,icell),  turb_var(icell,1)
+                else
+                    read(8) q(:,icell)
+                endif
+            end do
+        endif
         flush(8)
 
         close(8)

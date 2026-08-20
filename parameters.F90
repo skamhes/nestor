@@ -66,11 +66,18 @@ module config
     logical       :: drag                = .false.
     real(p2)      :: area_reference      = 1.0_p2
     character(80) :: time_method         = "remaining"
+    logical       :: formatted_grid      = .true.
+    logical       :: formatted_data      = .true.
+    logical       :: formatted_rst_in    = .false.
+    logical       :: formatted_rst_out   = .false.
 
     namelist / inputoutput / &
       generate_tec_file_b, generate_tec_file_v, &
       write_data         , import_data,         &
-      lift, drag, area_reference, time_method
+      lift, drag, area_reference, time_method,  &
+      formatted_grid, formatted_data,           &
+      formatted_rst_in, formatted_rst_out,      &
+      write_restart
 
     !-------------------------------------------------------------------------
     ! FREESTREAM CONDITIONS (&freestream)
