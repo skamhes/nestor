@@ -388,6 +388,7 @@ module inout
         write(*,*)
     
         if (formatted_rst_in) then
+            write(*,*) "Reading formatted restart file."
             !Open the output file.
             open(unit=8, file=trim(io_path)//trim(filename_restart), status="old", iostat=os)   
 
@@ -417,6 +418,7 @@ module inout
                 endif
             end do
         else
+            write(*,*) "Reading unformatted restart file."
             !Open the output file.
             open(unit=8, file=trim(io_path)//trim(filename_restart), status="old", form='UNFORMATTED', iostat=os)   
 
