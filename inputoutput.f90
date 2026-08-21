@@ -409,7 +409,6 @@ module inout
                 read(8,*) res_norm(:), res_norm_initial(:)
             endif
 
-            flush(8)
             do icell = 1,ncells
                 if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
                     read(8,*) q(:,icell),  turb_var(icell,1)
@@ -439,7 +438,6 @@ module inout
                 read(8) res_norm(:), res_norm_initial(:)
             endif
 
-            flush(8)
             do icell = 1,ncells
                 if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
                     read(8) q(:,icell),  turb_var(icell,1)
@@ -448,7 +446,6 @@ module inout
                 endif
             end do
         endif
-        flush(8)
 
         close(8)
     end subroutine read_restart_file

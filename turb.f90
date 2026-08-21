@@ -111,7 +111,7 @@ module turb
 
         use grid, only : ncells, cell
 
-        use config    , only : turb_inf
+        use config    , only : turb_inf, restart
 
         use solution_vars , only : mu_inf, rho_inf
 
@@ -122,7 +122,7 @@ module turb
         ! Set freestream values
         if (iturb_model == TURB_SA) then
             nut_inf = turb_inf(nturb) * mu_inf / rho_inf
-            turb_var(:,1) = nut_inf
+            if (.not. restart) turb_var(:,1) = nut_inf
         endif
 
     end subroutine init_turb
