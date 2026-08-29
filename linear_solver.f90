@@ -475,6 +475,7 @@ module linear_solver
             correction(:,lcells(j)) = new_corr
         end do
 
+        stat = 0
 
     end subroutine thomas_sweep_block
 
@@ -898,6 +899,7 @@ module linear_solver
             correction(lcells(j)) = new_corr
         end do
 
+        stat = 0
 
     end subroutine thomas_sweep_scalar
 end module linear_solver

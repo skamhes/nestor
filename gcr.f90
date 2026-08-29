@@ -1,4 +1,4 @@
-module gcr
+module gcr_mod
 
     use common , only : p2
 
@@ -822,4 +822,4 @@ module gcr
 
     end function
     
-end module gcr
+end module gcr_mod

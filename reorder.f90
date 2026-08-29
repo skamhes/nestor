@@ -16,7 +16,7 @@ module reorder
         use config , only : rcm_verbosity
         
         use grid , only : cc_data_type, bgrid_type, ncells, cell, face, nfaces, nb, bound, gcell, build_ghost_cells, &
-                          face_centroid, face_nrml, face_nrml_mag
+                          face_centroid, face_nrml, face_nrml_mag, x, y, z, nnodes
 
         use sort_routines , only : inserstion_sort_ind
 
@@ -34,7 +34,7 @@ module reorder
 
         integer :: min_deg, imd, max_deg ! index of the cell with the minimum degree (# of neighbors)
         integer :: i, j, ib, ihead, iqueue, phead
-        integer :: nadj, cn, iadj
+        integer :: nadj, cn, iadj, nn
         integer :: cL, cR, cLq, cRq
         integer :: fn, nface_loc
 
@@ -44,6 +44,9 @@ module reorder
         
         integer, dimension(ncells) :: c2q ! convert input array to queue
         type(fc),dimension(ncells) :: c2f ! converts cell faces to face array index
+
+        integer, dimension(nnodes) :: oldn2new, newn2old
+        real(p2), dimension(:), pointer :: oldx, oldy, oldz
 
         write(*,*) "Reordering mesh using Reverse Cuthill-Mckee"
 
@@ -216,6 +219,52 @@ module reorder
                 bound(ib)%bcell(i) = cn
             end do
         end do
+
+        ! Reorder nodes
+        oldn2new = 0
+        nn       = 0
+        ! build association vectors
+        do i = 1,ncells
+            do j = 1,cell(i)%nvtx
+                cn  = cell(i)%vtx(j)
+                if (oldn2new(cn) == 0) then
+                    nn = nn + 1
+                    oldn2new(cn) = nn
+                    newn2old(nn) = cn
+                end if
+            end do
+        end do
+
+        oldx => x
+        oldy => y
+        oldz => z
+        nullify(x,y,z)
+        allocate(x(nnodes),y(nnodes),z(nnodes))
+
+        do i = 1,nnodes
+            nn   = newn2old(i)
+            x(i) = oldx(nn)
+            y(i) = oldy(nn)
+            z(i) = oldz(nn)
+        end do
+
+        do i = 1,ncells
+            do j = 1,cell(i)%nvtx
+                cn  = oldn2new(cell(i)%vtx(j))
+                cell(i)%vtx(j) = cn
+            end do
+        end do
+
+        do ib = 1,nb
+            do i = 1,bound(ib)%nbfaces
+                do j = 2,bound(ib)%bfaces(1,i)+1
+                    cn = oldn2new(bound(ib)%bfaces(j,i))
+                    bound(ib)%bfaces(j,i) = cn
+                end do
+            end do
+        end do
+
+        deallocate(oldx, oldy, oldz)
 
         if (associated(gcell)) then ! this is a bit sloppy but it works...
             deallocate(gcell)

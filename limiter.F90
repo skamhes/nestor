@@ -1,3 +1,5 @@
+#define VEC_LEN 4
+
 module limiter
 
     implicit none
@@ -11,7 +13,7 @@ module limiter
 
         use common          , only : p2, zero
         
-        use grid            , only : ncells, cell, x, y, z, cell
+        use grid            , only : ncells, cell, x, y, z
         
         use solution_vars   , only : ccgradq, phi, q
       
@@ -22,12 +24,14 @@ module limiter
         integer  :: i, ivar, k, nghbr_cell, iv
         real(p2) :: qmin, qmax, xc, yc, zc, xp, yp, zp, qf, dqm, dqp
         real(p2) :: phi_vertex, phi_vertex_min, limiter_beps
-        real(p2) :: phi_var_min
+        real(p2), dimension(5) :: phi_var_min
 
         !allocate(phi(ncells)) ! possible memory leak? Moved allocation to steady solve subroutine (only called once)
         limiter_beps = 1.0e-14_p2
         !loop over cells
         cell_loop : do i = 1,ncells
+            phi_var_min = huge(phi_var_min(1))
+            !$OMP SIMD SIMDLEN(VEC_LEN)
             variable_loop : do ivar = 1,5
                 qmin = q(ivar,i)
                 qmax = q(ivar,i)
@@ -41,6 +45,7 @@ module limiter
                 yc = cell(i)%yc
                 zc = cell(i)%zc
 
+                phi_vertex_min = huge(phi_vertex_min)
                 ! Loop over vertices of the cell
                 vertex_loop : do k = 1,cell(i)%nvtx
                     iv = cell(i)%vtx(k)
@@ -57,30 +62,33 @@ module limiter
                     dqm = qf - q(ivar,i)
 
                     !Compute dq^+.
-                    if ( dqm > zero ) then
-                        dqp = qmax - q(ivar,i)
-                    else
-                        dqp = qmin - q(ivar,i)
-                    endif
+                    ! if ( dqm > zero ) then
+                    !     dqp = qmax - q(ivar,i)
+                    ! else
+                    !     dqp = qmin - q(ivar,i)
+                    ! endif
+
+                    dqp = merge(qmax - q(ivar,i), qmin - q(ivar,i), dqm > zero)
 
                     ! Limiter function: Venkat limiter
 
                     phi_vertex = vk_limiter(dqp, dqm, cell(i)%vol)
  
                     ! Keep the minimum over the control points (vertices).
-                    if (k==1) then
-                        phi_vertex_min = phi_vertex
-                    else
-                        phi_vertex_min = min(phi_vertex_min, phi_vertex)
-                    endif
+                    ! if (k==1) then
+                    !     phi_vertex_min = phi_vertex
+                    ! else
+                    phi_vertex_min = min(phi_vertex_min, phi_vertex)
+                    ! endif
                 end do vertex_loop
-                if (ivar == 1) then
-                    phi_var_min = phi_vertex_min
-                else
-                    phi_var_min = min(phi_var_min, phi_vertex_min)
-                endif
+                ! if (ivar == 1) then
+                !     phi_var_min = phi_vertex_min
+                ! else
+                phi_var_min(ivar) = min(phi_var_min(ivar), phi_vertex_min)
+                ! endif
             end do variable_loop
-            phi(i) = phi_var_min
+            !$OMP END SIMD
+            phi(i) = minval(phi_var_min)
         end do cell_loop
                     
     end subroutine compute_limiter_flow
@@ -89,7 +97,7 @@ module limiter
 
         use common          , only : p2, zero
         
-        use grid            , only : ncells, cell, x, y, z, cell
+        use grid            , only : ncells, cell, x, y, z
 
         use turb            , only : ccgrad_turb_var, turb_var, phi_turb, nturb
       
@@ -260,7 +268,11 @@ module limiter
     !
     ! Note: This is unaltered from the edu_euler code.  We'll see if I have any need to edit it in the future
     !********************************************************************************
-    pure function vk_limiter(a, b, vol)
+    pure elemental function vk_limiter(a, b, vol)
+    !$OMP DECLARE SIMD SIMDLEN(VEC_LEN)
+
+    ! The simd decleration above is only needed for gfortran.  ifx seems capable of deducing this function can be vectorized 
+    ! without the hint.
 
         use common    , only : p2, two, pi, six, third
 

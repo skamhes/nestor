@@ -92,8 +92,9 @@ module residual
         !--------------------------------------------------------------------------------
         ! Compute gradients at cells.
         !
+        call set_ghost_values
+        
         if (iflow_type > FLOW_INVISCID .or. accuracy_order == 2) then
-            call set_ghost_values
             call compute_gradient_flow(1)
         endif
 

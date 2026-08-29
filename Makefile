@@ -12,15 +12,16 @@
 # MAKE VARIABLES
 FC = gfortran
 CC = gcc
+# FC = ifx
+# CC = icx
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
 # FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -DNANCHECK
-LDFLAGS= -flto=auto -fwhole-program
 CFLAGS = -O3 -g -Wall -Wextra -march=native
 # FFLAGS = -O2 -pg
- FFLAGS = -g -pg -O3 -march=native $(LDFLAGS)
+ FFLAGS = -g -O3 -march=native $(LDFLAGS)
 ##########################################################
 # VPATH = ..
 ##########################################################
@@ -50,6 +51,18 @@ endif
 
 %.o: %.F90 # run c preprocessor
 	$(FC) -cpp $(FFLAGS) -c $<
+
+ifeq ($(FC), ifx)
+limiter.o:   FFLAGS += -qopenmp
+res_sa.o:    FFLAGS += -qopenmp
+viscosity.o: FFLAGS += -qopenmp
+LDFLAGS= -flto
+else
+LDFLAGS= -flto=auto -fwhole-program
+limiter.o:   FFLAGS += -fopenmp
+res_sa.o:    FFLAGS += -fopenmp
+viscosity.o: FFLAGS += -fopenmp
+endif
 
 ##########################################################
 SDIR = .

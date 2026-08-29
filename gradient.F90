@@ -425,7 +425,7 @@ module gradient
 
         use common ,        only : p2
 
-        use grid ,          only : ncells, bound
+        use grid ,          only : ncells, bound, gcell
 
         use utils ,         only : ibc_type
 
@@ -456,9 +456,8 @@ module gradient
                 end do
                 do kcell = 1,lsqc(icell)%nbf
                     ib = lsqc(icell)%gcells(2,kcell)
-                    ci = bound(ib)%bcell(lsqc(icell)%gcells(1,kcell)) ! this is messy (requires a pointer to a pointer).  Should be fixed at some point.
-                    ! tk = gcell(ib)%q(:,ci)
-                    call sa_rhstate(turb_var(ci,ivar),ibc_type(ib),tk)
+                    ci = lsqc(icell)%gcells(1,kcell)
+                    tk = gcell(ib)%turb(ci,ivar)
                     dt = tk - ti
                     ! outer product
                     ccgrad_turb_var(:,icell,ivar) = ccgrad_turb_var(:,icell,ivar) + lsqc(icell)%gcf(:,kcell,weight) * dt
@@ -513,7 +512,7 @@ module gradient
 
         use common   , only : p2
 
-        use utils    , only : ibc_type
+        use utils    , only : ibc_type, iflow_type, FLOW_LAMINAR
         
         implicit none
 
@@ -538,6 +537,43 @@ module gradient
             end do
         end do
 
+        if (iflow_type > FLOW_LAMINAR) call set_tghost_values
+
     end subroutine set_ghost_values
+
+    subroutine set_tghost_values
+
+        ! Only works for the SA equation for now
+
+        use turb     , only : turb_var
+
+        use turb_bc  , only : sa_rhstate
+                
+        use grid     , only : nb, bound, gcell
+
+        use common   , only : p2
+
+        use utils    , only : ibc_type
+        
+        implicit none
+
+        integer  :: c1
+        integer  :: ib, j
+        
+        real(p2) :: tr, trb
+        real(p2), dimension(3) :: unit_face_normal
+        real(p2)               :: xc2, yc2, zc2
+
+         ! First update the ghost cell values
+        do ib = 1,nb
+            do j=1,bound(ib)%nbfaces
+                c1 = bound(ib)%bcell(j)
+                tr = turb_var(c1,1)
+                call sa_rhstate(tr, ibc_type(ib), trb)
+                gcell(ib)%turb(j,1) = trb
+            end do
+        end do
+
+    end subroutine set_tghost_values
 
 end module gradient

@@ -63,7 +63,7 @@ module steady_solver
         real                          :: time, totalTime
         real, dimension(2)            :: values
         integer                       :: minutes, seconds
-        integer                       :: dt_vals, solver_epoch
+        integer                       :: dt_vals, solver_epoch, count_rate
 
         ! Stop file
         logical                       :: stop_me
@@ -134,9 +134,9 @@ module steady_solver
             allocate(phi(ncells))
         end if
 
-        if (itime_method == TM_ELAPSED) then
-            call system_clock(COUNT = solver_epoch)
-        endif
+        ! if (itime_method == TM_ELAPSED) then
+        call system_clock(COUNT = solver_epoch)
+        ! endif
 
         solver_loop : do while (i_iteration <= solver_max_itr)
             
@@ -151,13 +151,15 @@ module steady_solver
             if ( lift .OR. drag ) call compute_forces
 
             if (itime_method == TM_ELAPSED) then
-                call system_clock(COUNT = dt_vals)
-                totalTime = (dt_vals - solver_epoch) / 1000 ! it's acceptable in this case to round down to the second
+                call system_clock(COUNT = dt_vals, COUNT_RATE = count_rate)
+                totalTime = (dt_vals - solver_epoch) / count_rate ! it's acceptable in this case to round down to the second
 
             else
                 ! Iteration timer
-                call dtime(values,time)
-                totalTime = time * real(solver_max_itr-i_iteration) ! total time remaining in seconds
+                call system_clock(COUNT = dt_vals, COUNT_RATE = count_rate)
+                totalTime = (dt_vals - solver_epoch) / count_rate ! elapsed time since start
+                totalTime = totalTime / max(i_iteration,1)        ! average time per iteration
+                totalTime = totalTime * real(solver_max_itr-i_iteration) ! total time remaining in seconds
                 
             endif
             ! Compute time remaining
@@ -526,7 +528,7 @@ module steady_solver
 
     subroutine gcr
 
-        use gcr                 , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control
+        use gcr_mod             , only : gcr_run, GCR_SUCCESS,  gcr_CFL_control
 
         use config              , only : variable_ur
 

@@ -70,6 +70,7 @@ module grid
         ! integer                             ::    nvtx      ! Number of vertices, this is equal to the number of vtx on the bface
         ! integer, dimension(:), pointer      ::     vtx      ! list of face vertices
         real(p2), dimension(:,:), pointer   :: q            ! flow variables in the ghost cell (weak BC)
+        real(p2), dimension(:,:), pointer   :: turb         ! turbulent variables in the ghost cell
     end type ghost_cell_type
 
     type(ghost_cell_type), dimension(:), pointer :: gcell
@@ -2098,12 +2099,21 @@ module grid
 
     subroutine build_ghost_cells
 
-        ! use solution , only : nq
+        ! use solution_vars , only : nq
+
+        use utils         , only : iflow_type, FLOW_LAMINAR, iturb_model, TURB_SA
+
         implicit none
 
         integer :: ib, icell, inode
-        integer :: ci
+        integer :: ci, nt
         real(p2) :: dx, dy, dz
+
+        ! this is gross.  At some point I need to overhaul the setup so that it isn't so spidered...
+        if (iflow_type > FLOW_LAMINAR) then
+            if (iturb_model == TURB_SA) nt = 1
+        end if
+
 
         allocate(gcell(nb))
 
@@ -2112,6 +2122,9 @@ module grid
             allocate(gcell(ib)%yc( bound(ib)%nbfaces))
             allocate(gcell(ib)%zc( bound(ib)%nbfaces))
             allocate(gcell(ib)%q(5,bound(ib)%nbfaces))
+            if (iflow_type > FLOW_LAMINAR) then
+                allocate(gcell(ib)%turb(bound(ib)%nbfaces,nt))
+            end if
 
             do icell = 1,bound(ib)%nbfaces
                 ! Calc gcell center as reflection through bface center

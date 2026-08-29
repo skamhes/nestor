@@ -157,6 +157,16 @@ module inviscid_flux
              aL = sqrt(gamma*qcL(1)/rhoL)
              HL = aL*aL*gmoinv + half*(dot_product(qcL(2:4),qcL(2:4)))
        
+             ! fL(1) = rhoL*qnL
+             ! fL(2) = rhoL*qnL * uL + pL*nx
+             ! fL(3) = rhoL*qnL * vL + pL*ny
+             ! fL(4) = rhoL*qnL * wL + pL*nz
+             ! fL(5) = rhoL*qnL * HL
+         
+             fL(:) = rhoL*qnL ! do this mult once
+             fL(2:4) = fL(2:4)*qcL(2:4)+qcL(1)*njk(:) ! Goal here is to take advantage of cpu vector ops.  Someprobing on godbolt seems to indicate this is better.
+             fL(5) = fL(5)*HL
+             
         !  Right state
        
            rhoR = qcR(1)*gamma / qcR(5)
@@ -170,15 +180,6 @@ module inviscid_flux
        
         !Compute the physical flux: fL = Fn(UL) and fR = Fn(UR)
        
-        ! fL(1) = rhoL*qnL
-        ! fL(2) = rhoL*qnL * uL + pL*nx
-        ! fL(3) = rhoL*qnL * vL + pL*ny
-        ! fL(4) = rhoL*qnL * wL + pL*nz
-        ! fL(5) = rhoL*qnL * HL
-    
-        fL(:) = rhoL*qnL ! do this mult once
-        fL(2:4) = fL(2:4)*qcL(2:4)+qcL(1)*njk(:) ! Goal here is to take advantage of cpu vector ops.  Someprobing on godbolt seems to indicate this is better.
-        fL(5) = fL(5)*HL
 
         ! fR(1) = rhoR*qnR
         ! fR(2) = rhoR*qnR * uR + pR*nx

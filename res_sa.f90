@@ -252,6 +252,7 @@ module res_sa
         end do bound_loop
 
         ! Source loop
+        !$OMP SIMD SIMDLEN(8)
         do icell     = 1,ncells
             nut1     = turb_var(icell,1)
             d1       = cell_wall_distance(icell)
@@ -268,6 +269,7 @@ module res_sa
             turb_jac(ic1,1) = turb_jac(ic1,1) - num_jacsrc * cell(icell)%vol
 
         end do
+        !$OMP END SIMD
 
         do icell = 1,ncells
 
@@ -360,7 +362,7 @@ module res_sa
 
         use common , only : half!, zero
 
-        use solution_vars,only : ndim, nq
+        use solution_vars,only : ndim, nq, gamma
 
         use solution , only : q2u
 
@@ -380,8 +382,7 @@ module res_sa
         ! Local
         real(p2), dimension(ndim)   :: gradnut_face!, dnut_ds
         real(p2), dimension(ndim)   :: ds,  dsds2
-        real(p2)                    :: T, rho
-        real(p2), dimension(nq)     :: u
+        real(p2)                    :: T, rho, rho1, rho2
         real(p2)                    :: muf ! dynamic viscosity
         real(p2)                    :: nuf ! kinematic viscosity
         real(p2)                    :: nutf ! face nut
@@ -399,10 +400,11 @@ module res_sa
         ! dnut = nut2 - nut1
         gradnut_face(:) = gradnut_face(:) + ( (nut2 - nut1) - dot_product(gradnut_face(:),ds)) * dsds2
         
-        T   = half * ( q1( 5 ) + q2( 5 ) )
-        u   = half * ( q2u(q1) + q2u(q2) )
+        T    = half * ( q1( 5 ) + q2( 5 ) )
+        rho1 = q1(1) * gamma / q1(5)
+        rho2 = q2(1) * gamma / q2(5)
         nutf = half * ( nut1    + nut2    )
-        rho = u(1)
+        rho  = half * ( rho1    + rho2    )
         muf  = compute_viscosity(T)
         nuf  = muf / rho ! Kinematic Viscosity
 
@@ -424,7 +426,7 @@ module res_sa
         ! Jacobian_1 = dR1/dnut = df1/dnut * grad + f1 * dgrad/dnut for nut = L/R
         jac1(:)     = - iSIGMA * (one + cb2) * normal_face_grad * half  ! dterm1/dnut,  nut = L/R
         jac1(1)     =   jac1(1) + cb2 * iSIGMA * normal_face_grad       ! dterm12/dnut, nut = L
-        dsnorm = dot_product(dsds2,n12)                                 ! dx used for central difference approximation
+        dsnorm      = dot_product(dsds2,n12)                                 ! dx used for central difference approximation
         jac1(1)     =   jac1(2) + f1 * dsnorm                           ! f1 * dgrad/dnut, nut = L
         jac1(2)     =   jac1(2) - f1 * dsnorm                           ! f1 * dgrad/dnut, nut = R
 
@@ -440,6 +442,7 @@ module res_sa
     end subroutine sa_viscFlux
 
     subroutine sa_source(nut,distance,kvisc,gradQ,gradnut, source,dsource)
+        !$OMP DECLARE SIMD SIMDLEN(8)
         
         use common , only : zero, sixth, fivesixth, one, three, six, & 
                             ix, iy, iz

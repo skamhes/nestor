@@ -11,6 +11,7 @@ module viscosity
 
 
     pure elemental function compute_viscosity(T) result(mu)
+    !$OMP DECLARE SIMD SIMDLEN(8)
 
         use common , only : three_half, one
 

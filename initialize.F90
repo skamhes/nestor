@@ -34,6 +34,9 @@ module initialize
         implicit none
 
         integer                 :: i
+#ifdef __INTEL_COMPILER
+        real(p2) :: rval
+#endif
         real(p2), dimension(5)  :: q_init
 
         ! Set the free stream values
@@ -56,7 +59,12 @@ module initialize
             cell_loop : do i = 1,ncells
                 q(:,i) = q_init
                 if ( perturb_initial .and. random_perturb )  then 
+#ifdef __GFORTRAN__
                     q(2:4,i) = q(2:4,i) * rand(0)
+#else
+                    call random_number(rval)
+                    q(2:4,i) = q(2:4,i) * rval
+#endif
                 endif
             end do cell_loop
         

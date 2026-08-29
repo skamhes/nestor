@@ -212,12 +212,13 @@ module inout
 
         select case(isolver_type)
         case(SOLVER_IMPLICIT)
-            write(*,*) " sweeps     reduction       time          CFL"
+            write(*,"(A)",advance="no") " sweeps     reduction       time          CFL"
         case(SOLVER_GCR)
-            write(*,*) " projs.     reduction       time          CFL"
+            write(*,"(A)",advance="no") " projs.     reduction       time          CFL"
         case default
-            write(*,*) "   time     CFL"
+            write(*,"(A)",advance="no") "   time     CFL"
         end select
+        write(*,*)
     end subroutine residual_status_header
 
     subroutine print_residual_status(i_iteration, minutes, seconds)
