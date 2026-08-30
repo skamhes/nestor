@@ -6,58 +6,43 @@ module solution
 
         use solution_vars , only : nq, ndim
 
+        use common , only : pi, two
+
+        use grid , only : ncells
+
         use utils , only : iflow_type, FLOW_RANS, iturb_model, TURB_SA
 
-        ! This just avoids some circular dependencies for now.  But later on we can use it to define additional solvers that we may 
-        ! need.
-
-        nq = 5
-        ndim = 3
-
-    end subroutine define_problem
-
-    subroutine allocate_solution_vars
-
-        use common , only : p2, pi
-
-        use grid , only : ncells, nnodes
-
-        use config , only : accuracy_order, grad_method, lsq_stencil, lift, drag, aoa, sideslip, &
-                            gcr_max_projections, CFL
-
-        use utils  , only : iflow_type, FLOW_INVISCID, FLOW_RANS, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
-                            igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
+        use config , only : lift, drag, aoa, sideslip, CFL, variable_ur, area_reference, M_inf, Re_inf, &
+                            reference_temp, sutherland_constant
 
         use solution_vars
+
+        use viscosity , only : compute_viscosity
 
         use turb
 
         implicit none
 
-        ! initialize
-        allocate( q(nq,ncells) )
-        q = zero
+        ! This program defines some global variables that for the most part are set at the beginning and then unchanged.
+        integer :: i
 
-        ! if (iflow_type > FLOW_INVISCID) allocate(mu(ncells))
+        nq = 5
+        ndim = 3
 
-        allocate( dtau(ncells) )
-        allocate( wsn( ncells) )
-        dtau = zero
-        wsn = zero
+        ! Set the free stream values
+        rho_inf = one
+        u_inf = M_inf*cos(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
+        v_inf = M_inf*sin(sideslip*pi/180)
+        w_inf = M_inf*sin(aoa*pi/180_p2)*cos(sideslip*pi/180_p2)
+        p_inf = one/gamma
 
-        if ( accuracy_order > 1 .OR. iflow_type > FLOW_INVISCID) then
-            allocate( ccgradq(ndim,nq,ncells) )
-            if (igrad_method == GRAD_LSQ .and. ilsq_stencil == LSQ_STENCIL_WVERTEX) then
-                allocate(  vgradq(ndim,nq,nnodes) )
-            endif
-        endif
+        ! denominator used for force coefficients (CL, CD, etc.)
+        force_normalization = two / ( rho_inf * area_reference *  M_inf**2 )
 
-        allocate( res(nq,ncells) )
-        res = zero
-
-        if ( isolver_type == SOLVER_IMPLICIT .or. isolver_type == SOLVER_GCR) then 
-            allocate(solution_update(nq,ncells))
-        endif
+        ! Variables for computing viscosity
+        C0 = sutherland_constant/reference_temp
+        mre = M_inf / Re_inf
+        mu_inf = compute_viscosity(T_inf)
 
         if ( lift ) then 
             ! These might even be correct :)
@@ -72,16 +57,86 @@ module solution
             vector_drag(3) =  sin(aoa*pi/180.0_p2)
         endif
 
+        if (iflow_type >= FLOW_RANS) then
+            select case(iturb_model)
+            case(TURB_SA)
+                nturb = 1
+            case default
+                write(*,*) "Invalid turbulence model."
+                stop
+            end select
+        else
+            nturb = 0
+        endif
+        
+        inv_ncells = one / real(ncells*(nq + nturb),p2) 
 
+        CFL_used = CFL ! set so that the first residual is sensible.
 
-        CFL_used = CFL
+        ! Set explicit under-relaxation array
+        var_ur_array = zero
+        do i = 1,5
+            var_ur_array(i,i) = variable_ur(i)
+        end do
 
-        nturb = 0
+    end subroutine define_problem
+
+    subroutine allocate_solution_vars
+
+        use common , only : p2, pi
+
+        use grid , only : ncells, nnodes, gcell, need_ghost_cells, build_ghost_cells
+
+        use config , only : accuracy_order, grad_method, lsq_stencil, gcr_max_projections, use_limiter
+
+        use utils  , only : iflow_type, FLOW_INVISCID, FLOW_RANS, isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, &
+                            igrad_method, GRAD_LSQ, ilsq_stencil, LSQ_STENCIL_WVERTEX
+
+        use solution_vars
+
+        use turb
+
+        implicit none
+
+        ! Working flow vars p, u, v, w, T
+        allocate( q(nq,ncells) )
+
+        ! Time step vars
+        allocate( dtau(ncells) )
+        allocate( wsn( ncells) )
+
+        dtau = zero
+        wsn = zero
+
+        ! Gradient vars
+        if ( accuracy_order > 1 .OR. iflow_type > FLOW_INVISCID) then
+            allocate( ccgradq(ndim,nq,ncells) )
+            if (igrad_method == GRAD_LSQ .and. ilsq_stencil == LSQ_STENCIL_WVERTEX) then
+                allocate(  vgradq(ndim,nq,nnodes) )
+            endif
+
+            if (use_limiter) then
+                allocate(phi(ncells))
+            end if
+        endif
+
+        ! Residual vars
+        allocate( res(nq,ncells) )
+
+        ! Update vars
+        if ( isolver_type == SOLVER_IMPLICIT .or. isolver_type == SOLVER_GCR) then 
+            allocate(solution_update(nq,ncells))
+        endif
+
+        ! Build and allocate ghost cell structures 
+        if (need_ghost_cells()) then ! always true for now...
+            call build_ghost_cells
+        else
+            nullify(gcell)
+        endif
 
         if (iflow_type >= FLOW_RANS) call allocate_rans
 
-        inv_ncells = one / real(ncells*(nq + nturb),p2) 
-        
     end subroutine allocate_solution_vars
 
     subroutine compute_local_time_step_dtau

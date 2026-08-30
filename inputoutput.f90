@@ -316,9 +316,9 @@ module inout
             write(8,*) '# RESTART FILE FOR NESTOR CFD' ! # SIGNS WILL BE COMMENTS
 
             if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-                write(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+                write(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1), CFL_used
             else
-                write(8,*) res_norm(:), res_norm_initial(:)
+                write(8,*) res_norm(:), res_norm_initial(:), CFL_used
             endif
 
             flush(8)
@@ -341,9 +341,9 @@ module inout
             write(8) '# RESTART FILE FOR NESTOR CFD' ! # SIGNS WILL BE COMMENTS
 
             if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-                write(8) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+                write(8) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1), CFL_used
             else
-                write(8) res_norm(:), res_norm_initial(:)
+                write(8) res_norm(:), res_norm_initial(:), CFL_used
             endif
 
             flush(8)
@@ -405,9 +405,9 @@ module inout
             read(8,*)
 
             if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-                read(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+                read(8,*) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1), CFL_used
             else
-                read(8,*) res_norm(:), res_norm_initial(:)
+                read(8,*) res_norm(:), res_norm_initial(:), CFL_used
             endif
 
             do icell = 1,ncells
@@ -434,9 +434,9 @@ module inout
             read(8)
 
             if (iflow_type == FLOW_RANS .and. iturb_model == TURB_SA) then
-                read(8) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1)
+                read(8) res_norm(:), turb_res_norm(1), res_norm_initial(:), turb_res_norm_init(1), CFL_used
             else
-                read(8) res_norm(:), res_norm_initial(:)
+                read(8) res_norm(:), res_norm_initial(:), CFL_used
             endif
 
             do icell = 1,ncells

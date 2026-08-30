@@ -17,7 +17,6 @@ module steady_solver
 
     private
     
-    real(p2), dimension(5,5) :: var_ur_array
     integer                  :: i_iteration ! I may make this public if I need it
 
     contains
@@ -28,13 +27,11 @@ module steady_solver
         ! use linear_solver , only :  lrelax_sweeps_actual, lrelax_roc
 
         use config    , only : accuracy_order, method_inv_flux, CFL, solver_max_itr, solver_tolerance, &
-                                variable_ur, use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
+                                use_limiter, CFL_ramp, CFL_start_iter, CFL_ramp_steps, CFL_init, &
                                 lift, drag, solver_type, Re_inf, restart
 
         use utils     , only : isolver_type, iflow_type, FLOW_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
                                itime_method, TM_ELAPSED, FLOW_RANS
-                                
-        use initialize, only : set_initial_solution, init_jacobian
 
         use solution_vars  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
                                n_projections, nl_reduction
@@ -43,15 +40,11 @@ module steady_solver
 
         use grid      , only : ncells
 
-        use gradient  , only : init_gradients
-
         use residual  , only : compute_residual
 
         use inout     , only : residual_status_header, print_residual_status, read_restart_file
 
         use forces    , only : compute_forces, output_forces, report_lift
-
-        use wall_distance , only : compute_wall_distance
 
         use turb        , only : turb_res_norm, turb_res_norm_init, nturb
 
@@ -73,15 +66,6 @@ module steady_solver
 
         real(p2), parameter :: MIN_RES_NORM_INIT = 1e-012_p2
 
-        ! Set explicit under-relaxation array
-        var_ur_array = zero
-        do i = 1,5
-            var_ur_array(i,i) = variable_ur(i)
-        end do
-
-        ! Set initial solution (or import but we'll do that later...)
-        call set_initial_solution
-
         i_iteration = 0
 
         write(*,*) " ---------------------------------------"
@@ -91,7 +75,8 @@ module steady_solver
         write(*,*) "    solver_type = ", trim(solver_type)
         write(*,'(a,i1)') "  accuracy_order = ", accuracy_order
         write(*,*) " inviscid_flux  = ", trim(method_inv_flux)
-        if (iflow_type > FLOW_INVISCID) write(*,'(a,es13.4)') "          Re_inf = ", Re_inf
+        if (iflow_type > FLOW_INVISCID) write(*,'(a,es13.4)')&
+                   "          Re_inf = ", Re_inf
         
 
         if (CFL_ramp) then
@@ -113,12 +98,6 @@ module steady_solver
             write(*,*)
         endif
 
-        if (accuracy_order == 2 .OR. iflow_type > FLOW_INVISCID ) then
-            call init_gradients
-        endif    
-
-        if (iflow_type >= FLOW_RANS) call compute_wall_distance
-
         ! Skipping importing data for now
         
         ! Print column headers
@@ -130,9 +109,6 @@ module steady_solver
         n_projections = 0
         nl_reduction = zero
         n_residual_evaluation = 0
-        if (use_limiter) then
-            allocate(phi(ncells))
-        end if
 
         ! if (itime_method == TM_ELAPSED) then
         call system_clock(COUNT = solver_epoch)

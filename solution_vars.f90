@@ -68,7 +68,7 @@ module solution_vars
     real(p2) ::   T_inf = one ! p_inf*gamma/rho_inf
     real(p2) ::   mu_inf= one ! will need to be overwritten
 
-
+    real(p2), dimension(5,5) :: var_ur_array ! explicit update under-relaxation terms
 
     !These data will be allocated for a given grid size, and filled in the
     !following subroutine: construct_ccfv_data.

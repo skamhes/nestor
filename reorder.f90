@@ -266,11 +266,6 @@ module reorder
 
         deallocate(oldx, oldy, oldz)
 
-        if (associated(gcell)) then ! this is a bit sloppy but it works...
-            deallocate(gcell)
-            call build_ghost_cells
-        end if
-
     end subroutine reorder_rcm
 
     ! Some diagnostic routines:

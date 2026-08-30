@@ -16,12 +16,12 @@ CC = gcc
 # CC = icx
 # Note: use "gfortran -O3" for best performance, but
 #       don't use it until you're sure bugs are removed.
-# FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
+FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing \
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic  	    \
 		 -fbacktrace -fall-intrinsics -DNANCHECK
 CFLAGS = -O3 -g -Wall -Wextra -march=native
 # FFLAGS = -O2 -pg
- FFLAGS = -g -O3 -march=native $(LDFLAGS)
+#  FFLAGS = -g -O3 -march=native $(LDFLAGS)
 ##########################################################
 # VPATH = ..
 ##########################################################
@@ -90,7 +90,6 @@ OBCTS +=$(SDIR)/ad_operators.o\
 		$(SDIR)/solution.o\
 		$(SDIR)/sparse_common.o\
 		$(SDIR)/inputoutput.o\
-		$(SDIR)/initialize.o\
 		$(SDIR)/turb_bc.o\
 		$(SDIR)/sparse_block_matrix.o\
 		$(SDIR)/sparse_scalar_matrix.o\
@@ -98,6 +97,7 @@ OBCTS +=$(SDIR)/ad_operators.o\
 		$(SDIR)/bc_states.o\
 		$(SDIR)/lsq.o\
 		$(SDIR)/gradient.o\
+		$(SDIR)/initialize.o\
 		$(SDIR)/inviscid_flux.o\
 		$(SDIR)/viscous_flux.o\
 		$(SDIR)/ad_inviscid_flux.o\

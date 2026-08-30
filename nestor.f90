@@ -30,7 +30,7 @@ program nestor
 
     use utils , only : isolver_type, SOLVER_IMPLICIT, isolver_type, SOLVER_GCR
 
-    use initialize , only : init_jacobian
+    use initialize , only : init_jacobian, set_initial_solution
 
     implicit none
 
@@ -68,6 +68,8 @@ program nestor
     if (isolver_type == SOLVER_IMPLICIT .OR. isolver_type == SOLVER_GCR ) call init_jacobian
 
     call allocate_solution_vars
+
+    call set_initial_solution
 
     call steady_solve
 

@@ -59,6 +59,8 @@ module turb
 
         use solution_vars , only : kth_nghbr_of_1, kth_nghbr_of_2, nnz
 
+        use config , only : rans_accuracy, use_limiter
+
         use utils         , only : ilsq_stencil, LSQ_STENCIL_NN, LSQ_STENCIL_WVERTEX
 
         implicit none
@@ -68,32 +70,38 @@ module turb
             stop
         end if
 
-        if (iturb_model == TURB_SA) then
-            nturb = 1
-        endif
-        
-
+        ! Turbulent variables
         allocate(turb_var(ncells,nturb)) ! we're generally gonna be working through one variable at a time
+
+        ! Turbulent Residuals
         allocate(turb_res(ncells,nturb))
+
+        ! Turbulent Jacobian and inverse diagonal
         allocate(turb_jac(nnz,nturb))
         allocate(turb_diag_inv(ncells,nturb))
         
-        allocate(turb_update(ncells))
+        if ( isolver_type == SOLVER_IMPLICIT .or. isolver_type == SOLVER_GCR) then 
+            allocate(turb_update(ncells))
+        endif
 
-        select case(ilsq_stencil)
-        case(LSQ_STENCIL_WVERTEX)
-            allocate(vgrad_turb_var( 3,nnodes,nturb))
-        case(LSQ_STENCIL_NN)
-            allocate(ccgrad_turb_var(3,ncells,nturb))
-        case default
-            write(*,*) 'Invalid LSQ stencil. Stopping...'
-            stop
-        end select
+        if (rans_accuracy > 1) then
+            select case(ilsq_stencil)
+            case(LSQ_STENCIL_WVERTEX)
+                allocate(vgrad_turb_var( 3,nnodes,nturb))
+            case(LSQ_STENCIL_NN)
+                allocate(ccgrad_turb_var(3,ncells,nturb))
+            case default
+                write(*,*) 'Invalid LSQ stencil. Stopping...'
+                stop
+            end select
+            
+            if (use_limiter) then
+                allocate(phi_turb(ncells))
+            endif
 
-        allocate(phi_turb(ncells))
+        end if
 
         allocate(twsn(2,ncells))
-        ! allocate(tdtau(ncells))
 
         ! This isn't actually used except to prevent a runtime error.
         if(.not.allocated(kth_nghbr_of_1)) then
