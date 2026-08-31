@@ -252,11 +252,7 @@ module direct_solve
     subroutine gewp_solve(ai,nm, inverse,idetstat)
 
         implicit none
-      
-        integer , parameter ::    p2 = selected_real_kind(15) ! Double precision
-        real(p2), parameter ::  zero = 0.0_p2
-        real(p2), parameter ::   one = 1.0_p2
-      
+
         integer ,                   intent( in) :: nm
         real(p2), dimension(nm,nm), intent( in) :: ai
       
@@ -351,7 +347,6 @@ module direct_solve
       
             implicit none
       
-            integer , parameter   :: p2 = selected_real_kind(15) ! Double precision
             integer , intent( in) :: nm
             real(p2), intent( in) :: a(nm,nm+1)
             integer , intent( in) :: j,nrow(nm)
@@ -403,9 +398,7 @@ module direct_solve
             subroutine eliminate_below(nm,j,a,nrow)
       
             implicit none
-      
-            integer , parameter     :: p2 = selected_real_kind(15) ! Double precision
-            real(p2), parameter     :: zero = 0.0_p2
+
             integer , intent(   in) :: nm
             real(p2), intent(inout) :: a(nm,nm+1)
             integer , intent(   in) :: j,nrow(nm)
@@ -432,9 +425,6 @@ module direct_solve
             subroutine backsub(nm,x,a,nrow)
       
             implicit none
-      
-            integer , parameter   :: p2 = selected_real_kind(15) ! Double precision
-            real(p2), parameter   :: zero = 0.0_p2
       
             integer , intent( in) :: nm
             real(p2), intent( in) :: a(nm,nm+1)

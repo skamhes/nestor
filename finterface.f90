@@ -1,4 +1,4 @@
-module interface
+module finterface
 
     implicit none
     
@@ -68,4 +68,4 @@ module interface
         ! The second thing is the same just (presumably) slower. (Godbolt says yes!)
     end subroutine reconstruct_flow
 
-end module interface
+end module finterface

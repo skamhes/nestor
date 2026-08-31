@@ -39,7 +39,7 @@ module residual
 
         use solution        , only : q2u
 
-        use interface       , only : interface_flux, reconstruct_flow
+        use finterface       , only : interface_flux, reconstruct_flow
 
         use limiter         , only : compute_limiter_flow
 
