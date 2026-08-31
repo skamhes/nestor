@@ -237,9 +237,7 @@ module least_squares
 
     subroutine construct_nn_stencil
 
-        use common , only : p2
-
-        use grid , only : cell, x, y, z, nnodes, bound, ncells, node_type, nb, gcell
+        use grid , only : cell, nnodes, bound, ncells, node_type, nb, gcell
 
         use sort_routines , only : queued_natural_merge_sort
 
@@ -251,12 +249,6 @@ module least_squares
 
         type(node_type), dimension(nnodes) :: node
 
-        type bnode_type
-            type(node_type), dimension(:), pointer :: node
-        end type bnode_type
-
-        type(bnode_type), dimension(nb) :: bnode
-    
         type nn_type
             integer                             :: n_nnghbr
             integer, dimension(:)  , pointer    :: nnghbr
@@ -272,7 +264,7 @@ module least_squares
         
         integer :: inode, icell, ib
         integer :: jcell, cj
-        integer :: ni, cnvtx, ci, cn, nbfn
+        integer :: ni, cnvtx, ci
 
         integer :: start, end
 

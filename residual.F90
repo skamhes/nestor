@@ -20,11 +20,11 @@ module residual
 
     subroutine compute_residual_flow
 
-        use common          , only : p2, zero, one, half
+        use common          , only : p2, zero, one
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
 
-        use utils           , only : iflow_type, FLOW_INVISCID, FLOW_RANS, ilsq_stencil, LSQ_STENCIL_WVERTEX, LSQ_STENCIL_NN
+        use utils           , only : iflow_type, FLOW_INVISCID, FLOW_RANS, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
         use grid            , only : ncells, cell,  &
                                      nfaces, face,  &
@@ -35,7 +35,7 @@ module residual
 
         use utils           , only : ibc_type
         
-        use solution_vars   , only : res, q, ccgradq, vgradq, wsn, phi, iT
+        use solution_vars   , only : res, q, ccgradq, vgradq, wsn, phi
 
         use solution        , only : q2u
 

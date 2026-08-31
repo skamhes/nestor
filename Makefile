@@ -21,7 +21,7 @@ FFLAGS = -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncatio
 		 -fbacktrace -fall-intrinsics -DNANCHECK
 CFLAGS = -O3 -g -Wall -Wextra -march=native
 # FFLAGS = -O2 -pg
-#  FFLAGS = -g -O3 -march=native $(LDFLAGS)
+ FFLAGS = -g -O3 -march=native $(LDFLAGS)
 ##########################################################
 # VPATH = ..
 ##########################################################

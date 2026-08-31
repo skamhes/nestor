@@ -40,9 +40,9 @@ module linear_solver
 
         use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle, line_implicit
 
-        use grid                , only : ncells, cell
+        use grid                , only : ncells
 
-        use solution_vars       , only : C, R, nnz
+        use solution_vars       , only : C, R
 
         ! use gauss_seidel
 
@@ -289,7 +289,7 @@ module linear_solver
 
         use limplicit , only : lines, nlines
 
-        use solution_vars , only : Rline, iRow, inv_ncells, roc, lrelax_sweeps_actual
+        use solution_vars , only : Rline, iRow, roc, lrelax_sweeps_actual
 
         ! use solution_vars   , only : , lrelax_roc
 
@@ -403,8 +403,8 @@ module linear_solver
         integer :: i, j, k, jj
         integer :: ci, cj
 
-        real(p2), dimension(neq,neq) :: l, d, u, um1, di ! 3 tridiagonal blocks
-        real(p2), dimension(neq)     :: new_corr, lres
+        real(p2), dimension(neq,neq) :: l, d, u, di ! 3 tridiagonal blocks
+        real(p2), dimension(neq)     :: new_corr
         
         po = Rline(1)
         pl = Rline(2)
@@ -485,9 +485,9 @@ module linear_solver
 
         use config              , only : solver_type, lrelax_sweeps, lrelax_tolerance, smoother, amg_cycle, line_implicit
 
-        use grid                , only : ncells, cell
+        use grid                , only : ncells
 
-        use solution_vars       , only : C, R, nnz
+        use solution_vars       , only : C, R
 
         use algebraic_multigird , only : convert_amg_c_to_i
 
@@ -726,7 +726,7 @@ module linear_solver
 
         use limplicit , only : lines, nlines
 
-        use solution_vars , only : Rline, iRow, inv_ncells, roc, lrelax_sweeps_actual
+        use solution_vars , only : Rline, iRow, roc, lrelax_sweeps_actual
 
         ! use solution_vars   , only : , lrelax_roc
 
@@ -834,11 +834,11 @@ module linear_solver
 
         integer :: po, pl, pn ! pointers to the off line block, line block, and the next block
         
-        integer :: i, j, k, jj
+        integer :: i, j, k
         integer :: ci, cj
 
-        real(p2) :: l, d, u, um1, di ! 3 tridiagonal blocks
-        real(p2) :: new_corr, lres
+        real(p2) :: l, d, u, di ! 3 tridiagonal blocks
+        real(p2) :: new_corr
         
         po = Rline(1)
         pl = Rline(2)

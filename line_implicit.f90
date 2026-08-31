@@ -18,7 +18,7 @@ module limplicit
 
     subroutine build_lines
 
-        use grid , only : ncells, cell, nnodes, nb, bound, bc_type
+        use grid , only : ncells, cell, nnodes, nb, bound
 
         use utils , only : ibc_type, BC_VISC_STRONG
         implicit none

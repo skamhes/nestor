@@ -292,7 +292,7 @@ module res_sa
 
         use config , only : rans_accuracy
 
-        use common , only : half, zero
+        use common , only : half
 
         use solution_vars , only : nq, iu, iv, iw
                             
@@ -312,10 +312,8 @@ module res_sa
 
         real(p2) :: nutL, nutR
 
-        real(p2), dimension(nq) :: qL, qR, qi
+        real(p2), dimension(nq) :: qL, qR
         real(p2)                :: vP, vM, vBar
-
-        real(p2), parameter :: eig_min = 1e-06
 
 
         if (rans_accuracy == 2) then
@@ -362,7 +360,7 @@ module res_sa
 
         use common , only : half!, zero
 
-        use solution_vars,only : ndim, nq, gamma
+        use solution_vars,only : ndim, gamma
 
         use solution , only : q2u
 
@@ -471,7 +469,6 @@ module res_sa
 
         ! Source terms
         real(p2) :: prod, dest, s1
-        real(p2) :: dprod, ddest
         ! Terms from Eq 15 and 16 of Spalart 1992 and their derivative
         real(p2) :: p, d, pprm, dprm
 

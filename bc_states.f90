@@ -8,7 +8,7 @@ module bc_states
 
     subroutine get_right_state(qL,njk, bc_state_type, qcB)
 
-        use common     , only : p2, zero
+        use common     , only : p2
 
         use utils , only : BC_BACK_PRESSURE, BC_FARFIELD, BC_TANGENT, BC_VISC_STRONG
 

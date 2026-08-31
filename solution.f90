@@ -83,8 +83,6 @@ module solution
 
     subroutine allocate_solution_vars
 
-        use common , only : p2, pi
-
         use grid , only : ncells, nnodes, gcell, need_ghost_cells, build_ghost_cells
 
         use config , only : accuracy_order, grad_method, lsq_stencil, gcr_max_projections, use_limiter
@@ -234,7 +232,7 @@ module solution
     !********************************************************************************
     pure function q2rho(q_in) result(rho_out)
 
-        use common, only : p2, half
+        use common, only : p2
 
         use solution_vars, only : gamma
         

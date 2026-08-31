@@ -6,11 +6,11 @@ module ad_viscous_flux
     private
     contains
 
-    subroutine visc_flux_internal_ddt(q1,q2,gradq1,gradq2,trb1,trb2,n12,xc1,yc1,zc1,xc2,yc2,zc2,dFndQL,dFndQR)
+    subroutine visc_flux_internal_ddt(q1,q2,trb1,trb2,n12,xc1,yc1,zc1,xc2,yc2,zc2,dFndQL,dFndQR)
 
         ! Face gradient terms computed using EQ. 14 in https://doi.org/10.2514/2.689 
 
-        use common                  , only : p2, half
+        use common                  , only : p2
 
         use solution_vars           , only : nq, ndim ! w2u, nq
         
@@ -23,7 +23,7 @@ module ad_viscous_flux
         implicit none
 
         real(p2), dimension(nq),      intent(in)  :: q1, q2
-        real(p2), dimension(ndim,nq), intent(in)  :: gradq1, gradq2
+        ! real(p2), dimension(ndim,nq), intent(in)  :: gradq1, gradq2
         real(p2), dimension(nturb),   intent(in)  :: trb1, trb2
         real(p2), dimension(ndim),    intent(in)  :: n12               ! Unit area vector (from c1 to c2)
         real(p2),                     intent(in)  :: xc1, yc1, zc1     ! Left cell centroid
@@ -73,7 +73,7 @@ module ad_viscous_flux
 
     subroutine visc_flux_boundary_ddt(q1,qb,interface_grad_dummy,trb1,trb2,n12,xc1,yc1,zc1,xf2,yf2,zf2,dFndQL,dFndQR)
 
-        use common                  , only : p2, half
+        use common                  , only : p2
 
         use solution_vars           , only : nq, ndim
         
@@ -136,7 +136,7 @@ module ad_viscous_flux
     end subroutine visc_flux_boundary_ddt
 
     subroutine compute_visc_num_flux_ddt(q1,q2,trb1,trb2,interface_grad,n12,dFdU)
-        use common                  , only : p2, half, one, zero, three_half, two_third, four_third, ix, iy, iz
+        use common                  , only : p2, half, zero, two_third, four_third, ix, iy, iz
 
         use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT ! w2u, nq
         

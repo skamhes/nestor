@@ -15,7 +15,7 @@ module reorder
 
         use config , only : rcm_verbosity
         
-        use grid , only : cc_data_type, bgrid_type, ncells, cell, face, nfaces, nb, bound, gcell, build_ghost_cells, &
+        use grid , only : cc_data_type, bgrid_type, ncells, cell, face, nfaces, nb, bound, build_ghost_cells, &
                           face_centroid, face_nrml, face_nrml_mag, x, y, z, nnodes
 
         use sort_routines , only : inserstion_sort_ind

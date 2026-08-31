@@ -25,10 +25,6 @@ module interface
         real(p2), dimension(5),     intent(out) :: num_flux         ! Output
         real(p2),                   intent(out) :: wsn   
 
-        ! Local Vars
-        real(p2), dimension(5) :: uL, uR, num_flux1 ! conservative vars computed from wL and wR
-
-
         !------------------------------------------------------------
         !  (1) Roe flux
         !------------------------------------------------------------

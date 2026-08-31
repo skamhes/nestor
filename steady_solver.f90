@@ -33,12 +33,10 @@ module steady_solver
         use utils     , only : isolver_type, iflow_type, FLOW_INVISCID, SOLVER_EXPLICIT, SOLVER_GCR, SOLVER_IMPLICIT, SOLVER_RK, &
                                itime_method, TM_ELAPSED, FLOW_RANS
 
-        use solution_vars  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, phi, &
+        use solution_vars  , only : res_norm, res_norm_initial, lrelax_roc, lrelax_sweeps_actual, &
                                n_projections, nl_reduction
                                
         use solution  , only : compute_local_time_step_dtau
-
-        use grid      , only : ncells
 
         use residual  , only : compute_residual
 
@@ -53,8 +51,7 @@ module steady_solver
         integer                       :: i, n_residual_evaluation
 
         ! Timing Variables
-        real                          :: time, totalTime
-        real, dimension(2)            :: values
+        real                          :: totalTime
         integer                       :: minutes, seconds
         integer                       :: dt_vals, solver_epoch, count_rate
 
@@ -386,13 +383,13 @@ module steady_solver
 
     subroutine explicit_pseudo_time_forward_euler
 
-        use common          , only : p2, half, one, zero
+        use common          , only : p2, half
 
         use config          , only : turb_ur, CFL_turb
 
         use utils           , only : iflow_type, FLOW_RANS
 
-        use solution_vars   , only : q, res, dtau, gammamo, gamma, gmoinv
+        use solution_vars   , only : q, res, dtau
 
         use grid            , only : cell, ncells
 
@@ -406,7 +403,7 @@ module steady_solver
 
         real(p2), dimension(5) :: update_q
         integer i, os, it, icell
-        real(p2) :: H, rho_p, rho_T, theta, rho, dtaui
+        real(p2) :: dtaui
         real(p2), dimension(5,5) :: preconditioner, pre_inv
 
         ! Compute the precondition matrix as described in https://doi.org/10.2514/3.12946

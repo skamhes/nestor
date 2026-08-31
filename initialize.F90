@@ -10,7 +10,7 @@ module initialize
 
     subroutine set_initial_solution
 
-        use common , only : p2, one, pi, two
+        use common , only : p2
 
         use grid   , only : ncells
 
@@ -18,7 +18,7 @@ module initialize
                             high_ar_correction, sutherland_constant, reference_temp, Re_inf, M_inf, restart, CFL, CFL_turb, &
                             accuracy_order
 
-        use utils  , only : isolver_type, SOLVER_GCR, SOLVER_IMPLICIT, iflow_type, FLOW_INVISCID, FLOW_RANS
+        use utils  , only : isolver_type, SOLVER_GCR, iflow_type, FLOW_INVISCID, FLOW_RANS
 
         use solution
 
@@ -28,10 +28,10 @@ module initialize
 
         use viscosity , only : compute_viscosity
 
-        use solution_vars , only : force_normalization, rho_inf, u_inf, v_inf, w_inf, p_inf, gamma, q, &
-                                   T_inf, mu_inf, mre, C0, CFL_used
+        use solution_vars , only : rho_inf, u_inf, v_inf, w_inf, p_inf, q, &
+                                   CFL_used
 
-        use turb , only : init_turb, nturb, turb_var, turb_res
+        use turb , only : init_turb, turb_var, turb_res
 
         use inout , only : read_restart_file
 
@@ -104,7 +104,7 @@ module initialize
 
         use grid            , only : nfaces, face, cell, ncells
 
-        use solution_vars        , only : nq, kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, c, R, nnz, kth_of_cell
+        use solution_vars   , only : kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, c, R, nnz, kth_of_cell
 
         use sparse_common, only: insertion_sort_index
 
@@ -206,7 +206,7 @@ module initialize
 
         use grid            , only : nfaces, face, cell, ncells
 
-        use solution_vars        , only : nq, kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, C, R, nnz, kth_of_cell, Rline, iRow
+        use solution_vars        , only : kth_nghbr_of_1, kth_nghbr_of_2, jac, diag_inv, C, R, nnz, kth_of_cell, Rline, iRow
 
         use sparse_common, only: insertion_sort_index
 
@@ -218,7 +218,7 @@ module initialize
         integer, dimension(ncells) :: c2row ! for line cells, it is the offset from the base row,
         
         integer :: i, j, k, jp
-        integer :: cjm1, ck, cj, cn, ifc, nv, ci
+        integer :: cjm1, ck, ci
         integer :: r1, r2, br
         integer :: c1, c2, length
         integer :: nrows

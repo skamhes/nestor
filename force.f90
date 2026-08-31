@@ -151,7 +151,7 @@ module forces
 
         use config                  , only : Pr, sutherland_constant, ideal_gas_constant, Re_inf, M_inf, reference_temp
         
-        use solution_vars           , only : ndim, T_inf 
+        use solution_vars           , only : ndim
         implicit none
 
         real(p2),                 intent(in) :: T              ! Temperature at the attached cell

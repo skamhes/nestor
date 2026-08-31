@@ -130,7 +130,7 @@ subroutine roe_ddt(qcL, qcR, njk, dFdQ)
 
   use ad_operators
 
-  use common        , only : zero, one, two, half, p2
+  use common        , only : zero, one, half, p2
 
   use solution_vars , only : gamma, gmoinv, gammamo
  
@@ -174,8 +174,7 @@ subroutine roe_ddt(qcL, qcR, njk, dFdQ)
   type(derivative_data_type_df5), dimension(5,4) :: R      ! Right-eigenvector matrix
   type(derivative_data_type_df5), dimension(5)   :: diss   ! Dissipation term
  
-  type(derivative_data_type_df5) :: temp
-  integer                        :: i, j
+  integer                        :: i
  
  ! Face normal vector (unit vector)
  

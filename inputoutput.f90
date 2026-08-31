@@ -278,8 +278,6 @@ module inout
 
     subroutine write_restart_file
 
-        use common , only : p2
-
         use grid , only : ncells
 
         use solution_vars , only : q, res_norm, res_norm_initial, CFL_used
@@ -364,8 +362,6 @@ module inout
 
     subroutine read_restart_file
 
-        use common , only : p2
-
         use grid , only : ncells
 
         use solution_vars , only : q, res_norm, res_norm_initial, CFL_used
@@ -381,7 +377,6 @@ module inout
         implicit none
 
         integer :: icell, os
-        character(80) :: dummy
 
         write(*,*)
         write(*,*) "-------------------------------------------------------"

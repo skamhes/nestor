@@ -18,7 +18,7 @@ program nestor
     
     use inout,  only : write_tecplot_file_b, write_restart_file
 
-    use grid,   only : read_grid, read_su2, construct_grid, cell, ncells, face, nfaces, nb, bound
+    use grid,   only : read_grid, read_su2, construct_grid
 
     use reorder , only : reorder_rcm
 

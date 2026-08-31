@@ -205,7 +205,7 @@ module grid
         implicit none
 
         integer :: os
-        integer :: i, dummy_int
+        integer :: i
         !integer , dimension(100,8) ::   dummy_debug ! use to debug public variables
         write(*,*)
         write(*,*) "-------------------------------------------------------"
@@ -396,7 +396,7 @@ module grid
         implicit none
         
         integer :: os
-        integer :: i, dummy_int, comment_ind
+        integer :: i, comment_ind
         integer :: ndim, mark_counter
         integer, dimension(:), allocatable   :: cell_type
         integer, dimension(:,:), allocatable :: input_cells
@@ -657,7 +657,7 @@ module grid
 
     subroutine read_boundary
 
-        use files , only : filename_grid, filename_bc
+        use files , only : filename_bc
         use config, only : io_path
 
         implicit none 
@@ -2099,7 +2099,7 @@ module grid
 
         implicit none
 
-        integer :: ib, icell, inode
+        integer :: ib, icell
         integer :: ci, nt
         real(p2) :: dx, dy, dz
 

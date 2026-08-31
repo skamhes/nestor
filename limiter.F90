@@ -184,9 +184,9 @@ module limiter
         implicit none
         ! Some local vars
         integer  :: i, ivar, j, k, nghbr_cell, iv
-        real(p2), dimension(5) :: qmin, qmax, qf, dqm, dqp
+        real(p2), dimension(5) :: qmin, qmax, dqm, dqp
         real(p2) :: xc, yc, zc, xp, yp, zp
-        real(p2) :: phi_vertex, phi_vertex_min, limiter_beps
+        real(p2) :: phi_vertex
         real(p2) :: phi_var_min
 
         !allocate(phi(ncells)) ! possible memory leak? Moved allocation to steady solve subroutine (only called once)

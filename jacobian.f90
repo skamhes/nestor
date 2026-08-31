@@ -11,7 +11,7 @@ module jacobian
 
     subroutine compute_jacobian
 
-        use common              , only : p2, zero, half
+        use common              , only : p2, zero
 
         use utils               , only : iflow_type, FLOW_INVISCID, FLOW_RANS, ibc_type, ilsq_stencil, LSQ_STENCIL_WVERTEX
 
@@ -20,7 +20,7 @@ module jacobian
                                          face_nrml_mag, face_nrml, &
                                          bound, nb, gcell
 
-        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, iT, kth_of_cell, diag_inv
+        use solution_vars       , only : q, dtau, jac, kth_nghbr_of_1, kth_nghbr_of_2, ccgradq, vgradq, kth_of_cell, diag_inv
 
         use solution            , only : compute_primative_jacobian
 
@@ -49,8 +49,6 @@ module jacobian
         real(p2)                    :: face_mag
         real(p2)                    :: xc2, yc2, zc2
 
-        real(p2), dimension(3,5)    :: dummy1, dummy2
-        real(p2)                    :: mu1, mu2, muf
         real(p2)                    :: mutf
         real(p2), dimension(nturb)  :: trbv1,trbv2
 
@@ -99,11 +97,10 @@ module jacobian
                 trbv2 = turb_var(c2,:)
             end if
 
-            call visc_flux_internal_ddt(q(:,c1),q(:,c2),gradq1,gradq2,trbv1,trbv2, &
-                                                                   unit_face_nrml, &
-                                            cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
-                                            cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
-                                                                     dFnduL, dFnduR)
+            call visc_flux_internal_ddt(q(:,c1),q(:,c2),trbv1,trbv2, unit_face_nrml, &
+                                              cell(c1)%xc, cell(c1)%yc, cell(c1)%zc, &
+                                              cell(c2)%xc, cell(c2)%yc, cell(c2)%zc, &
+                                                                       dFnduL, dFnduR)
             
             ! Add to diagonal term of C1
             ! ic1 = kth_of_cell(c1)

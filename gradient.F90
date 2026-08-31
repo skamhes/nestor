@@ -185,9 +185,7 @@ module gradient
 
     subroutine compute_cgradient_flow(weight)
 
-        use common ,        only : p2
-
-        use grid ,          only : gcell, ncells
+        use grid ,          only : ncells
 
         use solution_vars , only : q, ccgradq
 
@@ -425,9 +423,7 @@ module gradient
 
         use common ,        only : p2
 
-        use grid ,          only : ncells, bound, gcell
-
-        use utils ,         only : ibc_type
+        use grid ,          only : ncells, gcell
 
         use least_squares , only : lsqc
 
@@ -561,8 +557,6 @@ module gradient
         integer  :: ib, j
         
         real(p2) :: tr, trb
-        real(p2), dimension(3) :: unit_face_normal
-        real(p2)               :: xc2, yc2, zc2
 
          ! First update the ghost cell values
         do ib = 1,nb

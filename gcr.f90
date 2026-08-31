@@ -71,9 +71,9 @@ module gcr_mod
 
         use config      , only : gcr_max_projections, gcr_reduction_target, amg_cycle
 
-        use grid        , only : ncells, cell
+        use grid        , only : ncells
 
-        use solution_vars    , only : nq, inv_ncells, res, jac, diag_inv, C, R, nnz,  &
+        use solution_vars    , only : nq, inv_ncells, res, jac, diag_inv, &
                                  nl_reduction, n_projections, q
         
         use solution    , only : compute_primative_jacobian
@@ -127,8 +127,8 @@ module gcr_mod
             gcr_final_update_t = zero
         end if
         
-        rms_r_0          = rms(nq,nturb,ncells,r_k,r_k_t   ,inv_ncells)
-        rms_Q_n          = rms(nq,nturb,ncells,q  ,turb_var,inv_ncells)
+        rms_r_0          = rms(nturb,ncells,r_k,r_k_t   ,inv_ncells)
+        rms_Q_n          = rms(nturb,ncells,q  ,turb_var,inv_ncells)
 
 
         ! Solve the preconditioner
@@ -160,7 +160,7 @@ module gcr_mod
 
             
             ! Generate the new search direction
-            norm_dQ_k = l2norm(nq,nturb,ncells,dQ_k(:,:,kdir),dQ_k_t(:,:,kdir))
+            norm_dQ_k = l2norm(nturb,ncells,dQ_k(:,:,kdir),dQ_k_t(:,:,kdir))
 
             call compute_frechet(q,res,turb_var,turb_res, dQ_k(:,:,kdir),dQ_k_t(:,:,kdir),norm_dQ_k,rms_Q_n, &
                                     b_k(:,:,kdir),b_k_t(:,:,kdir),os)
@@ -171,7 +171,7 @@ module gcr_mod
             endif
 
             ! Orthonormalize
-            norm_b_k_inv = one / l2norm(nq,nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir))
+            norm_b_k_inv = one / l2norm(nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir))
             
             b_k(  :,:,kdir) = b_k(  :,:,kdir) * norm_b_k_inv
             dQ_k(  :,:,kdir) = dQ_k(  :,:,kdir) * norm_b_k_inv
@@ -180,7 +180,7 @@ module gcr_mod
                 dQ_k_t(:,:,kdir) = dQ_k_t(:,:,kdir) * norm_b_k_inv
             endif
             do jdir = 1,kdir - 1
-                mu = inner_product(nq,nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir),b_k(:,:,jdir),b_k_t(:,:,jdir))
+                mu = inner_product(nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir),b_k(:,:,jdir),b_k_t(:,:,jdir))
 
                 b_k( :,:,kdir) = b_k( :,:,kdir) - mu * b_k( :,:,jdir)
                 dQ_k(:,:,kdir) = dQ_k(:,:,kdir) - mu * dQ_k(:,:,jdir)
@@ -188,7 +188,7 @@ module gcr_mod
                     b_k_t( :,:,kdir) = b_k_t( :,:,kdir) - mu * b_k_t( :,:,jdir)
                     dQ_k_t(:,:,kdir) = dQ_k_t(:,:,kdir) - mu * dQ_k_t(:,:,jdir)
                 endif
-                norm_b_k_inv = one / l2norm(nq,nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir))
+                norm_b_k_inv = one / l2norm(nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir))
                 
                 b_k( :,:,kdir) = b_k( :,:,kdir) * norm_b_k_inv
                 dQ_k(:,:,kdir) = dQ_k(:,:,kdir) * norm_b_k_inv
@@ -199,7 +199,7 @@ module gcr_mod
             enddo
 
             ! Update correction and residual
-            gamma_k = inner_product(nq,nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir),r_k,r_k_t) ! r_k is still r_(k-1) at this point
+            gamma_k = inner_product(nturb,ncells,b_k(:,:,kdir),b_k_t(:,:,kdir),r_k,r_k_t) ! r_k is still r_(k-1) at this point
             
             gcr_final_update_f = gcr_final_update_f + gamma_k * dQ_k(:,:,kdir)
             
@@ -209,7 +209,7 @@ module gcr_mod
                 r_k_t = r_k_t - gamma_k * b_k_t(:,:,kdir) ! r_k_t is now up to date
             endif
             ! Check for convergence
-            rms_r_k = rms(nq,nturb,ncells,r_k,r_k_t,inv_ncells)
+            rms_r_k = rms(nturb,ncells,r_k,r_k_t,inv_ncells)
             if ( ( rms_r_k / rms_r_0 ) < gcr_reduction_target ) then
                 iostat = GCR_SUCCESS
                 n_projections = kdir
@@ -220,7 +220,7 @@ module gcr_mod
 
             ! Check for stall
             ! Original method
-            norm_r_k = l2norm(nq,nturb,ncells,r_k,r_k_t)
+            norm_r_k = l2norm(nturb,ncells,r_k,r_k_t)
             if (gamma_k < norm_r_k * 0.001_p2) then
                 iostat = GCR_STALL
                 n_projections = jdir
@@ -498,8 +498,8 @@ module gcr_mod
 
         residual_reduct_target = half * (one + gcr_reduction_target)
 
-        Rtau_rms = rms(nq,nturb,ncells,res,turb_res,inv_ncells)
-        R0_rms   = rms(nq,nturb,ncells,r_0,tr_0,inv_ncells)
+        Rtau_rms = rms(nturb,ncells,res,turb_res,inv_ncells)
+        R0_rms   = rms(nturb,ncells,r_0,tr_0,inv_ncells)
 
         if ( Rtau_rms / R0_rms < residual_reduct_target ) then
             ! The reduction is acceptable without underrelaxation
@@ -515,8 +515,8 @@ module gcr_mod
         endif
 
         ! If the change isn't succesful first we will check if the change is comperable to the computer percision
-        delQ_rms = rms(nq,nturb,ncells,sol_update_f,sol_update_t,inv_ncells)
-        Qn_rms   = rms(nq,nturb,ncells,q_n         ,t_n         ,inv_ncells)
+        delQ_rms = rms(nturb,ncells,sol_update_f,sol_update_t,inv_ncells)
+        Qn_rms   = rms(nturb,ncells,q_n         ,t_n         ,inv_ncells)
 
         ! write(*,"(a,es12.6)") "delQ_rms/Qn_rms = ", delQ_rms / Qn_rms 
         if ( delQ_rms / Qn_rms < 1.0e-12_p2) then
@@ -543,7 +543,7 @@ module gcr_mod
         ! ditto for the turb variables
 
         ! We want the frechet derivitive evaluated at the previous solution
-        delQ_norm = l2norm(nq,nturb,ncells,sol_update_f, sol_update_t)
+        delQ_norm = l2norm(nturb,ncells,sol_update_f, sol_update_t)
         call compute_frechet(q_n,r_0,t_n,tr_0,sol_update_f,sol_update_t,delQ_norm,Qn_rms,frechet_deriv_f,frechet_deriv_t,iostat)
 
         ! TODO: add error handling for nonzero frechet iostat
@@ -562,7 +562,7 @@ module gcr_mod
                                      + frechet_deriv_t(icell,it)
             end do
         end do
-        g_1 = rms(nq,nturb,ncells,res,turb_res,inv_ncells)
+        g_1 = rms(nturb,ncells,res,turb_res,inv_ncells)
         
         ! We already have the g_1 term from our last projection
         ! g_1 = gcr_res_rms ! No we don't...
@@ -594,7 +594,7 @@ module gcr_mod
                 turb_res(icell,it) = turb_res(icell,it) + cell(icell)%vol / minval(dtaui) * sol_update_t(icell,it)
             end do
         end do
-        Rtau_rms = rms(nq,nturb,ncells,res,turb_res,inv_ncells)
+        Rtau_rms = rms(nturb,ncells,res,turb_res,inv_ncells)
 
         if ( Rtau_rms / R0_rms < residual_reduct_target .OR. delQ_rms / Qn_rms < 1.0e-12_p2) then
             ! q and res have already been updated and the residual has reduced.
@@ -737,7 +737,7 @@ module gcr_mod
 
     end subroutine gcr_CFL_control
 
-    pure function rms(nq,nturb,ncells,Vflow, Vturb,div)
+    pure function rms(nturb,ncells,Vflow, Vturb,div)
 
         ! Function for computing the L2 norm
 
@@ -745,13 +745,13 @@ module gcr_mod
 
         implicit none
 
-        integer, intent(in)                 :: nq, nturb, ncells
+        integer, intent(in)                 :: nturb, ncells
         real(p2),dimension(:,:), intent(in) :: Vflow
         real(p2),dimension(:,:), intent(in) :: Vturb
         real(p2),                intent(in) :: div     ! dividend
         real(p2)                            :: rms
 
-        integer :: i,j
+        integer :: i
 
         rms = zero
 
@@ -767,7 +767,7 @@ module gcr_mod
         rms = sqrt(rms*div)
     end function
 
-    pure function l2norm(nq,nturb,ncells,Vflow, Vturb)
+    pure function l2norm(nturb,ncells,Vflow, Vturb)
 
         ! Function for computing the L2 norm of block vectors
 
@@ -775,12 +775,12 @@ module gcr_mod
 
         implicit none
 
-        integer, intent(in)                 :: nq, nturb, ncells
+        integer, intent(in)                 :: nturb, ncells
         real(p2),dimension(:,:), intent(in) :: Vflow
         real(p2),dimension(:,:), intent(in) :: Vturb
         real(p2)                            :: l2norm
 
-        integer :: i,j
+        integer :: i
 
         l2norm = zero
 
@@ -795,7 +795,7 @@ module gcr_mod
         l2norm = sqrt(l2norm)
     end function
 
-    pure function inner_product(nq,nturb,ncells,vector1F,vector1T,vector2F,vector2T)
+    pure function inner_product(nturb,ncells,vector1F,vector1T,vector2F,vector2T)
 
         ! Function for computing the inner_product of block vectors
 
@@ -803,12 +803,12 @@ module gcr_mod
 
         implicit none
 
-        integer, intent(in)                 :: nq, nturb, ncells
+        integer, intent(in)                 :: nturb, ncells
         real(p2),dimension(:,:), intent(in) :: vector1F, vector2F
         real(p2),dimension(:,:), intent(in) :: vector1T, vector2T
         real(p2)                            :: inner_product
 
-        integer :: i,j
+        integer :: i
 
         inner_product = zero
 

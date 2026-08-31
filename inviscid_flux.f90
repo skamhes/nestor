@@ -93,7 +93,7 @@ module inviscid_flux
     ! I will at some point optimie this.  But right now I'm just looking to get a working code...
         subroutine roe(qcL, qcR, njk, num_flux,wsn)
 
-        use common      , only : zero, one, two, half
+        use common      , only : zero, one, half
         use solution_vars    , only : gamma, gmoinv, gammamo
         use config      , only : eig_limiting_factor
        

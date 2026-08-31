@@ -27,7 +27,6 @@ module sort_routines
         integer                         :: irun, jrun   ! index of the two active runs
         integer                         :: h1, h2       ! read headers 1 and 2
         integer                         :: nr           ! nruns local
-        integer                         :: lenwt        ! length of the write tape
         integer                         :: wh           ! write head
         integer                         :: ngloops
 

@@ -117,15 +117,11 @@ module turb
 
     subroutine init_turb
 
-        use grid, only : ncells, cell
-
         use config    , only : turb_inf, restart
 
         use solution_vars , only : mu_inf, rho_inf
 
         implicit none
-
-        integer :: icell, it
 
         ! Set freestream values
         if (iturb_model == TURB_SA) then
@@ -136,8 +132,6 @@ module turb
     end subroutine init_turb
 
     function calcmut(q,mu,trbv) result(mut)
-
-        use common , only : half
 
         use solution_vars , only : nq
 
@@ -162,8 +156,6 @@ module turb
     end function calcmut
 
     pure function calcmut_SA(q,mu,nut) result(mut)
-
-        use common , only : half
 
         use solution_vars , only : nq, gamma, ip, iT
 

@@ -60,7 +60,7 @@ module viscous_flux
 
     subroutine visc_flux_boundary(q1,qb,trb1,trb2,face_gradient,n12,xc1,yc1,zc1,xc2,yc2,zc2,num_flux)
 
-        use common                  , only : p2, half
+        use common                  , only : p2
 
         use solution_vars           , only : nq, ndim ! w2u, nq
         
@@ -130,7 +130,7 @@ module viscous_flux
         real(p2)                     :: mu_effective, mu, mut
         real(p2), dimension(nturb)   :: trb
         real(p2), dimension(nq)      :: qf
-        real(p2)                     :: p, u, v, w, T
+        real(p2)                     :: u, v, w, T
         real(p2)                     :: tauxx, tauyy, tauzz !Viscous stresses: diagonal compontens
         real(p2)                     :: tauxy, tauyz, tauzx !Viscous stresses: off-diagonal components
         real(p2)                     :: tauyx, tauzy, tauxz !Viscous stresses: same as above by symmetry

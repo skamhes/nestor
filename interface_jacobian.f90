@@ -12,7 +12,7 @@ module interface_jacobian
 
         use ad_operators        ! all
 
-        use utils               , only : imethod_inv_jac, IJAC_ROE, IJAC_HLL, IJAC_RHLL, IJAC_RUSANOV
+        use utils               , only : imethod_inv_jac, IJAC_ROE
         
         use ad_inviscid_flux    , only :      roe_ddt, &
                                             rusanov_ddt, &
@@ -30,11 +30,9 @@ module interface_jacobian
 
         ! Local vavrs
         real(p2), dimension(5,5)    :: dfndq
-        real(p2), dimension(5)      :: dummy5
-        real(p2)                    :: wsn
         
         integer :: i
-        type(derivative_data_type_df5), dimension(5) :: uL_ddt, uR_ddt, qL_ddt, qR_ddt
+        type(derivative_data_type_df5), dimension(5) :: qL_ddt, qR_ddt
 
         jac_L_R : do i = 1,2
             qL_ddt = qj
