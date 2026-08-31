@@ -13,7 +13,7 @@ module limiter
 
         use common          , only : p2, zero
         
-        use grid            , only : ncells, cell, x, y, z
+        use grid            , only : ncells, cell, xyz
         
         use solution_vars   , only : ccgradq, phi, q
       
@@ -49,9 +49,9 @@ module limiter
                 ! Loop over vertices of the cell
                 vertex_loop : do k = 1,cell(i)%nvtx
                     iv = cell(i)%vtx(k)
-                    xp = x(iv)
-                    yp = y(iv)
-                    zp = z(iv)
+                    xp = xyz(1,iv)
+                    yp = xyz(2,iv)
+                    zp = xyz(3,iv)
 
                     ! Linear reconstruction to the vertex k
                     qf = q(ivar,i) + ccgradq(1,ivar,i)*(xp-xc) + &
@@ -97,7 +97,7 @@ module limiter
 
         use common          , only : p2, zero
         
-        use grid            , only : ncells, cell, x, y, z
+        use grid            , only : ncells, cell, xyz
 
         use turb            , only : ccgrad_turb_var, turb_var, phi_turb, nturb
       
@@ -130,9 +130,9 @@ module limiter
                 ! Loop over vertices of the cell
                 vertex_loop : do k = 1,cell(i)%nvtx
                     iv = cell(i)%vtx(k)
-                    xp = x(iv)
-                    yp = y(iv)
-                    zp = z(iv)
+                    xp = xyz(1,iv)
+                    yp = xyz(2,iv)
+                    zp = xyz(3,iv)
 
                     ! Linear reconstruction to the vertex k
                     tf = turb_var(i,ivar) + ccgrad_turb_var(1,i,ivar)*(xp-xc) + &
@@ -175,7 +175,7 @@ module limiter
 
         use common          , only : p2, zero
         
-        use grid            , only : ncells, cell, x, y, z, cell
+        use grid            , only : ncells, cell, xyz, cell
         
         use solution_vars   , only : ccgradq, phi, q
       
@@ -212,9 +212,9 @@ module limiter
             phi_var_min = 1.e+10
             vertex_loop : do k = 1,cell(i)%nvtx
                 iv = cell(i)%vtx(k)
-                xp = x(iv)
-                yp = y(iv)
-                zp = z(iv)
+                xp = xyz(1,iv)
+                yp = xyz(2,iv)
+                zp = xyz(3,iv)
 
                     ! ! Linear reconstruction to the vertex k
                     ! qf = q(ivar,i) + ccgradq(1,ivar,i)*(xp-xc) + &

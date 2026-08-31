@@ -36,7 +36,7 @@ module grid
     !------------------------------------------
     !>> Node data
     integer                             :: nnodes
-    real(p2), dimension(:  )  , pointer :: x, y, z
+    real(p2), dimension(:,:)  , pointer :: xyz
 
     !------------------------------------------
     !>> BOUNDARY DATA
@@ -247,14 +247,14 @@ module grid
         if (nprs > 0)  allocate(prs( nprs, 6))
         if (nhex > 0)  allocate(hex( nhex, 8))
         
-        allocate(x(nnodes),y(nnodes),z(nnodes))
+        allocate(xyz(3,nnodes))
 
         ! READ: Read the nodal coordinates
 
         write(*,"(A)",advance="no") " Reading nodes..."
 
         node_read: do i = 1, nnodes
-            read(1,*) x(i), y(i), z(i)
+            read(1,*) xyz(1:3,i)
         end do node_read
         write(*,"(A)") "...done"
 
@@ -536,9 +536,9 @@ module grid
             if ( index(buffer,'NPOIN') .ne. 0 ) then
                 backspace(1) ! re-read the line
                 read(1,*) rawbuffer, nnodes
-                allocate(x(nnodes),y(nnodes),z(nnodes))
+                allocate(xyz(3,nnodes))
                 read_nodes : do i = 1,nnodes
-                    read(1,*) x(i), y(i), z(i)
+                    read(1,*) xyz(1,i), xyz(2,i), xyz(3,i)
                 end do read_nodes
                 read_nds = .true.
                 cycle
@@ -819,9 +819,9 @@ module grid
                 v2 = cell(i)%vtx(2)
                 v3 = cell(i)%vtx(3)
                 v4 = cell(i)%vtx(4)
-                cell(i)%xc = ( x(v1) + x(v2) + x(v3) + x(v4) ) / 4.0_p2
-                cell(i)%yc = ( y(v1) + y(v2) + y(v3) + y(v4) ) / 4.0_p2
-                cell(i)%zc = ( z(v1) + z(v2) + z(v3) + z(v4) ) / 4.0_p2
+                cell(i)%xc = ( xyz(1,v1) + xyz(1,v2) + xyz(1,v3) + xyz(1,v4) ) / 4.0_p2
+                cell(i)%yc = ( xyz(2,v1) + xyz(2,v2) + xyz(2,v3) + xyz(2,v4) ) / 4.0_p2
+                cell(i)%zc = ( xyz(3,v1) + xyz(3,v2) + xyz(3,v3) + xyz(3,v4) ) / 4.0_p2
             elseif (cell(i)%nvtx == 6) then ! prism cell
                 v1 = cell(i)%vtx(1)
                 v2 = cell(i)%vtx(2)
@@ -829,9 +829,9 @@ module grid
                 v4 = cell(i)%vtx(4)
                 v5 = cell(i)%vtx(5)
                 v6 = cell(i)%vtx(6)
-                cell(i)%xc = ( x(v1) + x(v2) + x(v3) + x(v4) + x(v5) + x(v6) ) / 6.0_p2
-                cell(i)%yc = ( y(v1) + y(v2) + y(v3) + y(v4) + y(v5) + y(v6) ) / 6.0_p2
-                cell(i)%zc = ( z(v1) + z(v2) + z(v3) + z(v4) + z(v5) + z(v6) ) / 6.0_p2
+                cell(i)%xc = ( xyz(1,v1) + xyz(1,v2) + xyz(1,v3) + xyz(1,v4) + xyz(1,v5) + xyz(1,v6) ) / 6.0_p2
+                cell(i)%yc = ( xyz(2,v1) + xyz(2,v2) + xyz(2,v3) + xyz(2,v4) + xyz(2,v5) + xyz(2,v6) ) / 6.0_p2
+                cell(i)%zc = ( xyz(3,v1) + xyz(3,v2) + xyz(3,v3) + xyz(3,v4) + xyz(3,v5) + xyz(3,v6) ) / 6.0_p2
             elseif (cell(i)%nvtx == 8) then ! hex cell
                 v1 = cell(i)%vtx(1)
                 v2 = cell(i)%vtx(2)
@@ -841,9 +841,12 @@ module grid
                 v6 = cell(i)%vtx(6)
                 v7 = cell(i)%vtx(7)
                 v8 = cell(i)%vtx(8)
-                cell(i)%xc = ( x(v1) + x(v2) + x(v3) + x(v4) + x(v5) + x(v6) + x(v7) + x(v8) ) / 8.0_p2
-                cell(i)%yc = ( y(v1) + y(v2) + y(v3) + y(v4) + y(v5) + y(v6) + y(v7) + y(v8) ) / 8.0_p2
-                cell(i)%zc = ( z(v1) + z(v2) + z(v3) + z(v4) + z(v5) + z(v6) + z(v7) + z(v8) ) / 8.0_p2
+                cell(i)%xc = ( xyz(1,v1) + xyz(1,v2) + xyz(1,v3) + xyz(1,v4) + xyz(1,v5) + xyz(1,v6) + xyz(1,v7) + xyz(1,v8) ) &
+                            / 8.0_p2
+                cell(i)%yc = ( xyz(2,v1) + xyz(2,v2) + xyz(2,v3) + xyz(2,v4) + xyz(2,v5) + xyz(2,v6) + xyz(2,v7) + xyz(2,v8) ) &
+                            / 8.0_p2
+                cell(i)%zc = ( xyz(3,v1) + xyz(3,v2) + xyz(3,v3) + xyz(3,v4) + xyz(3,v5) + xyz(3,v6) + xyz(3,v7) + xyz(3,v8) ) &
+                            / 8.0_p2
             else
                 write(*,*) " Something is wrong. Invalid cell(i)%nvtx = ", cell(i)%nvtx, &
                         " at cell #: ", i
@@ -1292,22 +1295,22 @@ module grid
                         face(j+3, nfaces) = cell(i)%commonv(k,j)
                     end do
                     ! Root vertex (seen from i)
-                    x1 = x(cell(i)%commonv(k,1))
-                    y1 = y(cell(i)%commonv(k,1))
-                    z1 = z(cell(i)%commonv(k,1))
+                    x1 = xyz(1,cell(i)%commonv(k,1))
+                    y1 = xyz(2,cell(i)%commonv(k,1))
+                    z1 = xyz(3,cell(i)%commonv(k,1))
                     ! Root vertex (seen from i)
-                    x2 = x(cell(i)%commonv(k,2))
-                    y2 = y(cell(i)%commonv(k,2))
-                    z2 = z(cell(i)%commonv(k,2))
+                    x2 = xyz(1,cell(i)%commonv(k,2))
+                    y2 = xyz(2,cell(i)%commonv(k,2))
+                    z2 = xyz(3,cell(i)%commonv(k,2))
                     ! Root vertex (seen from i)
-                    x3 = x(cell(i)%commonv(k,3))
-                    y3 = y(cell(i)%commonv(k,3))
-                    z3 = z(cell(i)%commonv(k,3))
+                    x3 = xyz(1,cell(i)%commonv(k,3))
+                    y3 = xyz(2,cell(i)%commonv(k,3))
+                    z3 = xyz(3,cell(i)%commonv(k,3))
                     if (face(3,nfaces) == 4) then ! quad face
                         ! Root vertex (seen from i)
-                        x4 = x(cell(i)%commonv(k,4))
-                        y4 = y(cell(i)%commonv(k,4))
-                        z4 = z(cell(i)%commonv(k,4))
+                        x4 = xyz(1,cell(i)%commonv(k,4))
+                        y4 = xyz(2,cell(i)%commonv(k,4))
+                        z4 = xyz(3,cell(i)%commonv(k,4))
                         call quadNormal(x1,y1,z1, x2,y2,z2, x3,y3,z3, x4,y4,z4,face_nrml(1:3,nfaces),face_nrml_mag(nfaces))
                         face_nrml(1:3,nfaces) = -one*face_nrml(1:3,nfaces) ! ensure the vector is pointing out
                         call get_quad_face_centroid(x1,y1,z1, x2,y2,z2, x3,y3,z3, x4,y4,z4, face_centroid(1:3,nfaces))
@@ -1393,22 +1396,22 @@ module grid
                     v4 = bound(i)%bfaces(2,j)
                 end if
                 ! Root vertex (seen from i)
-                x1 = x(v1)
-                y1 = y(v1)
-                z1 = z(v1)
+                x1 = xyz(1,v1)
+                y1 = xyz(2,v1)
+                z1 = xyz(3,v1)
                 ! Root vertex (seen from i)
-                x2 = x(v2)
-                y2 = y(v2)
-                z2 = z(v2)
+                x2 = xyz(1,v2)
+                y2 = xyz(2,v2)
+                z2 = xyz(3,v2)
                 ! Root vertex (seen from i)
-                x3 = x(v3)
-                y3 = y(v3)
-                z3 = z(v3)
+                x3 = xyz(1,v3)
+                y3 = xyz(2,v3)
+                z3 = xyz(3,v3)
                 if (bound(i)%bfaces(1,j) == 4) then ! quad face
                     ! Root vertex (seen from i)
-                    x4 = x(v4)
-                    y4 = y(v4)
-                    z4 = z(v4)
+                    x4 = xyz(1,v4)
+                    y4 = xyz(2,v4)
+                    z4 = xyz(3,v4)
                     call quadNormal(x1,y1,z1, x2,y2,z2, x3,y3,z3, x4,y4,z4, &
                                     bound(i)%bface_nrml(1:3,j), bound(i)%bface_nrml_mag(j))
                     call get_quad_face_centroid(x1,y1,z1, x2,y2,z2, x3,y3,z3, x4,y4,z4, &
@@ -1582,8 +1585,8 @@ module grid
                 v2 = cell(i)%vtx(2)
                 v3 = cell(i)%vtx(3)
                 v4 = cell(i)%vtx(4)
-                inside = checkInsideTet(x(v1),y(v1),z(v1), x(v2),y(v2),z(v2), &
-                        x(v3),y(v3),z(v3), x(v4),y(v4),z(v4), &
+                inside = checkInsideTet(xyz(1,v1),xyz(2,v1),xyz(3,v1), xyz(1,v2),xyz(2,v2),xyz(3,v2), &
+                        xyz(1,v3),xyz(2,v3),xyz(3,v3), xyz(1,v4),xyz(2,v4),xyz(3,v4), &
                         cell(i)%xc,cell(i)%yc,cell(i)%zc)
             else if (cell(i)%nvtx == 6) then
                 inside = .true. ! not implemented yet...

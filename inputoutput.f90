@@ -9,7 +9,7 @@ module inout
     subroutine write_tecplot_file_b
         use common          , only : p2, zero
                                      
-        use grid            , only : nnodes, x, y, z, &
+        use grid            , only : nnodes, xyz, &
                                      nb, &
                                      cell, &
                                      bound, bgrid_type
@@ -159,9 +159,9 @@ module inout
             do j_count = 1,bnode_data(ib)%nbnodes
                 j = bnode_data(ib)%bnodes(j_count)
                 if (iflow_type < FLOW_RANS) then
-                    write(8,'(10es25.15)') x(j), y(j), z(j), qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j), rhon(j), Mn(j)
+                    write(8,'(10es25.15)') xyz(1,j), xyz(2,j), xyz(3,j), qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j), rhon(j), Mn(j)
                 else
-                    write(8,'(11es25.15)',advance="no") x(j), y(j), z(j), &
+                    write(8,'(11es25.15)',advance="no") xyz(1,j), xyz(2,j), xyz(3,j), &
                                                         qn(1,j), qn(2,j), qn(3,j), qn(4,j), qn(5,j),&
                                                         rhon(j), Mn(j)
                     if (iturb_model == TURB_SA)  then

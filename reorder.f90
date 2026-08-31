@@ -16,7 +16,7 @@ module reorder
         use config , only : rcm_verbosity
         
         use grid , only : cc_data_type, bgrid_type, ncells, cell, face, nfaces, nb, bound, build_ghost_cells, &
-                          face_centroid, face_nrml, face_nrml_mag, x, y, z, nnodes
+                          face_centroid, face_nrml, face_nrml_mag, xyz, nnodes
 
         use sort_routines , only : inserstion_sort_ind
 
@@ -46,7 +46,7 @@ module reorder
         type(fc),dimension(ncells) :: c2f ! converts cell faces to face array index
 
         integer, dimension(nnodes) :: oldn2new, newn2old
-        real(p2), dimension(:), pointer :: oldx, oldy, oldz
+        real(p2), dimension(:,:), pointer :: oldxyz
 
         write(*,*) "Reordering mesh using Reverse Cuthill-Mckee"
 
@@ -235,17 +235,13 @@ module reorder
             end do
         end do
 
-        oldx => x
-        oldy => y
-        oldz => z
-        nullify(x,y,z)
-        allocate(x(nnodes),y(nnodes),z(nnodes))
+        oldxyz => xyz
+        nullify(xyz)
+        allocate(xyz(3,nnodes))
 
         do i = 1,nnodes
             nn   = newn2old(i)
-            x(i) = oldx(nn)
-            y(i) = oldy(nn)
-            z(i) = oldz(nn)
+            xyz(:,i) = oldxyz(:,nn)
         end do
 
         do i = 1,ncells
@@ -264,7 +260,7 @@ module reorder
             end do
         end do
 
-        deallocate(oldx, oldy, oldz)
+        deallocate(oldxyz)
 
     end subroutine reorder_rcm
 

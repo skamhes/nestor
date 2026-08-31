@@ -427,7 +427,7 @@ module least_squares
 
     subroutine compute_vertex_coefficients
 
-        use grid , only : cell, x, y, z, nnodes, bound, ncells
+        use grid , only : cell, xyz, nnodes, bound, ncells
 
         use common , only : p2, zero, one, two
 
@@ -489,9 +489,9 @@ module least_squares
             connect_loop : do k = 1,m
                 if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
                     connect_cell = lsqv(i)%cell_lsq(k)
-                    dx = cell(connect_cell)%xc - x(i)
-                    dy = cell(connect_cell)%yc - y(i)
-                    dz = cell(connect_cell)%zc - z(i)
+                    dx = cell(connect_cell)%xc - xyz(1,i)
+                    dy = cell(connect_cell)%yc - xyz(2,i)
+                    dz = cell(connect_cell)%zc - xyz(3,i)
                 else
                     connect_bface = lsqv(i)%cell_lsq(k)
                     ib            = lsqv(i)%ib_lsq(k)
@@ -503,9 +503,9 @@ module least_squares
                     cgx = bound(ib)%bface_center(1,connect_bface) + dx
                     cgy = bound(ib)%bface_center(2,connect_bface) + dy
                     cgz = bound(ib)%bface_center(3,connect_bface) + dz
-                    dx = cgx - x(i)
-                    dy = cgy - y(i)
-                    dz = cgz - z(i)
+                    dx = cgx - xyz(1,i)
+                    dy = cgy - xyz(2,i)
+                    dz = cgz - xyz(3,i)
                 endif
                 weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
                 ! 3 unknowns
@@ -535,9 +535,9 @@ module least_squares
             connect_loop2 : do k = 1,m
                 if ( lsqv(i)%ib_lsq(k) == INTERNAL ) then ! Internal ib = 0
                     connect_cell = lsqv(i)%cell_lsq(k)
-                    dx = cell(connect_cell)%xc - x(i)
-                    dy = cell(connect_cell)%yc - y(i)
-                    dz = cell(connect_cell)%zc - z(i)
+                    dx = cell(connect_cell)%xc - xyz(1,i)
+                    dy = cell(connect_cell)%yc - xyz(2,i)
+                    dz = cell(connect_cell)%zc - xyz(3,i)
                 else
                     connect_bface = lsqv(i)%cell_lsq(k)
                     ib            = lsqv(i)%ib_lsq(k)
@@ -549,9 +549,9 @@ module least_squares
                     cgx = bound(ib)%bface_center(1,connect_bface) + dx
                     cgy = bound(ib)%bface_center(2,connect_bface) + dy
                     cgz = bound(ib)%bface_center(3,connect_bface) + dz
-                    dx = cgx - x(i)
-                    dy = cgy - y(i)
-                    dz = cgz - z(i)
+                    dx = cgx - xyz(1,i)
+                    dy = cgy - xyz(2,i)
+                    dz = cgz - xyz(3,i)
                 endif
                 weight_k = one / sqrt( dx**2 + dy**2 + dz**2 )**lsq_weight_invdis_power
                 ! 3 unknowns
@@ -585,9 +585,9 @@ module least_squares
             wz = zero
             wq = zero
             ! (xi,yi,zi) to be used to compute the function 2*x+y+4z at i
-            xi = x(i)
-            yi = y(i)
-            zi = z(i)
+            xi = xyz(1,i)
+            yi = xyz(2,i)
+            zi = xyz(3,i)
 
             ! Loop over neighbor cells
             do k = 1,lsqv(i)%ncells_lsq

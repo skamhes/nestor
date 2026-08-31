@@ -54,7 +54,7 @@ module wall_distance
 
         use common , only : my_big ! cell wall distance may need to be squared.  This gives us some head room.
 
-        use grid , only : nnodes, x, y, z, bound, nb, bc_type, ncells, cell
+        use grid , only : nnodes, xyz, bound, nb, bc_type, ncells, cell
 
         use sort_routines , only : heap_sort_index
         
@@ -149,9 +149,9 @@ module wall_distance
                         nwall_nodes = nwall_nodes + 1
                         wall_nodes(nwall_nodes) = ni
                         gnode_to_wnode(ni) = nwall_nodes
-                        wnx(nwall_nodes)        = x(ni)
-                        wny(nwall_nodes)        = y(ni)
-                        wnz(nwall_nodes)        = z(ni)
+                        wnx(nwall_nodes)        = xyz(1,ni)
+                        wny(nwall_nodes)        = xyz(2,ni)
+                        wnz(nwall_nodes)        = xyz(3,ni)
                         
                         wn_to_wf(nwall_nodes)%nfaces = nf(ni)
                         allocate(wn_to_wf(nwall_nodes)%bface(nf(ni)))
@@ -222,9 +222,9 @@ module wall_distance
                     xc = cell(icell)%xc
                     yc = cell(icell)%yc
                     zc = cell(icell)%zc
-                    xn = x(ni)
-                    yn = y(ni)
-                    zn = z(ni)
+                    xn = xyz(1,ni)
+                    yn = xyz(2,ni)
+                    zn = xyz(3,ni)
                     ndist = sqrt( (xc-xn)**2 + (yc-yn)**2 + (zc-zn)**2)
                     if ( ndist < cell_wall_distance(icell) ) then
                         cell_wall_distance(icell) = ndist
@@ -247,18 +247,18 @@ module wall_distance
                         n1 = bound(ib)%bfaces(2,fi)
                         n2 = bound(ib)%bfaces(3,fi)
                         n3 = bound(ib)%bfaces(4,fi)
-                        fpoint = closestPointTriangle((/xc,yc,zc/),(/x(n1),y(n1),z(n1)/), &
-                                                                   (/x(n2),y(n2),z(n2)/), &
-                                                                   (/x(n3),y(n3),z(n3)/))
+                        fpoint = closestPointTriangle((/xc,yc,zc/),(/xyz(1,n1),xyz(2,n1),xyz(3,n1)/), &
+                                                                   (/xyz(1,n2),xyz(2,n2),xyz(3,n2)/), &
+                                                                   (/xyz(1,n3),xyz(2,n3),xyz(3,n3)/))
                     case(4) ! quad
                         n1 = bound(ib)%bfaces(2,fi)
                         n2 = bound(ib)%bfaces(3,fi)
                         n3 = bound(ib)%bfaces(4,fi)
                         n4 = bound(ib)%bfaces(5,fi)
-                        fpoint = closestPointQuad((/xc,yc,zc/),(/x(n1),y(n1),z(n1)/), &
-                                                               (/x(n2),y(n2),z(n2)/), &
-                                                               (/x(n3),y(n3),z(n3)/), &
-                                                               (/x(n4),y(n4),z(n4)/) )
+                        fpoint = closestPointQuad((/xc,yc,zc/),(/xyz(1,n1),xyz(2,n1),xyz(3,n1)/), &
+                                                               (/xyz(1,n2),xyz(2,n2),xyz(3,n2)/), &
+                                                               (/xyz(1,n3),xyz(2,n3),xyz(3,n3)/), &
+                                                               (/xyz(1,n4),xyz(2,n4),xyz(3,n4)/) )
                     case default 
                         write(*,*) "Error in the number of face sides"
                         write(*,*) "Stop. compute_wall_distance() wall_distance.f90"
@@ -391,7 +391,7 @@ module wall_distance
 
     recursive subroutine construct_bounding_box(nnodes,nodes,bbox)
     
-        use grid , only : x, y, z
+        use grid , only : xyz
 
         use sort_routines , only : heap_sort_index
         implicit none
@@ -433,16 +433,16 @@ module wall_distance
         allocate(wn2(nnms ), wnx2(nnms ), wny2(nnms ), wnz2(nnms ), wns2(nnms ))
         do inode = 1,split
             wn1( inode) =   nodes(inode)
-            wnx1(inode) = x(nodes(inode))
-            wny1(inode) = y(nodes(inode))
-            wnz1(inode) = z(nodes(inode))
+            wnx1(inode) = xyz(1,nodes(inode))
+            wny1(inode) = xyz(2,nodes(inode))
+            wnz1(inode) = xyz(3,nodes(inode))
         end do
         jnode = 1
         do inode = split+1,nnodes
             wn2(jnode) = nodes(inode)
-            wnx2(jnode) = x(nodes(inode))
-            wny2(jnode) = y(nodes(inode))
-            wnz2(jnode) = z(nodes(inode))
+            wnx2(jnode) = xyz(1,nodes(inode))
+            wny2(jnode) = xyz(2,nodes(inode))
+            wnz2(jnode) = xyz(3,nodes(inode))
             jnode = jnode + 1
         end do
 
