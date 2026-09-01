@@ -192,9 +192,12 @@ module gradient
         use least_squares , only : lsqc
 
 #if defined(__USE_VINTRINSICS)
+
         use iso_c_binding , only : c_int
 
         use vi_interface
+#else
+        use grid          , only : gcell
 #endif
         
         implicit none

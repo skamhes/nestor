@@ -4,8 +4,15 @@ project(NestorCFD C Fortran)
 
 add_executable(nestor)
 
-option(NANCHECK "Check for NaN values in certain routines" ON)
+# set(CMAKE_VERBOSE_MAKEFILE "ON" FORCE)
+set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "On" FORCE)
+# set(CMAKE_VERBOSE_MAKEFILE BOOL FORCE ON)
+# mark_as_advanced(CMAKE_VERBOSE_MAKEFILE)
 
+# Check for NaN values, theoretically this makes things a little slower.
+option(NAN_CHECK "Check for NaN values in certain routines" ON)
+
+# Check if the machine supports AVX512F (F is the only flavor we need)
 include(CheckSourceRuns)
 set(CMAKE_REQUIRED_FLAGS "-march=native")
 check_source_runs(C "
@@ -23,14 +30,15 @@ else()
     set(AVX_DEFAULT OFF)
 endif()
 
-option(USE_AVX512 "Use AVX512 vector functions" ${HOST_AVX512})
+# If we can turn on AVX
+option(USE_AVX512 "Use custom AVX512 vector routines" ${HOST_AVX512})
 
 if(CMAKE_Fortran_COMPILER_ID STREQUAL "GNU")
     set(LDFLAGS_OPT -flto=auto -fwhole-program)
     set(FFLAGS_DBG -O0 -g -fimplicit-none  -Wall  -Wline-truncation  -Wcharacter-truncation  -Wsurprising  -Waliasing
 	     -Wimplicit-interface  -Wunused-parameter  -fwhole-file  -fcheck=all  -std=f2008  -pedantic
 		 -fbacktrace -fall-intrinsics)
-    set(FFLAGS_OPT -g -O3 -march=native ${LDFLAGS_OPT})
+    set(FFLAGS_OPT -g -O3 ${LDFLAGS_OPT})
     set(CFLAGS_DEF -O3 -g -Wall -Wextra -march=native ${LDFLAGS_OPT})
     set(OMP_OPT "-fopenmp")
 else()
@@ -41,24 +49,15 @@ else()
     set(OMP_OPT "-qopenmp")
 endif()
 
-if(USE_AVX512)
-    list(APPEND FFLAGS_DBG "-D__USE_VINTRINSICS")
-    list(APPEND FFLAGS_OPT "-D__USE_VINTRINSICS")
+if (NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+    message("-- CMAKE_BUILD_TYPE not set. Setting to default value: ${CMAKE_BUILD_TYPE}.")
 endif()
 
-if (build_type STREQUAL debug)
-  target_compile_options(nestor PRIVATE
-    $<$<COMPILE_LANGUAGE:C>:${CFLAGS_DEF}>
-
-    $<$<COMPILE_LANGUAGE:Fortran>:${FFLAGS_DBG}>    
-  )
-else()
-  target_compile_options(nestor PRIVATE
-    $<$<COMPILE_LANGUAGE:C>:${CFLAGS_DEF}>
-
-    $<$<COMPILE_LANGUAGE:Fortran>:${FFLAGS_OPT}>    
-  )
-  target_link_options(nestor PRIVATE ${LDFLAGS_OPT})
+option(MARCH_NATIVE "Enables all instruction subsets supported by the local machine at the cost of decreased portability" ${DEF_NATIVE})
+if(MARCH_NATIVE)
+    list(APPEND FFLAGS_OPT "-march=native")
+    message("-- Compiling with -march=native.")
 endif()
 
 set_property(SOURCE limiter.F90 res_sa.F90 viscosity.F90
@@ -113,15 +112,46 @@ list(APPEND NESTOR_SOURCES ad_inviscid_flux.f90
     viscous_flux.F90
     wall_distance.f90)
 
+#
+
 if(USE_AVX512)
+    message("-- Compiling with custom AVX512 routines.")
+    list(APPEND FFLAGS_DBG "-D__USE_VINTRINSICS")
+    list(APPEND FFLAGS_OPT "-D__USE_VINTRINSICS")
     list(APPEND NESTOR_SOURCES vector_intrinsics.c vi_interface.f90)
 endif()
+
+if(NAN_CHECK)
+    message("-- Compiling with checks for NaN values.")
+    list(APPEND FFLAGS_DBG "-DNANCHECK")
+    list(APPEND FFLAGS_OPT "-DNANCHECK")
+endif()
+
 
 target_sources(nestor
 PRIVATE
     ${NESTOR_SOURCES}
     )
+
+if (CMAKE_BUILD_TYPE STREQUAL Debug)
+  target_compile_options(nestor PRIVATE
+    $<$<COMPILE_LANGUAGE:C>:${CFLAGS_DEF}>
+
+    $<$<COMPILE_LANGUAGE:Fortran>:${FFLAGS_DBG}>    
+  )
+  message("-- Compiling using additional debug flags.")
+  set (DEF_NATIVE OFF)
+else()
+  target_compile_options(nestor PRIVATE
+    $<$<COMPILE_LANGUAGE:C>:${CFLAGS_DEF}>
+
+    $<$<COMPILE_LANGUAGE:Fortran>:${FFLAGS_OPT}>    
+  )
+  target_link_options(nestor PRIVATE ${LDFLAGS_OPT})
+  message("-- Compiling optimized (release) executable.")
+  set (DEF_NATIVE ON)
+endif()
     
-message(${NESTOR_SOURCES})
+# message(${NESTOR_SOURCES})
     
 #    testing.f90
