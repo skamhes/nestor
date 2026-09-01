@@ -106,6 +106,9 @@ module viscous_flux
     end subroutine visc_flux_boundary
 
     subroutine compute_visc_num_flux(q1,q2,trb1,trb2,interface_grad,n12,num_flux)
+
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+        
         use common                  , only : p2, half, zero, two_third, four_third, ix, iy, iz
 
         use solution_vars           , only : gammamo, nq, ndim, iu, iv, iw, iT
@@ -160,7 +163,7 @@ module viscous_flux
         mu_effective = mu + mut
 
 #ifdef NANCHECK
-        if (isnan(mu_effective)) then 
+        if (ieee_is_nan(mu_effective)) then 
             write (*,*) "nan value present - press [Enter] to continue"
             read(unit=*,fmt=*)
         end if

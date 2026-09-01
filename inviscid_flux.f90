@@ -92,7 +92,8 @@ module inviscid_flux
     ! Note: This is currently unaltered from the edu_euler roe function (other than some formatting changes).  
     ! I will at some point optimie this.  But right now I'm just looking to get a working code...
         subroutine roe(qcL, qcR, njk, num_flux,wsn)
-
+        
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
         use common      , only : zero, one, half
         use solution_vars    , only : gamma, gmoinv, gammamo
         use config      , only : eig_limiting_factor
@@ -289,11 +290,12 @@ module inviscid_flux
        
         ! Max wave speed normal to the face:
                     wsn = abs(qn) + a
-       
-        if (any(isnan(num_flux(:)))) then 
+#ifdef NANCHECK
+        if (any(ieee_is_nan(num_flux(:)))) then 
           write (*,*) "nan value present - press [Enter] to continue"
           read(unit=*,fmt=*)
         end if
+#endif
     end subroutine roe
     !--------------------------------------------------------------------------------
 

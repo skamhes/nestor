@@ -337,7 +337,7 @@ module config
         itime_method = TM_ELAPSED
       case default
         write(ERROR_UNIT,*) ' time_method input "', trim(time_method),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__) ! __FILE_NAME__ requires gcc 12 or greater
         stop
       end select
 
@@ -346,7 +346,7 @@ module config
         imethod_inv_flux = IFLUX_ROE
       case default
         write(ERROR_UNIT,*) ' method_inv_flux input "', trim(method_inv_flux),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
       
@@ -355,7 +355,7 @@ module config
         imethod_inv_jac = IJAC_ROE
       case default
         write(ERROR_UNIT,*) ' method_inv_jac input "', trim(method_inv_jac),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
       
@@ -370,7 +370,7 @@ module config
         isolver_type = SOLVER_GCR
       case default
         write(ERROR_UNIT,*) ' solver_type input "', trim(solver_type),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
       
@@ -379,7 +379,7 @@ module config
         ijacobian_method = JAC_ANALYTIC
       case default
         write(ERROR_UNIT,*) ' jacobian_method input "', trim(jacobian_method),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
       
@@ -388,7 +388,7 @@ module config
         ismoother = SMOOTH_GS
       case default
         write(ERROR_UNIT,*) ' smoother input "', trim(smoother),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
 
@@ -397,7 +397,7 @@ module config
         igrad_method = GRAD_LSQ
       case default
         write(ERROR_UNIT,*) ' grad_method input "', trim(grad_method),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
 
@@ -408,7 +408,7 @@ module config
         ilsq_stencil = LSQ_STENCIL_NN
       case default
         write(ERROR_UNIT,*) ' lsq_stencil input "', trim(lsq_stencil),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
 
@@ -421,7 +421,7 @@ module config
         iflow_type = FLOW_RANS
       case default
         write(ERROR_UNIT,*) ' turbulence_type input "', trim(turbulence_type),'" is invalid'
-        call print_error_location('update_isettings',__LINE__,__FILE__)
+        call print_error_location('update_isettings',__LINE__,__FILE_NAME__)
         stop
       end select
 

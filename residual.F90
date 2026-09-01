@@ -20,6 +20,8 @@ module residual
 
     subroutine compute_residual_flow
 
+        use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
+
         use common          , only : p2, zero, one
 
         use config          , only : method_inv_flux, accuracy_order, use_limiter
@@ -291,7 +293,7 @@ module residual
 
                 res(:,c1) = res(:,c1) + num_flux * bound(ib)%bface_nrml_mag(j)
 #ifdef NANCHECK
-                if (any(isnan(res(:,c1)))) then 
+                if (any(ieee_is_nan(res(:,c1)))) then 
                     write (*,*) "nan value present - press [Enter] to continue"
                     read(unit=*,fmt=*)
                 end if

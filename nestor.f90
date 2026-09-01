@@ -34,6 +34,8 @@ program nestor
 
     implicit none
 
+    character(len=124) :: arg
+
     write(*,*)
     write(*,*) "----------------------------------------------------------------"
     write(*,*)
@@ -45,7 +47,13 @@ program nestor
     !-------------------------------------------------------------------------------
     ! READ CONFIG SETTINGS
     !-------------------------------------------------------------------------------
-    call read_nml_config("nestor.nml")
+    call get_environment_variable('PWD', arg)
+    call get_command_argument(1,arg)
+    IF (LEN_TRIM(arg) == 0) then
+        call read_nml_config("nestor.nml")
+    else
+        call read_nml_config(trim(arg))
+    endif
 
     !-------------------------------------------------------------------------------
     ! DEFINE INPUT AND OUTPUT FILENAMES

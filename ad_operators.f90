@@ -1026,6 +1026,7 @@
 
   pure elemental function isnan_d(d)
 
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_nan
     type(derivative_data_type_df5), intent(in) :: d
     logical                                    :: isnan_d
     
@@ -1034,13 +1035,13 @@
     isnan_d = .false.
 
 
-    if (isnan(d%f))  then 
+    if (ieee_is_nan(d%f))  then 
       isnan_d = .true.
       return
     endif
     
     do i=1,5
-      if (isnan(d%df(i)))  then 
+      if (ieee_is_nan(d%df(i)))  then 
         isnan_d = .true.
         return
       endif
